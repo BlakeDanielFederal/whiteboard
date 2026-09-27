@@ -1,7 +1,7 @@
 # Ubuntu packages
 
 Target: Ubuntu 24.04 LTS, x86-64. Stable and preview install separately as
-`dev-fast-review` and `dev-fast-review-preview`. Each includes the desktop app,
+`whiteboard` and `whiteboard-preview`. Each includes the desktop app,
 agent CLI, extensions, tutorial, and runtime. System Node is not required.
 
 ## Build and check
@@ -54,3 +54,7 @@ and `https://install.dev.fast/linux/preview/ubuntu`. Sources use repository-scop
 keys in `/etc/apt/keyrings`. Package installation does not add repositories,
 change editor alternatives, or edit user profiles. The app-specific AppArmor
 profile permits Chromium user namespaces without changing global policy.
+
+Existing Review installs switch with `sudo apt-get update` then
+`sudo apt-get install whiteboard` (or `whiteboard-preview`). APT does not rename
+packages automatically. The first renamed release needs a newer version or revision.
