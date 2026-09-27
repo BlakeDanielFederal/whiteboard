@@ -516,6 +516,11 @@ export class WorkbenchThemeService extends Disposable implements IWorkbenchTheme
 			themeData.setCustomizations(this.settings);
 			return this.applyTheme(themeData, settingsTarget);
 		} catch (error) {
+			// A theme read can be canceled while the workbench is disposing. Keep
+			// the cancellation type so the normal unexpected-error path can ignore it.
+			if (errors.isCancellationError(error)) {
+				throw error;
+			}
 			throw new Error(nls.localize('error.cannotloadtheme', "Unable to load {0}: {1}", themeData.location?.toString(), error.message));
 		}
 

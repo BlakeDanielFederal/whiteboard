@@ -21,7 +21,7 @@ import { localize } from '../../../nls.js';
 import { ensureFileSystemProviderError, etag, ETAG_DISABLED, FileChangesEvent, IFileDeleteOptions, FileOperation, FileOperationError, FileOperationEvent, FileOperationResult, FilePermission, FileSystemProviderCapabilities, FileSystemProviderErrorCode, FileType, hasFileAppendCapability, hasFileAtomicReadCapability, hasFileFolderCopyCapability, hasFileReadStreamCapability, hasOpenReadWriteCloseCapability, hasReadWriteCapability, ICreateFileOptions, IFileContent, IFileService, IFileStat, IFileStatWithMetadata, IFileStreamContent, IFileSystemProvider, IFileSystemProviderActivationEvent, IFileSystemProviderCapabilitiesChangeEvent, IFileSystemProviderRegistrationEvent, IFileSystemProviderWithFileAtomicReadCapability, IFileSystemProviderWithFileReadStreamCapability, IFileSystemProviderWithFileReadWriteCapability, IFileSystemProviderWithOpenReadWriteCloseCapability, IReadFileOptions, IReadFileStreamOptions, IResolveFileOptions, IFileStatResult, IFileStatResultWithMetadata, IResolveMetadataFileOptions, IStat, IFileStatWithPartialMetadata, IWatchOptions, IWriteFileOptions, NotModifiedSinceFileOperationError, toFileOperationResult, toFileSystemProviderErrorCode, hasFileCloneCapability, TooLargeFileOperationError, hasFileAtomicDeleteCapability, hasFileAtomicWriteCapability, IWatchOptionsWithCorrelation, IFileSystemWatcher, IWatchOptionsWithoutCorrelation, hasFileRealpathCapability } from './files.js';
 import { readFileIntoStream } from './io.js';
 import { ILogService } from '../../log/common/log.js';
-import { ErrorNoTelemetry } from '../../../base/common/errors.js';
+import { ErrorNoTelemetry, isCancellationError } from '../../../base/common/errors.js';
 
 export class FileService extends Disposable implements IFileService {
 
@@ -661,7 +661,13 @@ export class FileService extends Disposable implements IFileService {
 		}
 	}
 
-	private restoreReadError(error: Error, resource: URI, options?: IReadFileStreamOptions): FileOperationError {
+	private restoreReadError(error: Error, resource: URI, options?: IReadFileStreamOptions): Error {
+		// Preserve cancellation so the workbench's unexpected-error handler can
+		// recognize a read stopped by disposal as expected lifecycle behavior.
+		if (isCancellationError(error)) {
+			return error;
+		}
+
 		const message = localize('err.read', "Unable to read file '{0}' ({1})", this.resourceForError(resource), ensureFileSystemProviderError(error).toString());
 
 		if (error instanceof NotModifiedSinceFileOperationError) {
