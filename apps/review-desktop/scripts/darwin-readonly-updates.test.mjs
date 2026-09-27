@@ -66,6 +66,8 @@ const update = load("platform/update/common/update.ts");
 const readOnlyError =
   "Cannot update while running on a read-only volume. The application is on a read-only volume. Please move the application and try again.";
 
+const authorizationError = "OSStatus -60005";
+
 function service() {
   let checks = 0;
 
@@ -131,6 +133,35 @@ test("manual retry and a fresh process can recover after relocating the app", ()
   assert.equal(restarted.checks(), 1);
 });
 
+test("authorization failures pause scheduled checks until an explicit retry", () => {
+  assert.equal(recovery.isDarwinAuthorizationError("OSStatus -60005"), true);
+  assert.equal(
+    recovery.isDarwinAuthorizationError(
+      "Error Domain=NSOSStatusErrorDomain Code=-60006",
+    ),
+    true,
+  );
+  assert.equal(recovery.isDarwinAuthorizationError("POSIX 64534"), false);
+  assert.equal(
+    recovery.isDarwinAuthorizationError(
+      "The command is disabled and cannot be executed",
+    ),
+    false,
+  );
+
+  const { instance, checks } = service();
+  instance.doCheckForUpdates(false);
+  instance.onError(authorizationError);
+  instance.doCheckForUpdates(false);
+  assert.equal(checks(), 1);
+
+  instance.doCheckForUpdates(true);
+  assert.equal(checks(), 2);
+  instance.onUpdateNotAvailable();
+  instance.doCheckForUpdates(false);
+  assert.equal(checks(), 3);
+});
+
 test("ordinary update failures remain retryable and late native errors do not clobber Ready", () => {
   const { instance, checks } = service();
   instance.doCheckForUpdates(false);
@@ -182,4 +213,39 @@ test("recovery notice is sticky, deduplicated, and specific to native macOS read
   assert.equal(notices[0].sticky, true);
   assert.match(notices[0].message, /Applications folder/);
   assert.match(notices[0].message, /disk image/);
+});
+
+test("authorization failures show one actionable warning", () => {
+  const notices = [];
+
+  const { ReviewUpdateNotifications } = load(
+    "review/contrib/update/reviewUpdate.contribution.ts",
+    {
+      "../../../base/common/lifecycle.js": { Disposable: Object },
+      "../../../base/common/platform.js": { isMacintosh: true, isLinux: false },
+      "../../../platform/actions/common/actions.js": {
+        Action2: Object,
+        registerAction2: noOp,
+      },
+      "../../../platform/update/common/update.js": update,
+      "../../../platform/update/common/darwinUpdateRecovery.js": recovery,
+      "../../../workbench/common/contributions.js": {
+        WorkbenchPhase: {},
+        registerWorkbenchContribution2: noOp,
+      },
+      "../../../nls.js": { localize: (_key, text) => text },
+    },
+    "\nexports.ReviewUpdateNotifications = ReviewUpdateNotifications;",
+  );
+
+  const instance = Object.create(ReviewUpdateNotifications.prototype);
+  instance.notificationService = { notify: (notice) => notices.push(notice) };
+
+  const failure = update.State.Idle(update.UpdateType.Archive, authorizationError);
+  instance.onStateChange(failure);
+  instance.onStateChange(failure);
+
+  assert.equal(notices.length, 1);
+  assert.equal(notices[0].sticky, true);
+  assert.match(notices[0].message, /Check for Updates/);
 });
