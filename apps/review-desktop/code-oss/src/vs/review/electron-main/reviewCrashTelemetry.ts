@@ -7,6 +7,8 @@ import type { IDisposable } from "../../base/common/lifecycle.js";
 import { REVIEW_SERVER_PROCESS_TYPE, type ReviewServerTermination } from "./reviewServerSupervisor.js";
 
 export interface ReviewCrashWindow {
+  /** Electron's process-local BrowserWindow id, used only to join local lifecycle events. */
+  readonly id?: number;
   readonly webContents?: unknown;
   on(event: "unresponsive" | "responsive" | "closed", listener: () => void): unknown;
 }
@@ -64,6 +66,8 @@ export class ReviewCrashTelemetry implements IDisposable {
   private readonly unbind: Array<() => void> = [];
   /** Hung windows and when their hang started. Closed windows leave it. */
   private readonly hangs = new Map<ReviewCrashWindow, number>();
+  /** A weak association lets a renderer death join its BrowserWindow's events. */
+  private readonly rendererWindows = new WeakMap<object, number>();
 
   constructor(private readonly options: ReviewCrashTelemetryOptions) {
     this.now = options.now ?? Date.now;
@@ -73,7 +77,16 @@ export class ReviewCrashTelemetry implements IDisposable {
       for (const window of this.hangs.keys()) {
         if (window.webContents === contents) this.endHang(window);
       }
-      this.crash("renderer", details.reason, details.exitCode);
+      const windowId =
+        contents && typeof contents === "object"
+          ? this.rendererWindows.get(contents)
+          : undefined;
+      this.crash(
+        "renderer",
+        details.reason,
+        details.exitCode,
+        windowId === undefined ? {} : { window_id: windowId },
+      );
     };
     const onChildGone = (_event: unknown, details: ChildProcessGoneDetails) => {
       // The server's supervisor reports its death, and knows a deliberate stop.
@@ -104,7 +117,12 @@ export class ReviewCrashTelemetry implements IDisposable {
     for (const unbind of this.unbind.splice(0)) unbind();
   }
 
-  private crash(process: string, reason: string, exitCode: number): void {
+  private crash(
+    process: string,
+    reason: string,
+    exitCode: number,
+    extra: Record<string, number> = {},
+  ): void {
     if (NOT_A_CRASH.has(reason)) return;
     const at = this.now();
     this.options.capture("crash", {
@@ -113,14 +131,18 @@ export class ReviewCrashTelemetry implements IDisposable {
       exit_code: exitCode,
       uptime_ms: Math.max(0, at - this.launchedAt),
       source: "live",
+      ...extra,
     }, () => this.options.onCrashRecorded?.(at));
   }
 
   private watchWindow(window: ReviewCrashWindow): void {
+    if (window.id !== undefined && window.webContents && typeof window.webContents === "object") {
+      this.rendererWindows.set(window.webContents, window.id);
+    }
     window.on("unresponsive", () => {
       if (this.hangs.has(window)) return;
       this.hangs.set(window, this.now());
-      this.options.capture("hang_started", {});
+      this.options.capture("hang_started", window.id === undefined ? {} : { window_id: window.id });
     });
     window.on("responsive", () => this.endHang(window));
     // Closing a hung window ends its hang, so every start has an end.
@@ -131,6 +153,9 @@ export class ReviewCrashTelemetry implements IDisposable {
     const started = this.hangs.get(window);
     if (started === undefined) return;
     this.hangs.delete(window);
-    this.options.capture("hang_ended", { duration_ms: this.now() - started });
+    this.options.capture("hang_ended", {
+      duration_ms: this.now() - started,
+      ...(window.id === undefined ? {} : { window_id: window.id }),
+    });
   }
 }

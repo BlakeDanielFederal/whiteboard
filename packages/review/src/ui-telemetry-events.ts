@@ -517,12 +517,17 @@ export const UI_TELEMETRY_EVENTS = {
       exit_code: "number",
       uptime_ms: "number",
       source: CRASH_SOURCE,
+      // Process-local BrowserWindow id, when the renderer belongs to one.
+      window_id: "number",
     },
   },
-  hang_started: { event: "review_hang_started", properties: {} },
+  hang_started: {
+    event: "review_hang_started",
+    properties: { window_id: "number" },
+  },
   hang_ended: {
     event: "review_hang_ended",
-    properties: { duration_ms: "number" },
+    properties: { duration_ms: "number", window_id: "number" },
   },
   app_ready: {
     event: "review_app_ready",

@@ -216,9 +216,9 @@ dropped the events.
 | `review_review_presented`       | `load_ms`, `review_id`, `presentation_id`                                                                                                      | The canvas signals ready                                                                     |
 | `review_first_review_presented` | `review_id`, `presentation_id`                                                                                                                 | The first presented whiteboard on this installation                                          |
 | `review_session_ended`          | `outcome`, `duration_ms`, `review_id`, `presentation_id`                                                                                       | The whiteboard closes; see outcomes below                                                    |
-| `review_crash`                  | `process` in `renderer`, `gpu`, `utility`, `server`, `unknown`; `reason` (≤40 chars); `exit_code`; `uptime_ms`; `source` in `live`, `minidump` | A Whiteboard process dies, or an uncovered dump is found on the next launch                  |
-| `review_hang_started`           | None                                                                                                                                           | An app window stops responding                                                               |
-| `review_hang_ended`             | `duration_ms`                                                                                                                                  | The window responds again, its process dies, or it closes                                    |
+| `review_crash`                  | `process` in `renderer`, `gpu`, `utility`, `server`, `unknown`; `reason` (≤40 chars); `exit_code`; `uptime_ms`; `source` in `live`, `minidump`; optional process-local `window_id` | A Whiteboard process dies, or an uncovered dump is found on the next launch                  |
+| `review_hang_started`           | Optional process-local `window_id`                                                                                                             | An app window stops responding                                                               |
+| `review_hang_ended`             | `duration_ms`; optional process-local `window_id`                                                                                              | The window responds again, its process dies, or it closes                                    |
 | `review_app_ready`              | `duration_ms`                                                                                                                                  | The workbench restores, timed from the startup trace; once per app launch                    |
 | `review_error_burst`            | `message_hash`, `suppressed`                                                                                                                   | A `review_client_error` passes 5 reports for one message in one session; see "Error reports" |
 | `review_open_timeout`           | `elapsed_ms`, `review_id`, `presentation_id`                                                                                                   | A session starts and no presented or ended event follows within 30 seconds                   |
@@ -324,7 +324,8 @@ sent.
 ### Hangs
 
 - `review_hang_started` / `review_hang_ended`: Electron's window
-  `unresponsive` / `responsive` events.
+  `unresponsive` / `responsive` events. `window_id` joins these events to live
+  renderer crashes in the same app process; it is not stable across launches.
 - `review_open_timeout`: a whiteboard that neither presents nor ends within 30
   seconds.
 

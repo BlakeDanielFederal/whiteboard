@@ -110,3 +110,19 @@ test("ends a hang when its window closes or its renderer dies", () => {
     ["crash", "renderer"],
   ]);
 });
+
+test("joins window hangs and renderer crashes by process-local window id", () => {
+	let now = 0;
+	const { app, captured } = setup(() => now);
+	const webContents = {};
+	const window = Object.assign(new EventEmitter(), { id: 17, webContents });
+	app.emit("browser-window-created", {}, window);
+	window.emit("unresponsive");
+	now = 1_500;
+	app.emit("render-process-gone", {}, webContents, { reason: "crashed", exitCode: 11 });
+	assert.deepEqual(captured.map(([name, properties]) => [name, properties.window_id, properties.duration_ms]), [
+		["hang_started", 17, undefined],
+		["hang_ended", 17, 1_500],
+		["crash", 17, undefined],
+	]);
+});
