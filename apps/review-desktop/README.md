@@ -285,7 +285,8 @@ front doors.
 
 `GET /` is the stable install landing: it redirects to the
 `releases/latest/darwin-arm64/Whiteboard.dmg` alias, while `GET /preview` redirects
-to `releases/preview-latest/darwin-arm64/Whiteboard.dmg`. For example,
+to `releases/preview-latest/darwin-arm64/Whiteboard.dmg`. Browsers go to
+<https://dev.fast/install> or <https://dev.fast/install/preview> instead. For example,
 `curl -fLOJ https://install.dev.fast` downloads the current disk image. It
 deliberately does not read `latest.json` — the alias is uploaded with the
 payloads, so the download keeps working while the manifest is mid-upload. The
