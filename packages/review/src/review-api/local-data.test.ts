@@ -1083,6 +1083,26 @@ it("opens navigator files at their base, head, commit and explicit pins", async 
   ).toBe(400);
 });
 
+it("reports why a selected source checkout could not be acquired", async () => {
+  const { reviewId } = await local.store.execute(
+    command({ type: "create", title: "Unavailable navigator", pins }),
+  );
+
+  vi.spyOn(local.data.workspaces, "source").mockResolvedValue({
+    id: "missing-checkout",
+    commit: pins.head,
+    rootPath: null,
+    generation: "failed-generation",
+    state: "failed",
+    log: "Restore the registered checkout and retry preparation.",
+    issue: "Restore the registered checkout and retry preparation.",
+  });
+
+  await expect(
+    local.data.navigatorWorkspace(local.store.read(reviewId)),
+  ).rejects.toThrow("Restore the registered checkout and retry preparation.");
+});
+
 it("keeps a live navigator attached to the live checkout without preparing it", async () => {
   const { reviewId } = await local.store.execute(
     command({

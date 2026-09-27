@@ -359,16 +359,20 @@ export class LocalReviewData {
 
     // Browse the Review's own base/head checkout. The window opens while
     // preparation may still be installing dependencies beside the source.
-    const rootPath = live
-      ? await realpath(repository)
-      : (await this.workspaces.source(snapshot.reviewId, pins, checkoutSide))
-          .rootPath;
+    const environment = live
+      ? undefined
+      : await this.workspaces.source(snapshot.reviewId, pins, checkoutSide);
+
+    const rootPath = live ? await realpath(repository) : environment?.rootPath;
 
     const context = await resolveRepoContext(repository);
 
     if (!rootPath || !context)
       throw new ReviewInputError(
-        "Could not open the selected source checkout.",
+        !rootPath
+          ? (environment?.issue ??
+              "Could not open the selected source checkout.")
+          : "Could not open the selected source checkout.",
         409,
       );
 
