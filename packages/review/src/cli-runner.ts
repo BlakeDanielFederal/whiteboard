@@ -39,7 +39,10 @@ import {
 } from "./cli-install";
 import { cliRuntimeInfo, describeCliRuntime } from "./cli-runtime-info";
 import { connectPrompts } from "./connect-prompts";
-import { selectReviewInstance } from "./desktop-discovery";
+import {
+  ReviewInstanceUnavailableError,
+  selectReviewInstance,
+} from "./desktop-discovery";
 import {
   ALL_INSTALL_TARGETS,
   type InstallTarget,
@@ -52,7 +55,13 @@ import {
   readReviewPackageVersion,
 } from "./package-paths";
 import { reviewAgentCliHelp } from "./review-api/agent-cli";
-import { type ReviewAppEvent, runReviewAppPick } from "./review-app";
+import { ReviewApiError } from "./review-api/client";
+import {
+  type ReviewAppEvent,
+  ReviewAppStateError,
+  ReviewAppUsageError,
+  runReviewAppPick,
+} from "./review-app";
 import {
   type ReviewAppLaunchEvent,
   runReviewAppLaunch,
@@ -95,6 +104,10 @@ import {
   runTraceSync,
 } from "./trace-cli";
 import { runTraceConfigMigrate, runTraceStorageUse } from "./trace-storage-cli";
+
+class ReviewCliUsageError extends Error {
+  readonly name = "ReviewCliUsageError";
+}
 
 interface ReviewCliRuntime {
   runReviewAppLaunch: typeof runReviewAppLaunch;
@@ -193,6 +206,8 @@ export async function runReviewCli(input: ReviewCliInput): Promise<number> {
       }
     | undefined;
 
+  let activeCause: unknown;
+
   const configureOutput = <T extends Command>(
     command: T,
     surface: OutputSurface,
@@ -285,13 +300,15 @@ export async function runReviewCli(input: ReviewCliInput): Promise<number> {
     }>();
 
     if (options.authoringMode !== undefined)
-      throw new Error(
+      throw new ReviewCliUsageError(
         "--authoring-mode was removed with batch authoring; the server always authors interactively. Drop the option.",
       );
     const port = Number(options.port);
 
     if (!Number.isInteger(port) || port < 0 || port > 65535)
-      throw new Error("--port must be an integer between 0 and 65535.");
+      throw new ReviewCliUsageError(
+        "--port must be an integer between 0 and 65535.",
+      );
     const stateDir = reviewServerStateDir(authoringEnv(options.stateDir));
     const controller = new AbortController();
     const stop = () => controller.abort();
@@ -863,6 +880,9 @@ export async function runReviewCli(input: ReviewCliInput): Promise<number> {
         ...input,
         env: authoringEnv(),
         argv: [name, ...args],
+        onFailure: (error) => {
+          activeCause = error;
+        },
         onToolCall: (call) =>
           attemptTelemetry(() => telemetry.captureToolCalled(call)),
       });
@@ -899,7 +919,7 @@ export async function runReviewCli(input: ReviewCliInput): Promise<number> {
       telemetry,
       activeTelemetry,
       state.exitCode,
-      undefined,
+      activeCause,
       telemetryProperties,
     );
   });
@@ -1260,6 +1280,49 @@ function errorClassification(
 ): ErrorClassification {
   if (cause instanceof CommanderError || command === "invalid") {
     return { errorName: "usage_error", errorCategory: "user_input" };
+  }
+
+  if (
+    cause instanceof ReviewCliUsageError ||
+    cause instanceof ReviewAppUsageError
+  ) {
+    return { errorName: "usage_error", errorCategory: "user_input" };
+  }
+
+  if (cause instanceof ReviewAppStateError) {
+    return {
+      errorName: "review_state_error",
+      errorCategory: "local_state",
+    };
+  }
+
+  if (cause instanceof ReviewInstanceUnavailableError) {
+    return {
+      errorName: "desktop_connection_error",
+      errorCategory: "dependency",
+    };
+  }
+
+  if (cause instanceof ReviewApiError) {
+    if (cause.status === 404)
+      return { errorName: "review_not_found", errorCategory: "local_state" };
+
+    if (cause.status >= 500)
+      return { errorName: "unexpected_error", errorCategory: "internal" };
+
+    return { errorName: "usage_error", errorCategory: "user_input" };
+  }
+
+  if (cause instanceof Error && "code" in cause) {
+    const code = cause.code;
+
+    if (code === "EADDRINUSE" || code === "ECONNREFUSED") {
+      return { errorName: "network_error", errorCategory: "transport" };
+    }
+  }
+
+  if (command === "api" && cause instanceof TypeError) {
+    return { errorName: "network_error", errorCategory: "transport" };
   }
 
   const name = cause instanceof Error ? cause.name.toLowerCase() : "";
