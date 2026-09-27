@@ -131,12 +131,17 @@ export class IndentGuidesOverlay extends DynamicViewOverlay {
 			let result = '';
 			const leftOffset = ctx.visibleRangeForPosition(new Position(lineNumber, 1))?.left ?? 0;
 			for (const guide of indent) {
-				const left =
-					guide.column === -1
-						? leftOffset + (guide.visibleColumn - 1) * this._spaceWidth
-						: ctx.visibleRangeForPosition(
-							new Position(lineNumber, guide.column)
-						)!.left;
+				let left: number;
+				if (guide.column === -1) {
+					left = leftOffset + (guide.visibleColumn - 1) * this._spaceWidth;
+				} else {
+					const visibleRange = ctx.visibleRangeForPosition(new Position(lineNumber, guide.column));
+					if (!visibleRange) {
+						// A guide can outlive the rendered range for its bracket position during wrapping or view updates.
+						continue;
+					}
+					left = visibleRange.left;
+				}
 
 				if (left > scrollWidth || (this._maxIndentLeft > 0 && left > this._maxIndentLeft)) {
 					break;
