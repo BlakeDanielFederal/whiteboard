@@ -1,15 +1,20 @@
 # End-to-end journeys
 
-A manual suite. Each journey in `journeys/` launches Review Desktop once against
+Each journey in `journeys/` launches Whiteboard Desktop once against
 an isolated review home, profile, remote-debugging port and temp root, and drives
 it through the JSON review API, the installed `review` CLI and Playwright over
 CDP. Run `telemetry-contract` alone with
 `pnpm --filter @dev.fast/review-desktop test:e2e:telemetry`.
 `../e2e-runner.test.mjs` checks every journey exports `name`, `phase` and `run`.
+The `Review Desktop E2E` job in the Review Desktop CI workflow runs the
+phase-1 journeys on Linux under `xvfb-run` for pushes to main and for pull
+requests that touch `apps/review-desktop`, `packages`, the lockfile, the root
+`package.json` or the workflow. It is not a required check.
 
 ## Prerequisites
 
-macOS or Linux, Node 24, and a built Desktop from
+macOS or Linux, Node 24, an installed workspace (`shared-review` seeds its
+fixture with `tsx` from `packages/review`), and a built Desktop from
 `pnpm --filter @dev.fast/review-desktop app:build`. `go` and `cargo` are needed
 only for the phase-2 journeys.
 
@@ -53,8 +58,9 @@ re-materializes its extension group through `run.sh`, so this checkout's
 A journey module exports `name` (matching its basename), `phase`, `options`
 passed to `createHarness`, and `run(ctx)`. Useful `ctx` helpers: `until` for
 polling, `api` and `apiOk` for the JSON review API, `cli` and `cliRaw` for the
-installed CLI, `appLog` for the Desktop's output so far, `check` to record
-what the journey proved, plus `knownBug`, `restartDesktop` (`{ signal: "SIGKILL" }` for a crash),
+installed CLI, `appLog` for the Desktop's output so far, `launchLog` for the
+current launch's output only, `check` to record what the journey proved, plus
+`knownBug`, `restartDesktop` (`{ signal: "SIGKILL" }` for a crash),
 `quitAndRelaunchDesktop` (a real quit through the workbench), `createReview`,
 `openHome` and `pickReview`. Throw `Error("skip: ...")` when the machine cannot
 run the journey.
