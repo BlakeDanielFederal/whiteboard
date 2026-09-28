@@ -1161,7 +1161,11 @@ async function withWorkingTreeIndex<T>(
       ).stdout.trim();
 
       try {
-        await fs.promises.copyFile(index, path.join(scratch, "index"));
+        const copy = path.join(scratch, "index");
+        await fs.promises.copyFile(index, copy);
+        // Keep the mtime so Git's racy-index check still compares contents.
+        const { atime, mtime } = await fs.promises.stat(index);
+        await fs.promises.utimes(copy, atime, mtime);
       } catch (error) {
         if (
           !(

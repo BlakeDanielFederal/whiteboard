@@ -918,7 +918,10 @@ export class LocalReviewData {
       if (!found) {
         found = this.worktreeBase(vcs, target.base, commit);
         forks.set(key, found);
-        found.catch(() => forks.delete(key));
+        // Missing refs stay cached until the next epoch; retry other errors.
+        found.catch((error) => {
+          if (!(error instanceof ReviewInputError)) forks.delete(key);
+        });
       }
 
       return found;

@@ -2772,6 +2772,16 @@ describe("worktree base", () => {
 
     run("branch", "-m", "main", "trunk");
     expect(await refresh()).toBe(main);
+
+    // Idle refreshes don't retry; a late file event may add one lookup.
+    recordSpawns();
+
+    for (let i = 0; i < 10; i++) await local.store.refreshWorktrees();
+
+    expect(
+      spawns.filter((spawn) => spawn.some((arg) => arg.startsWith("main")))
+        .length,
+    ).toBeLessThanOrEqual(2);
   });
 
   it("names the branches it tried when there is no default branch", async () => {
