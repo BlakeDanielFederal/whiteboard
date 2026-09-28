@@ -507,7 +507,7 @@ describe("review command installation", () => {
 
     const removed = await removeCliInstall({ shim: true, homeDir, env });
 
-    expect(removed.output).toContain("removed Review PATH entry");
+    expect(removed.output).toContain("removed Whiteboard PATH entry");
     await expect(
       readFile(path.join(homeDir, ".local", "bin", "whiteboard"), "utf8"),
     ).rejects.toMatchObject({ code: "ENOENT" });
