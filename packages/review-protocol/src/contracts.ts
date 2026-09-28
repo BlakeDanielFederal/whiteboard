@@ -698,6 +698,9 @@ export interface ReviewCanvasRange {
   headRef: string;
   baseCommit: string;
   headCommit: string;
+  /** Set for a live worktree comparison, whose working files can differ
+   * from the head commit; it changes on every save. */
+  worktreeRevision?: string;
 }
 
 export interface ReviewCanvasHandle extends ReviewDisposable {

@@ -926,6 +926,89 @@ it("degrades to the retained document and an unavailable Commits tab when the ch
   }
 });
 
+it("offers the Diff view for a live worktree review and refreshes it on each save", async () => {
+  const live = { ...pins, base: "head", worktreeRevision: "first-save" };
+
+  const worktree = new ReviewStore(path.join(directory, "worktree.db"), {
+    resolveTarget: async (target) => ({ target, pins: { ...live } }),
+    validatePins: async () => {},
+    validateSource: async () => {},
+    validateResource: async () => {},
+  });
+
+  try {
+    const { reviewId } = await worktree.execute({
+      commandId: randomUUID(),
+      operation: {
+        type: "create",
+        title: "Working files",
+        target: { kind: "worktree", repositoryId: pins.repositoryId },
+      },
+    });
+
+    const app = new Hono().route("/reviews-api", createReviewApi(worktree));
+    app.get("/reviews-api/:id/commits", (context) => context.json([]));
+    app.get("/reviews-api/:id/progress", (context) =>
+      context.json({ files: [], resolvedSelections: {}, lenses: [] }),
+    );
+    let progressReads = 0;
+    const files = vi.fn<() => Promise<never[]>>(async () => []);
+
+    const bridge = testReviewBridge(
+      {},
+      {
+        request: async (url, init) => {
+          if (new URL(String(url)).pathname.endsWith("/progress"))
+            progressReads++;
+
+          return app.request(url, init);
+        },
+        diffView: {
+          files,
+          create: () => {
+            throw new Error("Diff is not mounted by this test.");
+          },
+        },
+      },
+    );
+
+    const container = document.createElement("div");
+    document.body.append(container);
+    await act(async () => {
+      canvas = mount(container, { kind: "api", reviewId, bridge });
+    });
+    await act(async () =>
+      vi.waitFor(() => {
+        expect(container.querySelector("h1")?.textContent).toBe(
+          "Working files",
+        );
+        expect(files).toHaveBeenCalled();
+        expect(progressReads).toBeGreaterThan(0);
+      }),
+    );
+
+    expect(container.querySelector('button[aria-label="Diff"]')).not.toBeNull();
+
+    const [filesBefore, progressBefore] = [
+      files.mock.calls.length,
+      progressReads,
+    ];
+
+    live.worktreeRevision = "second-save";
+    await act(async () => {
+      await worktree.refreshWorktrees();
+    });
+
+    await vi.waitFor(async () => {
+      await act(async () => {});
+      expect(files.mock.calls.length).toBeGreaterThan(filesBefore);
+      expect(progressReads).toBeGreaterThan(progressBefore);
+    });
+  } finally {
+    await worktree.close();
+  }
+});
+
 it("leaves window errors to the workbench it shares a window with", async () => {
   const review = await command({ type: "create", title: "Errors", pins });
   const app = new Hono().route("/reviews-api", createReviewApi(store));
