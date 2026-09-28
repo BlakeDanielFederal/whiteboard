@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from "node:assert/strict";
+import { performance } from "node:perf_hooks";
 import test from "node:test";
 import { projectInlineSourceAlignment, projectSplitSourceAlignment } from "../../editor/common/diff/sourceLineAlignment.js";
 import {
@@ -153,6 +154,34 @@ test("fully novel lines retain line tint without token tint on either side", () 
 
 test("Tree-sitter byte offsets convert to Monaco UTF-16 columns", () => {
 	assert.equal(utf16Column("a😀éz", 7), 5);
+	assert.equal(utf16Column("a😀éz", 2), 4); // An offset inside the emoji ends after it.
+	assert.equal(utf16Column("\ud800x", 1), 2); // TextEncoder replaces a lone surrogate with three bytes.
+});
+
+test("many changed spans on one Unicode line remain responsive and map to UTF-16", () => {
+	const segment = "a😀é "; // Five UTF-16 units and eight UTF-8 bytes.
+	const count = 2000;
+	const source = text([segment.repeat(count)], [leaf(1, 0, 1, {
+		changed: Array.from({ length: count }, (_, index) => ({
+			line: 0,
+			start_column: index * 8 + 1,
+			end_column: index * 8 + 5,
+		})),
+	})]);
+	const diff: StructuralTextDiff = { type: "text", stats, structural_changes: { base: [[0, 1]], head: [] }, lhs: source };
+	const started = performance.now();
+	const paint = structuralHighlights(diff);
+	const elapsedMs = performance.now() - started;
+	assert.equal(paint.original.length, count);
+	for (const index of [0, count / 2, count - 1]) {
+		assert.deepEqual(paint.original[index], {
+			startLineNumber: 1,
+			startColumn: index * 5 + 2,
+			endLineNumber: 1,
+			endColumn: index * 5 + 4,
+		});
+	}
+	assert.ok(elapsedMs < 1000, `highlighting ${count} spans took ${elapsedMs.toFixed(0)}ms`);
 });
 
 

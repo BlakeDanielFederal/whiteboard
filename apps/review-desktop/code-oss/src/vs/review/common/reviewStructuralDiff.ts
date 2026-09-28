@@ -96,15 +96,28 @@ export function structuralLeaves(regions: readonly StructuralRegion[] | undefine
 }
 
 export function utf16Column(text: string, byteColumn: number): number {
-	let bytes = 0,
-		units = 0;
-	for (const character of text) {
-		if (bytes >= byteColumn) break;
-		const code = character.codePointAt(0)!;
-		bytes += code < 0x80 ? 1 : code < 0x800 ? 2 : code < 0x10000 ? 3 : 4;
-		units += character.length;
+	return utf16Columns(text, [byteColumn]).get(byteColumn)!;
+}
+
+/** Resolve all byte offsets on a line in one pass. An offset inside a UTF-8 character lands after it. */
+function utf16Columns(text: string, byteColumns: readonly number[]): Map<number, number> {
+	const sorted = [...new Set(byteColumns)].sort((a, b) => a - b);
+	const result = new Map<number, number>();
+	let bytes = 0;
+	let index = 0;
+	let next = 0;
+	while (next < sorted.length && index < text.length) {
+		if (bytes >= sorted[next]) {
+			result.set(sorted[next], index + 1);
+			next++;
+			continue;
+		}
+		const point = text.codePointAt(index)!;
+		bytes += point <= 0x7f ? 1 : point <= 0x7ff ? 2 : point <= 0xffff ? 3 : 4;
+		index += point > 0xffff ? 2 : 1;
 	}
-	return units + 1;
+	for (; next < sorted.length; next++) result.set(sorted[next], index + 1);
+	return result;
 }
 
 /**
@@ -119,17 +132,21 @@ export function structuralHighlights(diff: StructuralTextDiff) {
 		for (const [start, end] of ranges) {
 			for (let line = start; line < end; line++) changedLines.push(line + 1);
 		}
-		const spans = [];
-		for (const leaf of structuralLeaves(source.regions)) {
-			for (const span of leaf.changed ?? []) {
-				spans.push({
-					startLineNumber: span.line + 1,
-					startColumn: utf16Column(lines[span.line], span.start_column),
-					endLineNumber: span.line + 1,
-					endColumn: utf16Column(lines[span.line], span.end_column),
-				});
-			}
+		const changedSpans = structuralLeaves(source.regions).flatMap(leaf => leaf.changed ?? []);
+		const byteColumnsByLine = new Map<number, number[]>();
+		for (const span of changedSpans) {
+			const columns = byteColumnsByLine.get(span.line) ?? [];
+			columns.push(span.start_column, span.end_column);
+			byteColumnsByLine.set(span.line, columns);
 		}
+		const columnsByLine = new Map<number, Map<number, number>>();
+		for (const [line, columns] of byteColumnsByLine) columnsByLine.set(line, utf16Columns(lines[line], columns));
+		const spans = changedSpans.map(span => ({
+			startLineNumber: span.line + 1,
+			startColumn: columnsByLine.get(span.line)!.get(span.start_column)!,
+			endLineNumber: span.line + 1,
+			endColumn: columnsByLine.get(span.line)!.get(span.end_column)!,
+		}));
 		// Keep coverage for counts, but reserve token tint for partially changed lines.
 		const byLine = new Map<number, typeof spans>();
 		for (const span of spans) {
