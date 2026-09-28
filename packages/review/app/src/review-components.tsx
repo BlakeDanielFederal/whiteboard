@@ -800,8 +800,13 @@ export function GuidedTourPanel({
     const frame = requestAnimationFrame(() => {
       const scrollerTop = scroller.getBoundingClientRect().top;
       const sectionTop = section.getBoundingClientRect().top;
+      // The tail's active line.
       scroller.scrollTo({
-        top: scroller.scrollTop + sectionTop - scrollerTop,
+        top:
+          scroller.scrollTop +
+          sectionTop -
+          scrollerTop -
+          TOUR_ACTIVE_TOP_SLACK_PX,
       });
     });
 
