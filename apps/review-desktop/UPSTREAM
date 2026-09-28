@@ -419,6 +419,11 @@ one of these entries:
   window's file tree, compared with the Review's base checkout. Its entries in
   `build/gulpfile.extensions.ts` (`compilations`) and `build/npm/dirs.ts` are
   Review additions.
+- `src/vs/editor/browser/widget/diffEditor/components/diffEditorEditors.ts`:
+  a diff editor keeps its `stickyScroll` option when unchanged regions are
+  hidden, so the source window pins the enclosing class and method above
+  diffr's collapsed regions. Upstream turns sticky scroll off there. The
+  Review window's Diff tab turns it off in its own editor options.
 - `src/vs/platform/agentHost/` planning documents (deleted): the upstream
   commit vendored internal phase plans and design notes
   (`node/claude/phase*-plan.md`, `roadmap.md`, `smoke.md`, `CONTEXT.md`,

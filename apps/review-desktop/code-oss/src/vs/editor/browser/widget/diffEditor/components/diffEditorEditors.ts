@@ -202,11 +202,9 @@ export class DiffEditorEditors extends Disposable {
 		clonedOptions.minimap = { ...(clonedOptions.minimap || {}) };
 		clonedOptions.minimap.enabled = false;
 
-		if (this._options.hideUnchangedRegions.get()) {
-			clonedOptions.stickyScroll = { enabled: false };
-		} else {
-			clonedOptions.stickyScroll = this._options.editorOptions.get().stickyScroll;
-		}
+		// Review: sticky scroll stays on with hidden regions; it already skips
+		// headers whose lines are hidden. Upstream turns it off here.
+		clonedOptions.stickyScroll = this._options.editorOptions.get().stickyScroll;
 		return clonedOptions;
 	}
 

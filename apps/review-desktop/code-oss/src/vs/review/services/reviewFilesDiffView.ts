@@ -42,6 +42,8 @@ const DIFF_MINIMUM_WIDTH = 320;
 const FILE_TREE_COLLAPSE_WIDTH = FILE_TREE_MINIMUM_WIDTH + DIFF_MINIMUM_WIDTH;
 const REVIEW_FILES_DIFF_EDITOR_OPTIONS = {
 	hideUnchangedRegions: { enabled: true },
+	// Upstream's behavior with hidden regions; the fork's diff editor otherwise keeps sticky scroll.
+	stickyScroll: { enabled: false },
 	originalEditable: false,
 	readOnly: true,
 	glyphMargin: false,
