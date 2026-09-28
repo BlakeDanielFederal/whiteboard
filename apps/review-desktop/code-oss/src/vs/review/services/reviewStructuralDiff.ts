@@ -130,7 +130,8 @@ export class StructuralDiffProvider implements IDocumentDiffProvider {
 				(id) => this.session.isRegionCollapsed(path!, id) === true,
 				(id) => this.session.isRegionCollapsed(path!, id),
 			).map(gap => ({
-				...gap, labelObservable: derived(reader => {
+				// A band is one of diffr's regions: it opens whole, never a few lines at a time.
+				...gap, revealWhole: true, labelObservable: derived(reader => {
 					for (const id of gap.regionIds) {
 						const label = this.session.regionLabel(path!, id).read(reader);
 						if (label) return label;

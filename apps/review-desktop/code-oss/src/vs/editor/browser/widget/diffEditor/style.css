@@ -50,6 +50,11 @@
 	cursor: ns-resize !important;
 }
 
+.monaco-editor .diff-hidden-lines.reveal-whole .top,
+.monaco-editor .diff-hidden-lines.reveal-whole .bottom {
+	cursor: pointer;
+}
+
 .monaco-editor .diff-hidden-lines .top {
 	transform: translate(0px, 4px);
 }

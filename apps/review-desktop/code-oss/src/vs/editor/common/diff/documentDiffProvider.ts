@@ -80,6 +80,11 @@ export interface IDocumentContextGap {
 	 */
 	readonly breadcrumbs?: boolean;
 	/**
+	 * Whether the band's edges reveal the whole region instead of a few lines
+	 * at a time. Default `false`.
+	 */
+	readonly revealWhole?: boolean;
+	/**
 	 * Whether the region starts hidden. `false` supplies a region that is
 	 * fully shown, so the editor keeps its fold control on the region's
 	 * first line. Default `true`.

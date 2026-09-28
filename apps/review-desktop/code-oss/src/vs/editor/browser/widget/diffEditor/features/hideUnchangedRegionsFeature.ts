@@ -358,8 +358,17 @@ class CollapsedCodeOverlayWidget extends ViewZoneOverlayWidget {
 			this._nodes.root.classList.add('empty-side');
 		}
 
+		if (this._unchangedRegion.revealWhole) {
+			this._nodes.root.classList.add('reveal-whole');
+			this._nodes.top.title = localize('diff.hiddenLines.revealWhole', 'Click to show the hidden lines');
+			this._nodes.bottom.title = localize('diff.hiddenLines.revealWhole', 'Click to show the hidden lines');
+		}
+
 		this._register(autorun(reader => {
 			/** @description Update CollapsedCodeOverlayWidget canMove* css classes */
+			if (this._unchangedRegion.revealWhole) {
+				return;
+			}
 			const isFullyRevealed = this._unchangedRegion.visibleLineCountTop.read(reader) + this._unchangedRegion.visibleLineCountBottom.read(reader) === this._unchangedRegion.lineCount;
 
 			this._nodes.bottom.classList.toggle('canMoveTop', !isFullyRevealed);
@@ -387,6 +396,11 @@ class CollapsedCodeOverlayWidget extends ViewZoneOverlayWidget {
 
 		this._register(addDisposableListener(this._nodes.top, 'mousedown', e => {
 			if (e.button !== 0) {
+				return;
+			}
+			if (this._unchangedRegion.revealWhole) {
+				e.preventDefault();
+				this._unchangedRegion.showAll(undefined);
 				return;
 			}
 			this._nodes.top.classList.toggle('dragging', true);
@@ -422,6 +436,14 @@ class CollapsedCodeOverlayWidget extends ViewZoneOverlayWidget {
 
 		this._register(addDisposableListener(this._nodes.bottom, 'mousedown', e => {
 			if (e.button !== 0) {
+				return;
+			}
+			if (this._unchangedRegion.revealWhole) {
+				// Keep the code below the band in place, as a partial reveal does.
+				e.preventDefault();
+				const top = editor.getTopForLineNumber(this._unchangedRegionRange.endLineNumberExclusive);
+				this._unchangedRegion.showAll(undefined);
+				editor.setScrollTop(editor.getScrollTop() + (editor.getTopForLineNumber(this._unchangedRegionRange.endLineNumberExclusive) - top));
 				return;
 			}
 			this._nodes.bottom.classList.toggle('dragging', true);

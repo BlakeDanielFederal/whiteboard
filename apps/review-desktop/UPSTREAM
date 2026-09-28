@@ -424,6 +424,12 @@ one of these entries:
   hidden, so the source window pins the enclosing class and method above
   diffr's collapsed regions. Upstream turns sticky scroll off there. The
   Review window's Diff tab turns it off in its own editor options.
+- `src/vs/editor/common/diff/documentDiffProvider.ts`,
+  `src/vs/editor/browser/widget/diffEditor/diffEditorViewModel.ts`,
+  `features/hideUnchangedRegionsFeature.ts` and `style.css`: a supplied
+  context gap can set `revealWhole`, so clicking either edge of its band shows
+  the whole region instead of revealing or dragging open a few lines. diffr's
+  bands set it.
 - `src/vs/platform/agentHost/` planning documents (deleted): the upstream
   commit vendored internal phase plans and design notes
   (`node/claude/phase*-plan.md`, `roadmap.md`, `smoke.md`, `CONTEXT.md`,
