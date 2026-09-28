@@ -8,7 +8,10 @@ import { git, gitCommonDir } from "@dev.fast/local-vcs";
 import { errorMessage, processIsAlive } from "@dev.fast/trace-core";
 
 import { reviewManagedCheckoutRoot } from "../review-checkout-paths.js";
-import { ensureReviewPinnedCheckout } from "../review-head-checkout.js";
+import {
+  ensureReviewPinnedCheckout,
+  removeReviewManagedCheckouts,
+} from "../review-head-checkout.js";
 import {
   markerMatches,
   prepareReviewPinnedCheckout,
@@ -98,8 +101,121 @@ export class ReviewWorkspaces {
       throw error;
     }
 
-    this.stop = store.subscribeCatalog(() => this.collect());
+    this.stop = store.subscribeCatalog(() => {
+      this.collect();
+      this.releaseDismissed();
+    });
     this.collect();
+    this.releaseDismissed();
+  }
+
+  // Unset until the first scan, so startup also frees reviews dismissed
+  // while no Desktop was running.
+  private dismissed?: Set<string>;
+  private readonly releasing = new Map<string, Promise<void>>();
+
+  /**
+   * Frees a newly dismissed review's checkouts to save disk. The review itself
+   * stays; reopening it rebuilds them.
+   */
+  private releaseDismissed() {
+    const dismissed = new Set(this.store.dismissedIds());
+    const released = [...dismissed].filter((id) => !this.dismissed?.has(id));
+    this.dismissed = dismissed;
+
+    if (!released.length) return;
+
+    const repositories = this.repositoryDirs();
+    // Each release awaits this only after earlier cleanup and logs its failure.
+    repositories.catch(() => undefined);
+
+    for (const reviewId of released) this.release(reviewId, repositories);
+  }
+
+  private async repositoryDirs(): Promise<string[]> {
+    const dirs = new Set(this.all().map((item) => item.repository));
+
+    for (const { path: root } of this.store.repositories()) {
+      const common = await gitCommonDir(root).catch(() => null);
+
+      if (common) dirs.add(common);
+    }
+
+    return [...dirs].filter(Boolean);
+  }
+
+  /** Resolves once no release of the review is pending, so an ensure cannot race it. */
+  released(reviewId: string): Promise<void> {
+    return this.releasing.get(reviewId) ?? Promise.resolve();
+  }
+
+  private release(reviewId: string, repositories = this.repositoryDirs()) {
+    // Requests started later wait for this release; earlier ones finish first.
+    const requests = [...this.requests.values()];
+
+    const done = this.cleanup
+      .then(async () => {
+        await Promise.allSettled(requests);
+        await this.releaseCheckouts(reviewId, await repositories);
+      })
+      .catch((error) => {
+        console.error(
+          `Could not free the pinned checkouts of dismissed review ${reviewId}:`,
+          error,
+        );
+      })
+      .finally(() => {
+        if (this.releasing.get(reviewId) === done)
+          this.releasing.delete(reviewId);
+      });
+
+    this.releasing.set(reviewId, done);
+    this.cleanup = done;
+  }
+
+  private async releaseCheckouts(reviewId: string, repositories: string[]) {
+    // Reopened since the dismissal: its checkouts may be in use.
+    if (!this.store.dismissedIds().includes(reviewId)) return;
+
+    const environments = this.all().filter(
+      (item) => item.reviewId === reviewId,
+    );
+
+    const checkouts = repositories.filter((repository) =>
+      existsSync(reviewManagedCheckoutRoot(repository, reviewId)),
+    );
+
+    if ((!environments.length && !checkouts.length) || !this.claim(reviewId))
+      return;
+
+    for (const environment of environments) {
+      const job = this.jobs.get(environment.id);
+      job?.abort.abort();
+      await job?.done;
+    }
+
+    try {
+      for (const repository of checkouts)
+        await removeReviewManagedCheckouts(repository, reviewId);
+    } catch (error) {
+      for (const environment of environments) {
+        environment.state = "cleanup-failed";
+        environment.log = errorMessage(error);
+        this.save(environment);
+      }
+
+      throw error;
+    }
+
+    for (const environment of environments)
+      this.db
+        .prepare("DELETE FROM pinned_environments WHERE id=?")
+        .run(environment.id);
+    this.db
+      .prepare(
+        "DELETE FROM workspace_leases WHERE review_id=? AND owner=? AND NOT EXISTS(SELECT 1 FROM pinned_environments WHERE value->>'reviewId'=?)",
+      )
+      .run(reviewId, this.ownerId, reviewId);
   }
 
   private external?: {
@@ -239,7 +355,11 @@ export class ReviewWorkspaces {
 
     if (!environment || environment.state !== "cleanup-failed")
       throw new ReviewInputError("Cleanup failure not found.", 404);
-    this.collect(id);
+
+    // A dismissed review keeps its record, so collection would skip it.
+    if (this.store.has(environment.reviewId))
+      this.release(environment.reviewId);
+    else this.collect(id);
     await this.cleanup;
   }
 
@@ -300,6 +420,7 @@ export class ReviewWorkspaces {
     side: "base" | "head",
     retryFailed: boolean,
   ): Promise<WorkspaceStatus> {
+    await this.released(reviewId);
     let environment = this.get(id);
 
     if (this.jobs.has(id)) return this.status(environment!);

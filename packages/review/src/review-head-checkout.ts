@@ -1,5 +1,5 @@
-import { existsSync, rmSync } from "node:fs";
-import { mkdir, rmdir } from "node:fs/promises";
+import { existsSync, realpathSync, rmSync } from "node:fs";
+import { mkdir, rm, rmdir } from "node:fs/promises";
 import path from "node:path";
 
 import {
@@ -15,6 +15,7 @@ import {
   legacyReviewWorktreesDir,
   reviewManagedCheckoutDir,
   reviewManagedCheckoutRoot,
+  reviewManagedCheckoutsDir,
 } from "./review-checkout-paths";
 import { removeReviewPrepareArtifacts } from "./review-prepare.js";
 
@@ -123,38 +124,32 @@ async function materializeReviewPinnedCheckout(input: {
   ]);
 }
 
-// Remove one review's pinned checkout — and only that: the path must lie
-// under the dev-fast worktrees dir, so checkouts for other concurrent reviews
-// (and anything else on disk) are never touched. Returns whether a checkout
-// was actually removed.
-export async function removeReviewPinnedCheckout(input: {
-  rootPath: string;
-  reviewUuid: string;
-  checkoutPath: string;
-}): Promise<boolean> {
-  const commonDir = await gitCommonDir(input.rootPath);
+/**
+ * Remove every checkout one Review owns in a repository. Registrations go
+ * first, so an interrupted removal cannot leave a gutted tree that git still
+ * lists and a later ensure would reuse.
+ */
+export async function removeReviewManagedCheckouts(
+  commonDir: string,
+  reviewUuid: string,
+): Promise<void> {
+  const root = reviewManagedCheckoutRoot(commonDir, reviewUuid);
 
-  if (!commonDir) return false;
-  const target = path.resolve(input.checkoutPath);
+  if (!isInsideDirectory(root, reviewManagedCheckoutsDir(commonDir)))
+    throw new Error(`Refusing to remove non-managed checkouts at ${root}.`);
+  const roots = [root, ...(existsSync(root) ? [realpathSync(root)] : [])];
 
-  if (
-    !isInsideDirectory(
-      target,
-      reviewManagedCheckoutRoot(commonDir, input.reviewUuid),
-    )
-  ) {
-    return false;
-  }
+  for (const worktree of await listRegisteredWorktrees(commonDir))
+    if (roots.some((dir) => isInsideDirectory(worktree.worktreePath, dir)))
+      await git(commonDir, [
+        "worktree",
+        "remove",
+        "--force",
+        worktree.worktreePath,
+      ]);
 
-  const existed = existsSync(target);
-  await git(input.rootPath, ["worktree", "remove", "--force", target], {
-    allowFailure: true,
-  });
-  await git(input.rootPath, ["worktree", "prune"], { allowFailure: true });
-  rmSync(target, { recursive: true, force: true });
-  await removeReviewPrepareArtifacts(target);
-
-  return existed;
+  await rm(root, { recursive: true, force: true });
+  await git(commonDir, ["worktree", "prune"], { allowFailure: true });
 }
 
 /** Remove commit-owned checkouts from releases before Review ownership. */
