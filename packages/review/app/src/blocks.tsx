@@ -1,4 +1,10 @@
-import { Component, type ReactNode } from "react";
+import {
+  Component,
+  type ReactNode,
+  createContext,
+  useContext,
+  useMemo,
+} from "react";
 
 import {
   type Block,
@@ -53,10 +59,23 @@ export type BlockComponent<K extends BlockType> = (
   props: BlockProps<K>,
 ) => ReactNode;
 
+/** Saves a prose block's Markdown, where the shown document can be edited. */
+export const SaveMarkdown = createContext<
+  ((blockId: string, markdown: string) => void) | undefined
+>(undefined);
+
 function MarkdownBlock({ node, data }: BlockProps<"markdown">) {
+  const save = useContext(SaveMarkdown);
+
+  const onChange = useMemo(
+    () => save && ((markdown: string) => save(node.id, markdown)),
+    [save, node.id],
+  );
+
   return (
     <MarkdownContent
       source={node.markdown}
+      onChange={onChange}
       headingId={(index) => data.headings.get(node.id, index)}
       h1={ReviewDocumentTitle}
       renderLink={(href, children) => {

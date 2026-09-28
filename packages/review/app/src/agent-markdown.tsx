@@ -10,7 +10,9 @@ import {
   type ReactNode,
   createContext,
   createElement,
+  useCallback,
   useContext,
+  useRef,
 } from "react";
 
 import { type MarkdownNode, parseMarkdown } from "../../src/markdown";
@@ -24,6 +26,11 @@ const DocumentLink = createContext<LinkRenderer | undefined>(undefined);
 
 /** Whether a remote image may be fetched and shown where it was authored. */
 const RemoteImages = createContext(false);
+
+/** Saves a task item ticked or unticked, where the source can be saved. */
+const TaskToggle = createContext<((item: MarkdownNode) => void) | undefined>(
+  undefined,
+);
 
 export function AgentMarkdown({
   source,
@@ -51,6 +58,7 @@ export function MarkdownContent({
   headingId,
   renderLink,
   allowRemoteImages = false,
+  onChange,
 }: {
   source: string;
   h1?: ComponentType<{ children?: ReactNode }>;
@@ -58,39 +66,71 @@ export function MarkdownContent({
   headingId?: (index: number) => string | undefined;
   renderLink?: LinkRenderer;
   allowRemoteImages?: boolean;
+  /** Receives the source with a task item ticked or unticked. */
+  onChange?: (source: string) => void;
 }): ReactElement {
   const { body, footnotes } = splitFootnotes(parseMarkdown(source));
   // Ids are addressed by ordinal among the h2/h3 alone.
   let heading = 0;
 
+  // Ticks saved but not yet shown build on each other; any other source resets.
+  const sent = useRef<string[]>([]);
+
+  const toggle = useCallback(
+    (item: MarkdownNode) => {
+      if (!sent.current.includes(source)) sent.current = [source];
+      const next = toggleTask(sent.current.at(-1)!, item);
+
+      if (next === sent.current.at(-1)) return;
+      sent.current.push(next);
+      onChange?.(next);
+    },
+    [onChange, source],
+  );
+
   return (
     <DocumentLink.Provider value={renderLink}>
       <RemoteImages.Provider value={allowRemoteImages}>
-        {body.map((node, index) =>
-          node.type === "heading" && node.depth === 1 && Heading ? (
-            <Heading key={index}>
-              {renderMarkdownChildren(node.children ?? [], String(index))}
-            </Heading>
-          ) : node.type === "heading" && headingId ? (
-            createElement(
-              `h${node.depth}`,
-              {
-                key: index,
-                id:
-                  node.depth === 2 || node.depth === 3
-                    ? headingId(heading++)
-                    : undefined,
-              },
-              renderMarkdownChildren(node.children ?? [], String(index)),
-            )
-          ) : (
-            renderMarkdownNode(node, String(index))
-          ),
-        )}
-        {renderFootnotes(footnotes, "document")}
+        <TaskToggle.Provider value={onChange && toggle}>
+          {body.map((node, index) =>
+            node.type === "heading" && node.depth === 1 && Heading ? (
+              <Heading key={index}>
+                {renderMarkdownChildren(node.children ?? [], String(index))}
+              </Heading>
+            ) : node.type === "heading" && headingId ? (
+              createElement(
+                `h${node.depth}`,
+                {
+                  key: index,
+                  id:
+                    node.depth === 2 || node.depth === 3
+                      ? headingId(heading++)
+                      : undefined,
+                },
+                renderMarkdownChildren(node.children ?? [], String(index)),
+              )
+            ) : (
+              renderMarkdownNode(node, String(index))
+            ),
+          )}
+          {renderFootnotes(footnotes, "document")}
+        </TaskToggle.Provider>
       </RemoteImages.Provider>
     </DocumentLink.Provider>
   );
+}
+
+/** Flips the `[ ]` or `[x]` that follows a task item's list marker. */
+function toggleTask(source: string, item: MarkdownNode): string {
+  const marker = /(?:[-*+]|\d+[.)])[ \t]+\[([ xX])\]/y;
+  marker.lastIndex = item.position?.start.offset ?? source.length;
+  const match = marker.exec(source);
+
+  if (!match) return source;
+
+  const at = marker.lastIndex - 2;
+
+  return `${source.slice(0, at)}${match[1] === " " ? "x" : " "}${source.slice(at + 1)}`;
 }
 
 /** GFM footnote definitions render once, after the body, in reference order. */
@@ -240,13 +280,14 @@ function renderMarkdownNode(
     }
 
     case "listItem":
-      return (
+      return node.checked === null || node.checked === undefined ? (
         <li key={key}>
-          {node.checked !== null && node.checked !== undefined && (
-            <input type="checkbox" checked={node.checked} readOnly />
-          )}
           {renderMarkdownChildren(node.children ?? [], key, highlightQuote)}
         </li>
+      ) : (
+        <TaskItem key={key} node={node}>
+          {renderMarkdownChildren(node.children ?? [], key, highlightQuote)}
+        </TaskItem>
       );
     case "link": {
       const children = renderMarkdownChildren(
@@ -368,6 +409,28 @@ function cellAlignment(
     default:
       return undefined;
   }
+}
+
+function TaskItem({
+  node,
+  children,
+}: {
+  node: MarkdownNode;
+  children: ReactNode;
+}) {
+  const toggle = useContext(TaskToggle);
+
+  return (
+    <li className="markdown-task">
+      <input
+        type="checkbox"
+        checked={node.checked === true}
+        disabled={!toggle}
+        onChange={() => toggle?.(node)}
+      />
+      <div>{children}</div>
+    </li>
+  );
 }
 
 function MarkdownImage({ url, alt }: { url: string; alt: string }): ReactNode {
