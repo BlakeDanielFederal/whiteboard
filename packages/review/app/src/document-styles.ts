@@ -237,6 +237,13 @@ export const documentStyles = stylex.create({
   // no visited distinction. Hover restores the plain underline, and the link
   // whose peek is open carries a quiet wash of the same color.
   link: {
+    paddingBlock: {
+      default: null,
+      [inDocument()]: {
+        default: null,
+        ":is([data-review-anchor-open])": 2,
+      },
+    },
     color: { default: null, [inDocument()]: tokens.accent },
     textDecoration: {
       default: null,
