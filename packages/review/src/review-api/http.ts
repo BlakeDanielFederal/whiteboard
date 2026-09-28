@@ -244,6 +244,9 @@ export function createReviewApi(
     if (
       context.req.method !== "GET" &&
       !/\/(open|source|copy-context|environment)$/.test(context.req.path) &&
+      !(
+        context.req.method === "POST" && /\/navigator$/.test(context.req.path)
+      ) &&
       !/\/workspaces\/[^/]+\/retry$/.test(context.req.path)
     )
       throw new ReviewInputError("Shared reviews are read-only.", 409);

@@ -1,6 +1,14 @@
 import { execFileSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import { mkdir, mkdtemp, rename, rm, stat, writeFile } from "node:fs/promises";
+import {
+  mkdir,
+  mkdtemp,
+  readFile,
+  rename,
+  rm,
+  stat,
+  writeFile,
+} from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
@@ -431,6 +439,57 @@ it("uses normal source and workspace routes but rejects authoring mutations", as
 
   expect(mutation.status).toBe(409);
   expect(recipient.store.list()).toEqual([]);
+  expect(imported.get(id).snapshot.title).toBe("A shared review");
+});
+
+it("opens imported shared source in pinned read-only workspaces without allowing authoring", async () => {
+  const { app, id, imported } = await importFixture();
+
+  const open = async (side: "base" | "head") => {
+    const response = await app.request(
+      `/${id}/navigator?${new URLSearchParams({ side, file: "main.ts" })}`,
+      { method: "POST" },
+    );
+
+    expect(response.status).toBe(200);
+
+    const result = (await response.json()) as {
+      workspacePath: string;
+      filePath: string;
+    };
+
+    const workspace = JSON.parse(await readFile(result.workspacePath, "utf8"));
+
+    expect(result.filePath).toBe(
+      path.join(workspace.folders[0].path, "main.ts"),
+    );
+    expect(workspace.settings["files.readonlyInclude"]).toEqual({
+      "**/*": true,
+    });
+
+    return result;
+  };
+
+  const head = await open("head");
+  const base = await open("base");
+  expect(head.workspacePath).not.toBe(base.workspacePath);
+  expect(await readFile(head.filePath, "utf8")).toBe(
+    "export const answer = 2;\n",
+  );
+  expect(await readFile(base.filePath, "utf8")).toBe(
+    "export const answer = 1;\n",
+  );
+
+  const mutation = await app.request("/commands", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      commandId: randomUUID(),
+      operation: { type: "rename", reviewId: id, title: "Changed" },
+    }),
+  });
+
+  expect(mutation.status).toBe(409);
   expect(imported.get(id).snapshot.title).toBe("A shared review");
 });
 
