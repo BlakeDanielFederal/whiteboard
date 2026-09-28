@@ -48,11 +48,13 @@ import { VIEW_ID as EXPLORER_FOLDERS_VIEW_ID } from '../workbench/contrib/files/
 import './browser/reviewDecorationColors.js';
 import { NavigatorDecorationsService, NavigatorDiffEditorResolverService, NavigatorEmptySourceContentProvider, reviewFilesBase, SOURCE_MODE_CONTEXT, type SourceMode } from './services/navigatorDiffEditorResolverService.js';
 import { localize, localize2 } from '../nls.js';
-import { Action2, MenuId, MenuRegistry, registerAction2 } from '../platform/actions/common/actions.js';
+import { Action2, IMenuService, MenuId, registerAction2, type IMenu, type IMenuActionOptions, type IMenuCreateOptions, type MenuItemAction, type SubmenuItemAction } from '../platform/actions/common/actions.js';
+import { MenuService } from '../platform/actions/common/menuService.js';
+import { IQuickInputService } from '../platform/quickinput/common/quickInput.js';
+import { IStatusbarService, StatusbarAlignment, type IStatusbarEntry } from '../workbench/services/statusbar/browser/statusbar.js';
+import { TOGGLE_DIFF_IGNORE_TRIM_WHITESPACE, TOGGLE_DIFF_SIDE_BY_SIDE } from '../workbench/browser/parts/editor/diffEditorCommands.js';
 import { ContextKeyExpr } from '../platform/contextkey/common/contextkey.js';
 import type { ServicesAccessor } from '../platform/instantiation/common/instantiation.js';
-import { Codicon } from '../base/common/codicons.js';
-import type { ThemeIcon } from '../base/common/themables.js';
 import type { ILocalizedString } from '../platform/action/common/action.js';
 import { getCodeEditor, isCodeEditor, isDiffEditor } from '../editor/browser/editorBrowser.js';
 import { IEditorService } from '../workbench/services/editor/common/editorService.js';
@@ -121,35 +123,26 @@ class NavigatorReviewFiles extends Disposable {
 	}
 }
 
-const SOURCE_MODE_MENU = new MenuId('ReviewSourceMode');
 const sourceModes = [
-	{ mode: 'diff', icon: Codicon.diff, title: localize2('review.sourceMode.diff', "Show Diff") },
-	{ mode: 'head', icon: Codicon.file, title: localize2('review.sourceMode.head', "Show Head") },
-	{ mode: 'base', icon: Codicon.history, title: localize2('review.sourceMode.base', "Show Base") },
-] satisfies { mode: SourceMode; icon: ThemeIcon; title: ILocalizedString }[];
+	{ mode: 'diff', label: localize('review.sourceMode.diffLabel', "Diff"), description: localize('review.sourceMode.diffDescription', "Changes against the base, inline"), title: localize2('review.sourceMode.diff', "Show Diff") },
+	{ mode: 'head', label: localize('review.sourceMode.headLabel', "Head"), description: localize('review.sourceMode.headDescription', "The file at the Review's head"), title: localize2('review.sourceMode.head', "Show Head") },
+	{ mode: 'base', label: localize('review.sourceMode.baseLabel', "Base"), description: localize('review.sourceMode.baseDescription', "The file at the Review's base"), title: localize2('review.sourceMode.base', "Show Base") },
+] satisfies { mode: SourceMode; label: string; description: string; title: ILocalizedString }[];
 // The source window names a base only when it has one to compare with.
 const hasBase = ContextKeyExpr.has('config.reviewFiles.base');
+const sourceModeCategory = localize2('review.sourceMode.category', "Review Files");
+const PICK_SOURCE_MODE_COMMAND = 'reviewFiles.pickSourceMode';
 
-for (const [order, { mode, icon, title }] of sourceModes.entries()) {
-	// The title bar button shows the current mode.
-	MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
-		submenu: SOURCE_MODE_MENU,
-		title: localize('review.sourceMode', "Show Diff, Head or Base"),
-		icon,
-		group: 'navigation',
-		order: -1,
-		when: ContextKeyExpr.and(hasBase, ContextKeyExpr.equals(SOURCE_MODE_CONTEXT, mode)),
-	});
+for (const { mode, title } of sourceModes) {
 	registerAction2(class extends Action2 {
 		constructor() {
 			super({
 				id: `reviewFiles.show.${mode}`,
 				title,
-				category: localize2('review.sourceMode.category', "Review Files"),
+				category: sourceModeCategory,
 				f1: true,
 				precondition: hasBase,
 				toggled: ContextKeyExpr.equals(SOURCE_MODE_CONTEXT, mode),
-				menu: { id: SOURCE_MODE_MENU, order },
 			});
 		}
 
@@ -177,6 +170,97 @@ for (const [order, { mode, icon, title }] of sourceModes.entries()) {
 	});
 }
 
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: PICK_SOURCE_MODE_COMMAND,
+			title: localize2('review.sourceMode.pick', "Switch Between Diff, Head and Base"),
+			category: sourceModeCategory,
+			f1: true,
+			precondition: hasBase,
+		});
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const quickInput = accessor.get(IQuickInputService);
+		const commands = accessor.get(ICommandService);
+		const current = accessor.get(IContextKeyService).getContextKeyValue<SourceMode>(SOURCE_MODE_CONTEXT) ?? 'diff';
+		const items = sourceModes.map(({ mode, label, description }) => ({ mode, label, description }));
+		const picked = await quickInput.pick(items, {
+			placeHolder: localize('review.sourceMode.placeholder', "Show the diff, the head file or the base file"),
+			activeItem: items.find(item => item.mode === current),
+		});
+		if (picked) {
+			await commands.executeCommand(`reviewFiles.show.${picked.mode}`);
+		}
+	}
+});
+
+/** Names the current mode in the status bar; clicking it opens the picker. */
+class NavigatorSourceModeStatus extends Disposable {
+	constructor(
+		@IStatusbarService statusbar: IStatusbarService,
+		@IContextKeyService contextKeys: IContextKeyService,
+		@IConfigurationService configuration: IConfigurationService,
+	) {
+		super();
+		if (!reviewFilesBase(configuration)) {
+			return;
+		}
+		const entry = (): IStatusbarEntry => {
+			const mode = contextKeys.getContextKeyValue<SourceMode>(SOURCE_MODE_CONTEXT) ?? 'diff';
+			const { label } = sourceModes.find(item => item.mode === mode) ?? sourceModes[0];
+			return {
+				name: localize('review.sourceMode.statusName', "Diff, Head or Base"),
+				text: `${label} $(chevron-down)`,
+				ariaLabel: localize('review.sourceMode.statusAria', "Showing {0}. Switch between the diff, the head file and the base file.", label),
+				tooltip: localize('review.sourceMode.statusTooltip', "Switch between the diff, the head file and the base file"),
+				command: PICK_SOURCE_MODE_COMMAND,
+			};
+		};
+		const status = this._register(statusbar.addEntry(entry(), 'review.sourceMode', StatusbarAlignment.LEFT, 100));
+		this._register(contextKeys.onDidChangeContext(event => {
+			if (event.affectsSome(new Set([SOURCE_MODE_CONTEXT]))) {
+				status.update(entry());
+			}
+		}));
+	}
+}
+
+/**
+ * Title bar buttons the source window has no use for: diffr's diffs ignore the
+ * whitespace option, and the window shows diffs inline. Only this window's
+ * editor title bar leaves them out; nothing is stored in the shared profile.
+ */
+const HIDDEN_EDITOR_TITLE_COMMANDS = new Set([TOGGLE_DIFF_IGNORE_TRIM_WHITESPACE, TOGGLE_DIFF_SIDE_BY_SIDE]);
+
+function withoutHiddenCommands(groups: [string, Array<MenuItemAction | SubmenuItemAction>][]): [string, Array<MenuItemAction | SubmenuItemAction>][] {
+	return groups
+		.map(([group, actions]): [string, Array<MenuItemAction | SubmenuItemAction>] => [group, actions.filter(action => !HIDDEN_EDITOR_TITLE_COMMANDS.has(action.id))])
+		.filter(([, actions]) => actions.length > 0);
+}
+
+class NavigatorMenuService extends MenuService {
+	override createMenu(id: MenuId, contextKeyService: IContextKeyService, options?: IMenuCreateOptions): IMenu {
+		const menu = super.createMenu(id, contextKeyService, options);
+		if (id !== MenuId.EditorTitle) {
+			return menu;
+		}
+		return {
+			onDidChange: menu.onDidChange,
+			getActions: actionOptions => withoutHiddenCommands(menu.getActions(actionOptions)),
+			dispose: () => menu.dispose(),
+		};
+	}
+
+	override getMenuActions(id: MenuId, contextKeyService: IContextKeyService, options?: IMenuActionOptions): [string, Array<MenuItemAction | SubmenuItemAction>][] {
+		const actions = super.getMenuActions(id, contextKeyService, options);
+		return id === MenuId.EditorTitle ? withoutHiddenCommands(actions) : actions;
+	}
+}
+
+registerWorkbenchContribution2('review.navigator.sourceModeStatus', NavigatorSourceModeStatus, WorkbenchPhase.AfterRestored);
+registerSingleton(IMenuService, NavigatorMenuService, InstantiationType.Delayed);
 registerWorkbenchContribution2('review.navigator.reviewFiles', NavigatorReviewFiles, WorkbenchPhase.BlockStartup);
 registerWorkbenchContribution2('review.navigator.emptySource', NavigatorEmptySourceContentProvider, WorkbenchPhase.BlockStartup);
 registerSingleton(IEditorResolverService, NavigatorDiffEditorResolverService, InstantiationType.Delayed);
