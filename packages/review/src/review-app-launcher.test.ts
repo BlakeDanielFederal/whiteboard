@@ -233,7 +233,6 @@ describe("Review Desktop launcher", () => {
           fetch,
           launchDesktop: () => ({
             method: 'the macOS bundle identifier "dev.fast.review"',
-            successfulExitIsExpected: true,
             completion: Promise.resolve({ code: 1, signal: null }),
           }),
           now: () => 0,
@@ -241,7 +240,7 @@ describe("Review Desktop launcher", () => {
         },
       ),
     ).rejects.toThrow(
-      'Could not launch Review Desktop with the macOS bundle identifier "dev.fast.review": the launch process exited with code 1. Open Review Desktop once, then run `review app launch` again.',
+      'Could not launch Whiteboard with the macOS bundle identifier "dev.fast.review": the launch process exited with code 1. Open Whiteboard once, then run `whiteboard app launch` again. A sandboxed agent must run it outside the sandbox.',
     );
   });
 
@@ -265,7 +264,6 @@ describe("Review Desktop launcher", () => {
           fetch,
           launchDesktop: () => ({
             method: 'the Desktop-managed bundle at "/missing/Review"',
-            successfulExitIsExpected: false,
             completion: Promise.reject(new Error("spawn ENOENT")),
           }),
           now: () => 0,
@@ -273,7 +271,7 @@ describe("Review Desktop launcher", () => {
         },
       ),
     ).rejects.toThrow(
-      'Could not launch Review Desktop with the Desktop-managed bundle at "/missing/Review": spawn ENOENT.',
+      'Could not launch Whiteboard with the Desktop-managed bundle at "/missing/Review": spawn ENOENT.',
     );
   });
 
@@ -288,7 +286,6 @@ describe("Review Desktop launcher", () => {
           fetch,
           launchDesktop: () => ({
             method: 'the Desktop-managed bundle at "/tmp/Review"',
-            successfulExitIsExpected: false,
             completion: Promise.resolve({ code: 0, signal: null }),
           }),
           now: () => now,
@@ -298,65 +295,7 @@ describe("Review Desktop launcher", () => {
         },
       ),
     ).rejects.toThrow(
-      'Could not launch Review Desktop with the Desktop-managed bundle at "/tmp/Review": the launch process exited before Desktop became ready.',
-    );
-  });
-
-  it("launches the exact Electron path without ELECTRON_RUN_AS_NODE", () => {
-    const child = new FakeChild();
-
-    const spawn = vi.fn<NonNullable<LaunchDesktopApplicationInput["spawn"]>>(
-      () => child,
-    );
-
-    launchDesktopApplication({
-      platform: "darwin",
-      electron: true,
-      execPath: "/tmp/Review.app/Contents/MacOS/Review",
-      env: { ELECTRON_RUN_AS_NODE: "1", KEEP: "yes" },
-      spawn,
-    });
-    expect(spawn).toHaveBeenCalledWith(
-      "/tmp/Review.app/Contents/MacOS/Review",
-      [],
-      expect.objectContaining({
-        detached: true,
-        env: { KEEP: "yes", DEV_FAST_REVIEW_DESKTOP_BACKGROUND: "1" },
-        stdio: "ignore",
-      }),
-    );
-    expect(child.unref).toHaveBeenCalledOnce();
-  });
-
-  it("passes the isolated Desktop profile to the exact Electron path", () => {
-    const child = new FakeChild();
-
-    const spawn = vi.fn<NonNullable<LaunchDesktopApplicationInput["spawn"]>>(
-      () => child,
-    );
-
-    launchDesktopApplication({
-      platform: "darwin",
-      electron: true,
-      execPath: "/tmp/Review.app/Contents/MacOS/Review",
-      env: {
-        ELECTRON_RUN_AS_NODE: "1",
-        DEV_FAST_REVIEW_DESKTOP_STATE_ROOT: "/tmp/review-state",
-      },
-      spawn,
-    });
-    expect(spawn).toHaveBeenCalledWith(
-      "/tmp/Review.app/Contents/MacOS/Review",
-      [
-        "--user-data-dir=/tmp/review-state/user-data",
-        "--extensions-dir=/tmp/review-state/extensions",
-      ],
-      expect.objectContaining({
-        env: {
-          DEV_FAST_REVIEW_DESKTOP_STATE_ROOT: "/tmp/review-state",
-          DEV_FAST_REVIEW_DESKTOP_BACKGROUND: "1",
-        },
-      }),
+      'Could not launch Whiteboard with the Desktop-managed bundle at "/tmp/Review": the launch process exited before Desktop became ready.',
     );
   });
 
@@ -364,16 +303,30 @@ describe("Review Desktop launcher", () => {
     [
       undefined,
       [
+        "-n",
+        "-W",
         "-g",
-        "-b",
-        "dev.fast.review",
+        "-a",
+        "/tmp/Review.app",
+        "--env",
+        "DEV_REVIEW_HOME=/tmp/home",
         "--env",
         "DEV_FAST_REVIEW_DESKTOP_BACKGROUND=1",
       ],
     ],
-    [true, ["-b", "dev.fast.review"]],
+    [
+      true,
+      [
+        "-n",
+        "-W",
+        "-a",
+        "/tmp/Review.app",
+        "--env",
+        "DEV_REVIEW_HOME=/tmp/home",
+      ],
+    ],
   ])(
-    "opens the bundle for a standalone CLI, in the foreground only with focus=%s",
+    "opens the CLI's own bundle through LaunchServices with Review's env, focus=%s",
     (focus, args) => {
       const child = new FakeChild();
 
@@ -383,17 +336,98 @@ describe("Review Desktop launcher", () => {
 
       launchDesktopApplication({
         platform: "darwin",
-        electron: false,
+        electron: true,
+        execPath: "/tmp/Review.app/Contents/MacOS/Review",
+        env: {
+          ELECTRON_RUN_AS_NODE: "1",
+          DEV_REVIEW_HOME: "/tmp/home",
+          DEV_FAST_REVIEW_CHECKOUT: "/tmp/checkout",
+          PATH: "/usr/bin",
+        },
         focus,
         spawn,
       });
+
       expect(spawn).toHaveBeenCalledWith(
         "/usr/bin/open",
         args,
-        expect.objectContaining({ detached: true }),
+        expect.objectContaining({ detached: true, stdio: "ignore" }),
       );
+      expect(child.unref).toHaveBeenCalledOnce();
     },
   );
+
+  it("passes the isolated Desktop profile through open's --args", () => {
+    const spawn = vi.fn<NonNullable<LaunchDesktopApplicationInput["spawn"]>>(
+      () => new FakeChild(),
+    );
+
+    launchDesktopApplication({
+      platform: "darwin",
+      electron: true,
+      focus: true,
+      execPath: "/tmp/Review.app/Contents/MacOS/Review",
+      env: { DEV_FAST_REVIEW_DESKTOP_STATE_ROOT: "/tmp/review-state" },
+      spawn,
+    });
+    expect(spawn.mock.calls[0]?.[1]).toEqual([
+      "-n",
+      "-W",
+      "-a",
+      "/tmp/Review.app",
+      "--env",
+      "DEV_FAST_REVIEW_DESKTOP_STATE_ROOT=/tmp/review-state",
+      "--args",
+      "--user-data-dir=/tmp/review-state/user-data",
+      "--extensions-dir=/tmp/review-state/extensions",
+    ]);
+  });
+
+  it.each([
+    [{ key: "preview" as const }, ["-b", "dev.fast.review.preview"]],
+    [
+      { key: "preview" as const, appPath: "/Apps/Preview.app" },
+      ["-a", "/Apps/Preview.app"],
+    ],
+  ])(
+    "opens a selected instance over the CLI's own bundle",
+    (instance, target) => {
+      const spawn = vi.fn<NonNullable<LaunchDesktopApplicationInput["spawn"]>>(
+        () => new FakeChild(),
+      );
+
+      launchDesktopApplication({
+        platform: "darwin",
+        electron: true,
+        focus: true,
+        execPath: "/tmp/Review.app/Contents/MacOS/Review",
+        env: {},
+        instance,
+        spawn,
+      });
+      expect(spawn.mock.calls[0]?.[1]).toEqual(["-n", "-W", ...target]);
+    },
+  );
+
+  it("opens the stable bundle identifier from a standalone CLI", () => {
+    const spawn = vi.fn<NonNullable<LaunchDesktopApplicationInput["spawn"]>>(
+      () => new FakeChild(),
+    );
+
+    launchDesktopApplication({
+      platform: "darwin",
+      electron: false,
+      focus: true,
+      env: {},
+      spawn,
+    });
+    expect(spawn.mock.calls[0]?.[1]).toEqual([
+      "-n",
+      "-W",
+      "-b",
+      "dev.fast.review",
+    ]);
+  });
 
   it.each([
     [false, "/usr/bin/review-desktop"],
@@ -414,7 +448,7 @@ describe("Review Desktop launcher", () => {
         VSCODE_CLI: "1",
       };
 
-      const attempt = launchDesktopApplication({
+      launchDesktopApplication({
         platform: "linux",
         electron,
         execPath: "/usr/share/review/review",
@@ -436,7 +470,6 @@ describe("Review Desktop launcher", () => {
           detached: true,
         }),
       );
-      expect(attempt.successfulExitIsExpected).toBe(false);
       expect(environment.ELECTRON_RUN_AS_NODE).toBe("1");
     },
   );
@@ -470,13 +503,13 @@ describe("Review Desktop launcher", () => {
       "darwin",
       { key: "preview" },
       "/usr/bin/open",
-      ["-g", "-b", "dev.fast.review.preview"],
+      ["-n", "-W", "-g", "-b", "dev.fast.review.preview"],
     ],
     [
       "darwin",
       { key: "preview", appPath: "/Users/me/Apps/Review Preview.app" },
       "/usr/bin/open",
-      ["-g", "-a", "/Users/me/Apps/Review Preview.app"],
+      ["-n", "-W", "-g", "-a", "/Users/me/Apps/Review Preview.app"],
     ],
     ["linux", { key: "preview" }, "/usr/bin/review-preview-desktop", []],
   ] as const)(
@@ -569,7 +602,6 @@ function healthyResponse(): Response {
 function pendingAttempt() {
   return {
     method: 'the macOS bundle identifier "dev.fast.review"',
-    successfulExitIsExpected: true,
     completion: new Promise<never>(() => undefined),
   };
 }
