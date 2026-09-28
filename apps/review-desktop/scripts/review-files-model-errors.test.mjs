@@ -89,6 +89,7 @@ test("Review Files handles missing source locally and releases partial models", 
             resume();
             model = await pending;
             await waitForDocuments(model, 0);
+            assert.equal(input.resourcesSettled.get(), true, "a missing resource has finished resolving");
             assert.equal(open, 0);
             assert.equal(released, otherResult === undefined ? 1 : 0);
             assert.equal(logged.length, expectedReports);
@@ -111,6 +112,38 @@ test("Review Files handles missing source locally and releases partial models", 
           }
           assert.equal(open, 0);
         }
+      }
+
+      // A ready file does not imply that every other model reference has
+      // settled. The Files view uses this signal before declaring a missing
+      // target unavailable.
+      let finishSlow;
+      const slow = new Promise(resolve => { finishSlow = resolve; });
+      const partial = new MultiDiffEditorInput(
+        URI.from({ scheme: "devfast-review-files", path: "/partial" }), "Files",
+        [
+          new MultiDiffEditorItem(URI.file("/base/fast"), URI.file("/head/fast"), URI.file("/head/fast")),
+          new MultiDiffEditorItem(URI.file("/base/slow"), URI.file("/head/slow"), URI.file("/head/slow")),
+        ], true,
+        { async createModelReference(resource) {
+          if (resource.path.endsWith("/slow")) await slow;
+          return { object: { textEditorModel: { uri: resource }, isReadonly: () => true }, dispose() {} };
+        } },
+        { getValue: () => ({}), onDidChangeConfiguration: Event.None }, {}, {},
+        { files: { onDidChangeDirty: Event.None }, isDirty: () => false },
+      );
+      let partialModel;
+      try {
+        partialModel = await partial._createModel();
+        await waitForDocuments(partialModel, 1);
+        assert.equal(partial.resourcesSettled.get(), false);
+        finishSlow();
+        await waitForDocuments(partialModel, 2);
+        assert.equal(partial.resourcesSettled.get(), true);
+      } finally {
+        finishSlow();
+        partialModel?.dispose();
+        partial.dispose();
       }
     } finally {
       console.error = originalConsole;

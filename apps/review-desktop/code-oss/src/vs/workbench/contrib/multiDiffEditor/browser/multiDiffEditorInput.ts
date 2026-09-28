@@ -34,6 +34,8 @@ import { MultiDiffEditorIcon } from './icons.contribution.js';
 import { IMultiDiffSourceResolverService, IResolvedMultiDiffSource, MultiDiffEditorItem } from './multiDiffSourceResolverService.js';
 
 export class MultiDiffEditorInput extends EditorInput implements ILanguageSupport {
+	/** True once the source and every published resource have finished resolving. */
+	public readonly resourcesSettled = observableValue('multi diff resources settled', false);
 	public static fromResourceMultiDiffEditorInput(input: IResourceMultiDiffEditorInput, instantiationService: IInstantiationService): MultiDiffEditorInput {
 		if (!input.multiDiffSource && !input.resources) {
 			throw new BugIndicatingError('MultiDiffEditorInput requires either multiDiffSource or resources');
@@ -297,6 +299,7 @@ export class MultiDiffEditorInput extends EditorInput implements ILanguageSuppor
 			}
 			const ready = entries.map(entry => loaded.get(entry.key)).filter(isDefined);
 			const pending = loading || entries.some(entry => !loaded.has(entry.key));
+			this.resourcesSettled.set(!pending, undefined);
 			documents.set(ready.length === 0 && pending ? 'loading' : ready, undefined);
 		});
 

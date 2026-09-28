@@ -195,8 +195,8 @@ export class ReviewFilesDiffView extends Disposable {
 	private readonly hiddenFiles = new Map<string, string>();
 	private readonly hiddenApplied = new Set<string>();
 	private pendingPath: string | undefined;
-	private pendingSectionId: string | undefined;
-	private pendingSource: ReviewDiffLens["ranges"][number] | undefined;
+	private unavailablePath: string | undefined;
+	private pendingReveal: { entry: ReviewFilesEditorEntry; options: RevealOptions; expand: boolean; scheduled: boolean } | undefined;
 	private progress: ReviewDiffProgress | undefined;
 	private documentCollapsed = false;
 	private readonly initializedDocumentItems = new WeakSet<object>();
@@ -369,6 +369,9 @@ export class ReviewFilesDiffView extends Disposable {
 	async setInput(input: ReviewFilesEditorInput, viewState: IMultiDiffEditorViewState | undefined): Promise<void> {
 		this.settleHold.clear();
 		this.pendingViewState = viewState;
+		this.pendingReveal = undefined;
+		this.pendingPath = undefined;
+		this.unavailablePath = undefined;
 		this.input = input;
 		this.changedFilesTree?.setFiles(Array.from(new Map(input.entries.map(entry => [entry.file.path, entry.file])).values()));
 		const viewModel = await input.getViewModel();
@@ -398,23 +401,7 @@ export class ReviewFilesDiffView extends Disposable {
 				}
 				this.applyHiddenFiles(items);
 				this.applyViewedFiles();
-				const entry = this.input?.entries.find(
-					(e) => e.file.path === this.pendingPath,
-				);
-				if (!entry || !this.readyFiles.has(entry.file.path)) return;
-				if (
-					!items.some(
-						(item) =>
-							sameResource(item.originalUri, entry.original) &&
-							sameResource(item.modifiedUri, entry.modified),
-					)
-				)
-					return;
-				this.pendingPath = undefined;
-				this.showStreamStatus();
-				queueMicrotask(() => {
-					if (!this._store.isDisposed) { if (this.pendingSource) this.revealSource(this.pendingSource, this.pendingSectionId); else this.reveal(entry); }
-				});
+				this.tryRevealPending(items, viewModel.isLoading.read(reader), input.resourcesSettled.read(reader));
 			}),
 		);
 	}
@@ -441,6 +428,7 @@ export class ReviewFilesDiffView extends Disposable {
 			this.changedFilesTree?.setFileState(path, undefined);
 		}
 		this.input?.setReadyFiles(this.readyFiles, [...this.fileStates.values()].some(state => state === "Loading diff…"));
+		this.tryRevealPending();
 		this.showStreamStatus();
 	}
 
@@ -564,11 +552,7 @@ export class ReviewFilesDiffView extends Disposable {
 		const entry = this.input?.entries.find(entry => (!sectionId || entry.sectionId === sectionId) && (!entry.sectionId || this.progress?.sections?.find(section => section.id === entry.sectionId)?.sources.some(range => range.file === source.file && range.side === source.side && range.fromLine <= source.fromLine && range.toLine >= source.fromLine)) && source.file === (source.side === 'base' ? entry.file.previousPath ?? entry.file.path : entry.file.path));
 		if (!entry) return;
 		if (entry.sectionId && this.collapsedSections.delete(entry.sectionId)) this.headerFactory.refreshHeaders();
-		this.pendingSource = source; this.pendingSectionId = sectionId;
-		if (this.fileStates.has(entry.file.path)) { this.pendingPath = entry.file.path; return; }
-		this.itemFor(entry)?.collapsed.set(false, undefined);
-		this.reveal(entry, { highlight: true, side: source.side === 'base' ? 'original' : 'modified', range: new Range(source.fromLine, 1, source.toLine, 1) });
-		this.pendingSource = undefined;
+		this.requestReveal(entry, { highlight: true, side: source.side === 'base' ? 'original' : 'modified', range: new Range(source.fromLine, 1, source.toLine, 1) }, true);
 	}
 
 	/** Scroll to a file, or to it once its diff has loaded. */
@@ -576,9 +560,59 @@ export class ReviewFilesDiffView extends Disposable {
 		this.settleHold.clear();
 		const entry = this.input?.entries.find((entry) => entry.file.path === path);
 		if (!entry) return;
-		this.pendingPath = this.fileStates.has(path) ? path : undefined;
+		this.requestReveal(entry, { highlight: true }, false);
+	}
+
+	private requestReveal(entry: ReviewFilesEditorEntry, options: RevealOptions, expand: boolean): void {
+		this.settleHold.clear();
+		this.pendingReveal = { entry, options, expand, scheduled: false };
+		this.pendingPath = entry.file.path;
+		this.unavailablePath = undefined;
 		this.showStreamStatus();
-		if (!this.pendingPath) this.reveal(entry);
+		this.tryRevealPending();
+	}
+
+	private tryRevealPending(
+		items = this.viewModel?.items.get(),
+		loading = this.viewModel?.isLoading.get() ?? true,
+		resourcesSettled = this.input?.resourcesSettled.get() ?? false,
+	): void {
+		const pending = this.pendingReveal;
+		if (!pending || this._store.isDisposed) return;
+		const path = pending.entry.file.path;
+		const state = this.fileStates.get(path);
+		if (state && state !== "Loading diff…") {
+			this.finishUnavailable(path, state);
+			return;
+		}
+		if (state === "Loading diff…") return;
+		const item = items?.find(item => sameResource(item.originalUri, pending.entry.original) && sameResource(item.modifiedUri, pending.entry.modified));
+		if (item) {
+			if (pending.scheduled) return;
+			pending.scheduled = true;
+			queueMicrotask(() => {
+				pending.scheduled = false;
+				if (this._store.isDisposed || this.pendingReveal !== pending) return;
+				const currentItem = this.itemFor(pending.entry);
+				if (!currentItem) { this.tryRevealPending(); return; }
+				this.pendingReveal = undefined;
+				this.pendingPath = undefined;
+				this.showStreamStatus();
+				if (pending.expand) currentItem.collapsed.set(false, undefined);
+				this.reveal(pending.entry, pending.options);
+			});
+		} else if (!loading && resourcesSettled) {
+			this.finishUnavailable(path, "Diff unavailable");
+		}
+	}
+
+	private finishUnavailable(path: string, message: string): void {
+		this.pendingReveal = undefined;
+		this.pendingPath = undefined;
+		this.unavailablePath = path;
+		this.fileStates.set(path, message);
+		this.changedFilesTree?.setFileState(path, "error", message);
+		this.showStreamStatus();
 	}
 
 	get viewportHeight(): number { return this.diffContainer.clientHeight; }
@@ -614,16 +648,17 @@ export class ReviewFilesDiffView extends Disposable {
 	}
 
 	private showStreamStatus(): void {
-		const message = this.pendingPath
-			? this.fileStates.get(this.pendingPath)
+		const statusPath = this.pendingPath ?? this.unavailablePath;
+		const message = statusPath
+			? this.fileStates.get(statusPath)
 			: undefined;
-		this.streamStatus.hidden =
-			(!message && this.readyFiles.size > 0) || this.fileStates.size === 0;
+		const fallback = this.readyFiles.size === 0
+			? [...this.fileStates.values()].find(state => state === "Loading diff…") ?? (this.input?.structural ? [...this.fileStates.values()][0] : undefined)
+			: undefined;
+		this.streamStatus.hidden = !message && !fallback;
 		this.streamStatus.textContent = message
-			? `${this.pendingPath}: ${message}`
-			: this.readyFiles.size === 0
-				? ([...this.fileStates.values()][0] ?? "")
-				: "";
+			? `${statusPath}: ${message}`
+			: fallback ?? "";
 		this.streamStatus.classList.toggle(
 			"loading",
 			[...this.fileStates.values()].some((s) => s === "Loading diff…"),
