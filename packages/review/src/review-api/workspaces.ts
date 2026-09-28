@@ -116,7 +116,9 @@ export class ReviewWorkspaces {
 
   /**
    * Frees a newly dismissed review's checkouts to save disk. The review itself
-   * stays; reopening it rebuilds them.
+   * stays; reopening it rebuilds them. Checkouts rebuilt by peeking at a
+   * dismissed review are kept until the next startup or dismissal, since
+   * the Desktop's canvas tabs and source windows may still show them.
    */
   private releaseDismissed() {
     const dismissed = new Set(this.store.dismissedIds());
@@ -174,7 +176,7 @@ export class ReviewWorkspaces {
   }
 
   private async releaseCheckouts(reviewId: string, repositories: string[]) {
-    // Reopened since the dismissal: its checkouts may be in use.
+    // Restored since the dismissal: its checkouts may be in use.
     if (!this.store.dismissedIds().includes(reviewId)) return;
 
     const environments = this.all().filter(
@@ -194,28 +196,34 @@ export class ReviewWorkspaces {
       await job?.done;
     }
 
-    try {
-      for (const repository of checkouts)
-        await removeReviewManagedCheckouts(repository, reviewId);
-    } catch (error) {
-      for (const environment of environments) {
-        environment.state = "cleanup-failed";
-        environment.log = errorMessage(error);
-        this.save(environment);
-      }
+    const errors: string[] = [];
 
-      throw error;
-    }
+    for (const repository of checkouts)
+      await removeReviewManagedCheckouts(repository, reviewId).catch((error) =>
+        errors.push(errorMessage(error)),
+      );
 
+    // Only a checkout still on disk failed; the others are gone.
     for (const environment of environments)
-      this.db
-        .prepare("DELETE FROM pinned_environments WHERE id=?")
-        .run(environment.id);
+      if (
+        errors.length &&
+        environment.rootPath &&
+        existsSync(environment.rootPath)
+      ) {
+        environment.state = "cleanup-failed";
+        environment.log = errors.join("\n");
+        this.save(environment);
+      } else
+        this.db
+          .prepare("DELETE FROM pinned_environments WHERE id=?")
+          .run(environment.id);
     this.db
       .prepare(
         "DELETE FROM workspace_leases WHERE review_id=? AND owner=? AND NOT EXISTS(SELECT 1 FROM pinned_environments WHERE value->>'reviewId'=?)",
       )
       .run(reviewId, this.ownerId, reviewId);
+
+    if (errors.length) throw new Error(errors.join("\n"));
   }
 
   private external?: {
