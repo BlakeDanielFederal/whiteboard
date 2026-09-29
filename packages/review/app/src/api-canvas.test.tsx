@@ -474,7 +474,7 @@ it.each([false, true])(
     await act(async () => {
       await vi.waitFor(() => expect(traceTab()).toBeTruthy());
     });
-    expect(container.querySelector(".review-trace-quote")).toBeTruthy();
+    expect(container.querySelector('a[href^="#trace-"]')).toBeTruthy();
 
     expect(container.querySelector("li")?.textContent).toBe(
       inline ? "Before source remains pinned after." : undefined,
@@ -909,7 +909,7 @@ it("degrades to the retained document and an unavailable Commits tab when the ch
       ),
     );
 
-    expect(container.querySelector(".review-source-context")?.textContent).toBe(
+    expect(container.querySelector(".review-document > p")?.textContent).toBe(
       "Local checkout unavailable. Showing retained source.",
     );
 

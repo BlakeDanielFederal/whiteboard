@@ -1,42 +1,7 @@
-/* The canvas stylesheet. Order matters where noted: on equal specificity the
-   later file wins. */
+/* The canvas stylesheet's plain part: faces, React Flow's base styles and
+   global.css. StyleX appends every component style after it. React Flow sits
+   in a layer, so any canvas rule beats it. */
 
 @import "./fonts/fonts.css";
-/* In a layer, so any canvas rule beats React Flow. */
 @import "@xyflow/react/dist/style.css" layer(vendor);
-@import "./theme.css";
-@import "./base.css";
-@import "./controls.css";
-
-/* Before review-document.css, whose h3 and code rules, and collapsed-section
-   heading, must win inside documents and the tutorial. */
-@import "./software-map/styles.css";
-@import "./flow-diagram.css";
-@import "./api-document.css";
-@import "./share-control.css";
-@import "./ReviewCommitsView.css";
-@import "./review-find.css";
-@import "./tutorial-experience.css";
-
-@import "./review-shell.css";
-@import "./review-document.css";
-@import "./review-toc.css";
-/* code-block.css overrides agent markdown's code rule. */
-@import "./agent-markdown.css";
-@import "./code-block.css";
-@import "./review-panel.css";
-@import "./diagrams.css";
-
-@import "./DiffView.css";
-@import "./ReviewTraceView.css";
-@import "./review-home-view.css";
-@import "./welcome-page.css";
-@import "./settings-page.css";
-@import "./bug-report-dialog.css";
-
-/* Last, in this order: the courier's march outlasts the badge's
-   reduced-motion rule, and authoring-motion restyles everything above while
-   data-motion is set. */
-@import "./authoring-activity.css";
-@import "./courier.css";
-@import "./authoring-motion.css";
+@import "./global.css";

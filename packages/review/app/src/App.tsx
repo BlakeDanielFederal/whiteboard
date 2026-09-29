@@ -6,6 +6,7 @@ import {
   type SoftwareMapTopologyDiff,
   diffSoftwareMaps,
 } from "@review/software-map-topology-diff";
+import * as stylex from "@stylexjs/stylex";
 import {
   type CSSProperties,
   type ComponentType,
@@ -25,6 +26,7 @@ import {
   ReviewSurfaceLabel,
 } from "./authoring-activity";
 import { BugReportControl } from "./bug-report-dialog";
+import { controlStyles } from "./controls-styles";
 import {
   ReviewDebugSettingsProvider,
   type ReviewNodeTint,
@@ -33,8 +35,10 @@ import {
 import { DiffLayoutControl } from "./diff-layout-control";
 import { ReviewDiffView } from "./DiffView";
 import { useDocumentEmbedScroll } from "./document-embed-scroll";
+import { documentStyles } from "./document-styles";
 import { useReviewSession } from "./host/review-session";
 import { DiscordIcon, MarkerUnderline, SettingsSlidersIcon } from "./icons";
+import { segmentMarker } from "./markers.stylex";
 import { ReviewPanelHost } from "./review-components";
 import {
   ReviewProvider,
@@ -69,6 +73,7 @@ import {
 import { ReviewCommitsView } from "./ReviewCommitsView";
 import { ReviewTraceView } from "./ReviewTraceView";
 import { ShareControl } from "./share-control";
+import { shellStyles } from "./shell-styles";
 import { useRightPanelResize } from "./side-panel-resizer";
 import { selectActiveSoftwareMapModel } from "./software-map-selection";
 import type {
@@ -77,6 +82,10 @@ import type {
 } from "./software-map/model";
 import { SoftwareMapTopologyUnavailable } from "./software-map/software-map-absence";
 import { SoftwareMap } from "./software-map/SoftwareMap";
+import { withClass } from "./stylex-props";
+import { themeStyles } from "./theme-styles";
+import { tokens } from "./tokens.stylex";
+import { traceStyles } from "./trace-styles";
 import { useTutorial } from "./tutorial-context";
 import { TutorialExperienceProvider } from "./tutorial-experience";
 import { captureUiEvent } from "./ui-telemetry";
@@ -469,35 +478,49 @@ function ReviewLayoutContent({
       } as CSSProperties)
     : undefined;
 
+  // The peek and resizing classes are markers: descendants restyle on them.
   const appClassName = [
     "review-app",
     `review-app--theme-${debugSettings.theme}`,
     `review-app--tint-${debugSettings.nodeTint}`,
     rightPanelOpen ? "review-app--peek-open" : null,
     sidePeekResize.isResizing ? "review-app--resizing" : null,
-    panelMotion === "restored" ? "review-app--restored-panel" : null,
   ]
     .filter(Boolean)
     .join(" ");
 
   return (
-    <div ref={appRef} className={appClassName} style={appStyle}>
+    <div
+      ref={appRef}
+      {...withClass(
+        appClassName,
+        themeStyles.app,
+        debugSettings.theme === "light" && themeStyles.light,
+        rightPanelOpen && shellStyles.appPeekOpen,
+        sidePeekResize.isResizing && shellStyles.appResizing,
+        panelMotion === "restored" && shellStyles.appRestoredPanel,
+      )}
+      style={appStyle}
+    >
       <main
         ref={shellRef}
-        className={
-          review.historicalRevision
-            ? "review-document-shell review-document-shell--historical"
-            : "review-document-shell"
-        }
+        {...withClass(
+          "review-document-shell",
+          shellStyles.documentShell,
+          !!review.historicalRevision && shellStyles.documentShellHistorical,
+        )}
       >
         <TutorialExperienceProvider
           shellRef={shellRef}
           scrollRegionRef={scrollRegionRef}
         >
-          <header className="review-topbar">
-            <div className="review-topbar-left">
+          <header {...stylex.props(shellStyles.topbar)}>
+            <div {...withClass("review-topbar-left", shellStyles.topbarLeft)}>
               <div
-                className="review-segmented"
+                {...stylex.props(
+                  controlStyles.segmented,
+                  controlStyles.segmentedTopbar,
+                )}
                 role="group"
                 aria-label="Session views"
               >
@@ -512,11 +535,14 @@ function ReviewLayoutContent({
                     }
                     aria-pressed={activeView === view}
                     title={view === "map" ? "Map (Experimental)" : undefined}
-                    className={
-                      activeView === view
-                        ? "review-segment review-segment--active"
-                        : "review-segment"
-                    }
+                    {...withClass(
+                      "review-segment",
+                      segmentMarker,
+                      controlStyles.segment,
+                      controlStyles.segmentTopbar,
+                      activeView === view && controlStyles.segmentActive,
+                      activeView === view && controlStyles.segmentTopbarActive,
+                    )}
                     onClick={() => {
                       if (view === "diff")
                         captureUiEvent(session, "diff_opened", {
@@ -542,26 +568,45 @@ function ReviewLayoutContent({
                       <span>{reviewViewLabel(view)}</span>
                     )}
                     {view === "diff" && filesTabFileCount !== null && (
-                      <span className="review-segment-count">
+                      <span
+                        {...stylex.props(
+                          controlStyles.segmentCount,
+                          activeView === view &&
+                            controlStyles.segmentCountActive,
+                        )}
+                      >
                         {filesTabFileCount}
                       </span>
                     )}
                     {view === "commits" && (
-                      <span className="review-segment-count">
+                      <span
+                        {...stylex.props(
+                          controlStyles.segmentCount,
+                          activeView === view &&
+                            controlStyles.segmentCountActive,
+                        )}
+                      >
                         {commits.length}
                       </span>
                     )}
-                    <MarkerUnderline />
+                    <MarkerUnderline active={activeView === view} />
                   </button>
                 ))}
               </div>
             </div>
-            <div className="review-topbar-actions">
-              <div className="review-topbar-context">
+            <div
+              {...withClass("review-topbar-actions", shellStyles.topbarActions)}
+            >
+              <div
+                {...stylex.props(
+                  shellStyles.topbarItem,
+                  shellStyles.topbarContext,
+                )}
+              >
                 {!scratchpad && (
                   <button
                     type="button"
-                    className="review-open-source-tree"
+                    {...stylex.props(shellStyles.openSourceTree)}
                     aria-label="Source tree ↗"
                     ref={sourceTreeTooltip}
                     onClick={() => {
@@ -574,7 +619,7 @@ function ReviewLayoutContent({
                       });
                     }}
                   >
-                    <span className="review-open-source-tree-label">
+                    <span {...stylex.props(shellStyles.openSourceTreeLabel)}>
                       Source tree
                     </span>
                     <span aria-hidden="true">↗</span>
@@ -597,7 +642,10 @@ function ReviewLayoutContent({
               {!scratchpad && <ShareControl />}
               <button
                 type="button"
-                className="review-topbar-icon-button"
+                {...stylex.props(
+                  shellStyles.topbarItem,
+                  shellStyles.topbarIconButton,
+                )}
                 ref={discordTooltip}
                 aria-label="Join our Discord community"
                 onClick={() => {
@@ -607,7 +655,7 @@ function ReviewLayoutContent({
                   session.surface.post({ name: "joinDiscord", args: {} });
                 }}
               >
-                <DiscordIcon />
+                <DiscordIcon xstyle={controlStyles.chromeIcon} />
               </button>
               <BugReportControl />
               <ReviewBatonChip outcome={review.submissionOutcome} />
@@ -615,7 +663,12 @@ function ReviewLayoutContent({
               {!scratchpad &&
                 !review.historicalRevision &&
                 !review.submissionOutcome && (
-                  <div className="topbar-actions-divider" />
+                  <div
+                    {...stylex.props(
+                      shellStyles.topbarItem,
+                      shellStyles.actionsDivider,
+                    )}
+                  />
                 )}
               {!scratchpad &&
               !review.historicalRevision &&
@@ -625,10 +678,11 @@ function ReviewLayoutContent({
             </div>
           </header>
           {review.historicalRevision ? (
-            <div className="review-history-banner" role="status">
+            <div {...stylex.props(shellStyles.historyBanner)} role="status">
               <span>You are viewing an older version of this session.</span>
               <button
                 type="button"
+                {...stylex.props(shellStyles.historyBannerButton)}
                 onClick={() =>
                   void session.surface.post({
                     name: "openReviewRevision",
@@ -645,17 +699,31 @@ function ReviewLayoutContent({
           )}
           <section
             ref={scrollRegionRef}
-            className={`review-view-region review-view-region--${activeView}`}
+            {...withClass(
+              `review-view-region review-view-region--${activeView}`,
+              shellStyles.viewRegion,
+              activeView === "commits" && shellStyles.commitsRegion,
+              activeView === "review" && shellStyles.reviewRegion,
+              activeView === "trace" && traceStyles.region,
+            )}
           >
             <div
-              className="review-document-view"
+              {...withClass(
+                "review-document-view",
+                shellStyles.documentView,
+                activeView !== "review" && shellStyles.hidden,
+              )}
               hidden={activeView !== "review"}
             >
               {documentState.state === "ready" ? (
                 <>
                   <article
                     ref={articleRef}
-                    className="review-document"
+                    {...withClass(
+                      "review-document",
+                      documentStyles.article,
+                      rightPanelOpen && documentStyles.articlePeekOpen,
+                    )}
                     data-kind={scratchpad ? "scratchpad" : undefined}
                   >
                     <ReviewDocumentBoundary
@@ -680,8 +748,19 @@ function ReviewLayoutContent({
               )}
             </div>
             {softwareMapEnabled && activeView === "map" && (
-              <div className="review-map-view">
-                <div className="review-map-canvas-shell">
+              <div
+                {...withClass(
+                  "review-map-view",
+                  shellStyles.mapView,
+                  mapViewStyles.view,
+                )}
+              >
+                <div
+                  {...stylex.props(
+                    shellStyles.mapCanvasShell,
+                    mapViewStyles.canvasShell,
+                  )}
+                >
                   {softwareMapState.state === "ready" ||
                   softwareMapState.state === "absent" ? (
                     <>
@@ -702,6 +781,7 @@ function ReviewLayoutContent({
                         height="100%"
                         showChrome={false}
                         showFloatingActions={!activePanel}
+                        variant="view"
                       />
                       <MapSettingsControl />
                     </>
@@ -723,16 +803,22 @@ function ReviewLayoutContent({
             )}
             <div
               aria-hidden={activeView !== "diff" || diffScope !== null}
-              className={
-                activeView === "diff" && diffScope === null
-                  ? "review-diff-view"
-                  : "review-diff-view review-diff-view--preloaded"
-              }
+              {...stylex.props(
+                shellStyles.diffView,
+                (activeView !== "diff" || diffScope !== null) &&
+                  shellStyles.diffViewPreloaded,
+              )}
             >
               <ReviewDiffView />
             </div>
             {activeView === "diff" && diffScope !== null && (
-              <div className="review-diff-view review-diff-view--scoped">
+              <div
+                {...withClass(
+                  "review-diff-view--scoped",
+                  shellStyles.diffView,
+                  shellStyles.diffViewScoped,
+                )}
+              >
                 <CommitDiffScopeBar
                   commit={diffScope.commit}
                   onBack={() => showView("commits")}
@@ -754,11 +840,11 @@ function ReviewLayoutContent({
       </main>
       {rightPanelOpen && (
         <div
-          className="side-panel-resizer side-peek-resizer"
+          {...stylex.props(shellStyles.resizer, shellStyles.peekResizer)}
           {...sidePeekResize.separatorProps}
         />
       )}
-      <div className="review-detail-host">
+      <div {...withClass("review-detail-host", shellStyles.detailHost)}>
         <ReviewPanelHost />
       </div>
     </div>
@@ -858,17 +944,61 @@ function CommitDiffScopeBar({
   onBack: () => void;
 }) {
   return (
-    <div className="review-diff-scope-bar">
-      <button type="button" onClick={onBack}>
+    <div {...stylex.props(scopeBarStyles.bar)}>
+      <button
+        type="button"
+        {...stylex.props(scopeBarStyles.back)}
+        onClick={onBack}
+      >
         <span aria-hidden="true">←</span> Commits
       </button>
-      <code title={commit.commit}>{commit.commit.slice(0, 8)}</code>
-      <span className="review-diff-scope-subject" title={commit.subject}>
+      <code {...stylex.props(scopeBarStyles.sha)} title={commit.commit}>
+        {commit.commit.slice(0, 8)}
+      </code>
+      <span {...stylex.props(scopeBarStyles.subject)} title={commit.subject}>
         {commit.subject}
       </span>
     </div>
   );
 }
+
+const scopeBarStyles = stylex.create({
+  bar: {
+    display: "flex",
+    height: "30px",
+    flex: "0 0 30px",
+    alignItems: "center",
+    gap: "12px",
+    padding: "0 12px",
+    borderBottomWidth: "1px",
+    borderBottomStyle: "solid",
+    borderBottomColor: tokens.ruleSoft,
+    backgroundColor: tokens.surface,
+  },
+  back: {
+    height: "20px",
+    flex: "0 0 auto",
+    padding: 0,
+    borderWidth: 0,
+    borderStyle: "none",
+    borderColor: "currentcolor",
+    backgroundColor: "transparent",
+    color: tokens.accent,
+    fontSize: "10px",
+  },
+  sha: {
+    color: tokens.inkMuted,
+    font: `10px ${tokens.fontMono}`,
+  },
+  subject: {
+    minWidth: 0,
+    overflow: "hidden",
+    color: tokens.ink,
+    fontSize: "11px",
+    textOverflow: "ellipsis",
+    whiteSpace: "nowrap",
+  },
+});
 
 /**
  * Reports where the baton sits after the reader acts. It renders nothing while
@@ -887,10 +1017,10 @@ function ReviewBatonChip({
   return (
     <span
       ref={tooltip}
-      className={`review-baton-chip review-baton-chip--${outcome}`}
+      {...stylex.props(shellStyles.topbarItem, batonStyles.chip)}
     >
       <svg
-        className="review-baton-glyph"
+        {...stylex.props(batonStyles.glyph)}
         viewBox="0 0 16 16"
         width="12"
         height="12"
@@ -951,16 +1081,12 @@ function MapSettingsControl(): ReactElement {
   }, [isOpen]);
 
   return (
-    <div
-      ref={controlRef}
-      className={
-        isOpen
-          ? "map-settings-control map-settings-control--open"
-          : "map-settings-control"
-      }
-    >
+    <div ref={controlRef} {...stylex.props(mapSettingsStyles.control)}>
       {isOpen && (
-        <section className="map-settings-popover" aria-label="Map settings">
+        <section
+          {...stylex.props(mapSettingsStyles.popover)}
+          aria-label="Map settings"
+        >
           <DebugSwitch
             label="Show modified nodes only"
             checked={showModifiedOnly}
@@ -972,20 +1098,21 @@ function MapSettingsControl(): ReactElement {
             onChange={setShowRemovedNodes}
           />
           <div
-            className="review-debug-theme review-debug-theme--triple"
+            {...stylex.props(mapSettingsStyles.tints)}
             role="group"
             aria-label="Node tint"
           >
-            <span className="review-debug-group-label">Map node tint</span>
+            <span {...stylex.props(mapSettingsStyles.groupLabel)}>
+              Map node tint
+            </span>
             {(["none", "slate", "mineral"] as const).map((option) => (
               <button
                 key={option}
                 type="button"
-                className={
-                  nodeTint === option
-                    ? "review-debug-theme-option review-debug-theme-option--active"
-                    : "review-debug-theme-option"
-                }
+                {...stylex.props(
+                  mapSettingsStyles.tint,
+                  nodeTint === option && mapSettingsStyles.tintActive,
+                )}
                 aria-pressed={nodeTint === option}
                 onClick={() => setNodeTint(option)}
               >
@@ -997,11 +1124,10 @@ function MapSettingsControl(): ReactElement {
       )}
       <button
         type="button"
-        className={
-          isOpen
-            ? "map-settings-trigger map-settings-trigger--active"
-            : "map-settings-trigger"
-        }
+        {...stylex.props(
+          mapSettingsStyles.trigger,
+          isOpen && mapSettingsStyles.triggerActive,
+        )}
         aria-label="Map settings"
         aria-expanded={isOpen}
         onClick={() => setIsOpen((open) => !open)}
@@ -1022,14 +1148,21 @@ function DebugSwitch({
   onChange: (checked: boolean) => void;
 }): ReactElement {
   return (
-    <label className="review-debug-switch">
+    <label {...stylex.props(mapSettingsStyles.switch)}>
       <span>{label}</span>
       <input
         type="checkbox"
+        {...stylex.props(mapSettingsStyles.switchInput)}
         checked={checked}
         onChange={(event) => onChange(event.currentTarget.checked)}
       />
-      <i aria-hidden="true" />
+      <i
+        {...stylex.props(
+          mapSettingsStyles.switchTrack,
+          checked && mapSettingsStyles.switchTrackOn,
+        )}
+        aria-hidden="true"
+      />
     </label>
   );
 }
@@ -1060,3 +1193,178 @@ export function applySoftwareMapTopologyStatuses(
     elementsByPath: new Map(elements.map((element) => [element.path, element])),
   };
 }
+
+const batonStyles = stylex.create({
+  chip: {
+    display: "inline-flex",
+    alignItems: "center",
+    gap: "7px",
+    color: tokens.diffRemoved,
+    fontFamily: tokens.chromeFont,
+    fontSize: tokens.chromeFontSizeSmall,
+    fontWeight: tokens.chromeFontWeightStrong,
+    lineHeight: 1,
+    letterSpacing: tokens.chromeTracking,
+    textTransform: "uppercase",
+    whiteSpace: "nowrap",
+  },
+  glyph: {
+    fill: "none",
+    stroke: "currentColor",
+    strokeLinecap: "round",
+    strokeLinejoin: "round",
+    strokeWidth: "1.4",
+  },
+});
+
+// Map settings float over the map canvas instead of sitting behind a topbar
+// gear, so map-only controls stay with the map.
+const mapSettingsStyles = stylex.create({
+  control: {
+    position: "absolute",
+    right: "16px",
+    bottom: "16px",
+    zIndex: 3,
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "flex-end",
+    gap: "8px",
+  },
+  trigger: {
+    display: "inline-flex",
+    width: "30px",
+    height: "30px",
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: "1px",
+    borderStyle: "solid",
+    borderColor: { default: tokens.ruleSoft, ":hover": tokens.accent },
+    borderRadius: "8px",
+    backgroundColor: tokens.surfaceRaised,
+    color: { default: tokens.inkMuted, ":hover": tokens.ink },
+    boxShadow: `0 6px 18px ${tokens.shadowColorStrong}`,
+  },
+  triggerActive: {
+    borderColor: tokens.accent,
+    color: tokens.ink,
+  },
+  popover: {
+    display: "flex",
+    width: "268px",
+    flexDirection: "column",
+    borderWidth: "1px",
+    borderStyle: "solid",
+    borderColor: tokens.ruleSoft,
+    borderRadius: "10px",
+    backgroundColor: tokens.surfaceRaised,
+    boxShadow: `0 12px 32px ${tokens.shadowColorStrong}`,
+  },
+  switch: {
+    position: "relative",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: "14px",
+    minHeight: "50px",
+    padding: "10px 13px",
+    borderBottomWidth: "1px",
+    borderBottomStyle: "solid",
+    borderBottomColor: tokens.rule,
+    color: tokens.ink,
+    fontSize: "14px",
+  },
+  switchInput: {
+    position: "absolute",
+    opacity: 0,
+    pointerEvents: "none",
+  },
+  switchTrack: {
+    position: "relative",
+    flex: "0 0 auto",
+    width: "38px",
+    height: "22px",
+    borderWidth: "1px",
+    borderStyle: "solid",
+    borderColor: tokens.ruleSoft,
+    borderRadius: "999px",
+    backgroundColor: tokens.controlBg,
+    "::before": {
+      position: "absolute",
+      top: "3px",
+      left: "3px",
+      width: "14px",
+      height: "14px",
+      borderRadius: "999px",
+      backgroundColor: tokens.inkFaint,
+      transition: "transform 140ms ease, background 140ms ease",
+      content: "''",
+    },
+  },
+  switchTrackOn: {
+    borderColor: tokens.accent,
+    backgroundColor: tokens.accentSoft,
+    "::before": {
+      backgroundColor: tokens.accent,
+      transform: "translateX(16px)",
+    },
+  },
+  tints: {
+    display: "grid",
+    gridTemplateColumns: "1fr 1fr 1fr",
+    gap: "6px",
+    padding: "10px",
+  },
+  groupLabel: {
+    gridColumn: "1 / -1",
+    color: tokens.inkFaint,
+    fontFamily: tokens.fontMono,
+    fontSize: "10px",
+    fontWeight: 800,
+    letterSpacing: "0.06em",
+    textTransform: "uppercase",
+  },
+  tint: {
+    minHeight: "32px",
+    borderWidth: "1px",
+    borderStyle: "solid",
+    borderColor: {
+      default: tokens.rule,
+      ":hover": tokens.accent,
+      ":focus-visible": tokens.accent,
+    },
+    borderRadius: "6px",
+    backgroundColor: {
+      default: tokens.tray,
+      ":hover": tokens.accentSoft,
+      ":focus-visible": tokens.accentSoft,
+    },
+    color: {
+      default: tokens.inkMuted,
+      ":hover": tokens.accent,
+      ":focus-visible": tokens.accent,
+    },
+    fontSize: "12px",
+    fontWeight: 750,
+    outline: { default: null, ":hover": "none", ":focus-visible": "none" },
+  },
+  tintActive: {
+    borderColor: tokens.accent,
+    backgroundColor: tokens.accentSoft,
+    color: tokens.accent,
+    outline: "none",
+  },
+});
+
+const mapViewStyles = stylex.create({
+  view: {
+    backgroundColor: tokens.bg,
+  },
+  canvasShell: {
+    borderWidth: 0,
+    borderStyle: "none",
+    borderColor: "currentcolor",
+    borderRadius: 0,
+    backgroundColor: tokens.bg,
+    boxShadow: "none",
+  },
+});

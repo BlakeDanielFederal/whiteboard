@@ -1,9 +1,12 @@
+import * as stylex from "@stylexjs/stylex";
 import { act, createRef } from "react";
 import { createRoot } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
+import { documentStyles } from "./document-styles";
 import { type ReviewRoots, ReviewRootsProvider } from "./review-root-context";
 import { ReviewToc } from "./review-toc";
+import { shellStyles } from "./shell-styles";
 
 import "./styles.css";
 
@@ -20,7 +23,7 @@ globalThis.ResizeObserver ??= NoopResizeObserver as never;
 
 function renderArticle(headings: string[]): HTMLElement {
   const article = document.createElement("article");
-  article.className = "review-document";
+  article.className = `review-document ${stylex.props(documentStyles.article).className}`;
   article.innerHTML = headings
     .map(
       (heading, index) =>
@@ -33,7 +36,7 @@ function renderArticle(headings: string[]): HTMLElement {
 
 function tocLabels(): string[] {
   // Entries render with their section number prefixed; compare the titles.
-  return [...document.querySelectorAll(".review-toc-link")].map((link) =>
+  return [...document.querySelectorAll("#review-toc li > button")].map((link) =>
     (link.textContent ?? "").trim().replace(/^[\d.]+/, ""),
   );
 }
@@ -48,11 +51,11 @@ describe("ReviewToc", () => {
   beforeEach(() => {
     document.body.innerHTML = "";
     shell = document.createElement("main");
-    shell.className = "review-document-shell";
+    shell.className = stylex.props(shellStyles.documentShell).className!;
     region = document.createElement("div");
-    region.className = "review-view-region--review";
+    region.className = `review-view-region--review ${stylex.props(shellStyles.reviewRegion).className}`;
     view = document.createElement("div");
-    view.className = "review-document-view";
+    view.className = `review-document-view ${stylex.props(shellStyles.documentView).className}`;
     mount = document.createElement("div");
     view.append(mount);
     region.append(view);
@@ -98,22 +101,20 @@ describe("ReviewToc", () => {
     });
     expect(tocLabels()).toEqual(["Interface change", "Scheduling sequence"]);
     expect(
-      document.querySelector(".review-toc-number")?.textContent?.trim(),
+      document
+        .querySelector("#review-toc li > button > span")
+        ?.textContent?.trim(),
     ).toBe("1");
     expect(
-      document.querySelector(".review-toc-toggle")?.textContent,
+      document.querySelector('[aria-controls="review-toc-body"]')?.textContent,
     ).not.toContain("§");
   });
   it.each([
-    { from: 1400, to: 1200, lands: "review-toc" },
-    {
-      from: 1200,
-      to: 1400,
-      lands: "review-toc review-toc--rail review-toc--open",
-    },
+    { from: 1400, to: 1200, rail: false },
+    { from: 1200, to: 1400, rail: true },
   ])(
     "switches between rail and pill without animating when the shell goes from $from to $to wide",
-    async ({ from, to, lands }) => {
+    async ({ from, to, rail }) => {
       shell.style.width = `${from}px`;
       const article = renderArticle(["Interface change", "Scheduling"]);
       region.append(article);
@@ -148,9 +149,15 @@ describe("ReviewToc", () => {
       shell.style.width = `${to}px`;
       await settle();
 
-      const toc = document.querySelector(".review-toc")!;
+      const toc = document.querySelector("#review-toc")!;
 
-      expect(toc.className).toBe(lands);
+      // The rail has no toggle; the pill's starts shut.
+      const toggle = toc.querySelector<HTMLButtonElement>(
+        '[aria-controls="review-toc-body"]',
+      )!;
+
+      expect(toggle.hidden).toBe(rail);
+      expect(toggle.getAttribute("aria-expanded")).toBe("false");
       expect(toc.getAnimations({ subtree: true })).toEqual([]);
     },
   );

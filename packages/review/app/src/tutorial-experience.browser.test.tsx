@@ -6,6 +6,7 @@ import { type ReactElement, act, useRef } from "react";
 import { createRoot } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { controlStyles } from "./controls-styles";
 import {
   type ReviewSession,
   ReviewSessionProvider,
@@ -13,6 +14,8 @@ import {
 import { ReviewSection } from "./review-components";
 import { ReviewProvider } from "./review-context";
 import { testReviewSession } from "./review-session-test-utils";
+import { shellStyles } from "./shell-styles";
+import { withClass } from "./stylex-props";
 import { TutorialProvider } from "./tutorial-context";
 import { TutorialExperienceProvider } from "./tutorial-experience";
 
@@ -63,12 +66,19 @@ function Shell({
   const regionRef = useRef<HTMLElement | null>(null);
 
   return (
-    <main ref={shellRef} className="review-document-shell">
+    <main
+      ref={shellRef}
+      {...withClass("review-document-shell", shellStyles.documentShell)}
+    >
       <TutorialExperienceProvider
         shellRef={shellRef}
         scrollRegionRef={regionRef}
       >
-        <button type="button" className="review-segment" aria-label="Commits">
+        <button
+          type="button"
+          {...withClass("review-segment", controlStyles.segment)}
+          aria-label="Commits"
+        >
           Commits
         </button>
         <button
@@ -78,9 +88,16 @@ function Shell({
         >
           Explore the sample commits
         </button>
-        <section ref={regionRef} className="review-view-region">
+        <section
+          ref={regionRef}
+          {...withClass("review-view-region", shellStyles.viewRegion)}
+        >
           <div
-            className="review-document-view"
+            {...withClass(
+              "review-document-view",
+              shellStyles.documentView,
+              activeView !== "review" && shellStyles.hidden,
+            )}
             hidden={activeView !== "review"}
           >
             {CHAPTER_TITLES.map((title) => (
@@ -136,7 +153,17 @@ function section(title: string): HTMLElement {
 }
 
 function card(): HTMLElement | null {
-  return canvasRoot.querySelector(".tutorial-guide");
+  return canvasRoot.querySelector('aside[aria-label="Tutorial guide"]');
+}
+
+/** Rings drawn in the shell overlay, beside the guide card. */
+function shellRings() {
+  return card()?.parentElement?.querySelectorAll(":scope > div") ?? [];
+}
+
+/** The ring layer inside the scroll region. */
+function regionLayer() {
+  return canvasRoot.querySelector(".review-view-region > [aria-hidden]");
 }
 
 describe("TutorialExperience", () => {
@@ -145,9 +172,10 @@ describe("TutorialExperience", () => {
     render(tutorial);
 
     expect(card()?.textContent).toContain("Choose your keybindings");
-    expect(canvasRoot.querySelectorAll(".tutorial-guide")).toHaveLength(1);
-    expect(card()?.parentElement?.className).toBe("tutorial-experience");
-    expect(card()?.parentElement?.parentElement?.className).toBe(
+    expect(
+      canvasRoot.querySelectorAll('aside[aria-label="Tutorial guide"]'),
+    ).toHaveLength(1);
+    expect(card()?.parentElement?.parentElement).toHaveClass(
       "review-document-shell",
     );
     expect(section("Welcome").dataset.tutorialChapterState).toBe("active");
@@ -178,14 +206,8 @@ describe("TutorialExperience", () => {
       vi.unstubAllGlobals();
     }
 
-    const layer = canvasRoot.querySelector(
-      ".review-view-region > .tutorial-target-layer",
-    );
-
-    expect(layer?.querySelectorAll(".tutorial-target-ring")).toHaveLength(1);
-    expect(
-      canvasRoot.querySelectorAll(".tutorial-experience .tutorial-target-ring"),
-    ).toHaveLength(0);
+    expect(regionLayer()?.children).toHaveLength(1);
+    expect(shellRings()).toHaveLength(0);
   });
 
   it("draws a toolbar target's ring in the shell overlay", () => {
@@ -210,12 +232,8 @@ describe("TutorialExperience", () => {
     }
 
     // The Commits tab sits outside the region; the prose button inside it.
-    expect(
-      canvasRoot.querySelectorAll(".tutorial-experience .tutorial-target-ring"),
-    ).toHaveLength(2);
-    expect(
-      canvasRoot.querySelector(".review-view-region > .tutorial-target-layer"),
-    ).toBeNull();
+    expect(shellRings()).toHaveLength(2);
+    expect(regionLayer()).toBeNull();
   });
 
   it("expands the active chapter without collapsing the others", () => {
@@ -223,9 +241,7 @@ describe("TutorialExperience", () => {
     render(tutorial);
 
     const toggle = (title: string) =>
-      section(title).querySelector<HTMLButtonElement>(
-        ".review-section-toggle",
-      )!;
+      section(title).querySelector<HTMLButtonElement>("button[aria-expanded]")!;
 
     act(() => toggle("Interactive Diagrams").click());
     expect(toggle("Interactive Diagrams").getAttribute("aria-expanded")).toBe(
@@ -532,11 +548,11 @@ describe("TutorialExperience", () => {
     render(tutorial);
 
     const pill = canvasRoot.querySelector<HTMLButtonElement>(
-      ".tutorial-experience > .tutorial-guide-pill",
+      'button[aria-label="Show tutorial"]',
     );
 
     expect(pill?.getAttribute("aria-label")).toBe("Show tutorial");
-    expect(pill?.querySelector(".ui-icon--tutorial")).not.toBeNull();
+    expect(pill?.querySelector("svg")).not.toBeNull();
     expect(card()).toBeNull();
     act(() => pill?.click());
     expect(tutorial.reopen).toHaveBeenCalledOnce();

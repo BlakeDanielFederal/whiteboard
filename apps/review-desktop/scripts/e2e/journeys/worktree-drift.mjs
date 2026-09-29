@@ -36,7 +36,7 @@ function canvasUi(ctx) {
     retained: canvas.getByText(RETAINED_SOURCE),
     failed: canvas.getByText(/^Whiteboard operation failed \(Error\)\./),
     peek: canvas
-      .locator('.review-inline-editor[data-review-inline-editor="order.ts"]')
+      .locator('[data-review-inline-editor="order.ts"]')
       .first(),
   };
 }
@@ -171,9 +171,11 @@ export async function run(ctx) {
   await ctx.restartDesktop();
   await openHome(ctx);
   await ctx.page
-    .locator("main.review-home .review-home-table tbody tr")
+    .locator("main.review-home")
+    .getByRole("region", { name: "Sessions", exact: true })
+    .locator("tbody tr")
     .filter({ hasText: TITLE })
-    .locator(".review-home-table-open")
+    .getByTitle(TITLE, { exact: true })
     .click();
 
   const deleted = canvasUi(ctx);

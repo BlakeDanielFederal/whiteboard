@@ -5,10 +5,15 @@ import type {
   ReviewKeymapChoice,
   ReviewThemeChoice,
 } from "@dev.fast/review-protocol";
+import * as stylex from "@stylexjs/stylex";
 import { type ReactNode, useEffect, useState } from "react";
 
 import { ConnectCard, LegacySkillsRow } from "./connect-card";
+import { controlStyles } from "./controls-styles";
 import { DiffrConfigSection } from "./diffr-config-section";
+import { homeStyles } from "./home-styles";
+import { settingsStyles as styles } from "./settings-styles";
+import { withClass } from "./stylex-props";
 import { TraceCaptureSection } from "./trace-capture-section";
 
 const THEME_LABELS: Record<ReviewThemeChoice, string> = {
@@ -97,13 +102,13 @@ export function SettingsPage({
   };
 
   return (
-    <main className="review-home">
-      <div className="review-home-scroll">
-        <div className="review-home-content review-settings-page">
-          <div className="review-home-page-header">
-            <h1>Settings</h1>
+    <main {...withClass("review-home", homeStyles.page)}>
+      <div {...stylex.props(homeStyles.scroll)}>
+        <div {...stylex.props(homeStyles.content, styles.page)}>
+          <div {...stylex.props(homeStyles.header)}>
+            <h1 {...stylex.props(homeStyles.heading)}>Settings</h1>
           </div>
-          <p className="review-settings-lede">
+          <p {...stylex.props(styles.lede)}>
             Settings apply to Whiteboard on this machine.
           </p>
 
@@ -130,7 +135,7 @@ export function SettingsPage({
                 {install.status.shim.installer ? null : (
                   <button
                     type="button"
-                    className="review-settings-button"
+                    {...stylex.props(styles.button)}
                     disabled={busy !== null}
                     onClick={() =>
                       void run(
@@ -156,10 +161,11 @@ export function SettingsPage({
               description="Counts and timings only. Never code, file paths, or repository names."
             >
               <label
-                className="review-settings-toggle"
+                {...stylex.props(styles.toggle)}
                 aria-label="Share anonymous usage data"
               >
                 <input
+                  {...stylex.props(styles.checkbox)}
                   type="checkbox"
                   checked={telemetryEnabled}
                   disabled={busy !== null}
@@ -233,7 +239,7 @@ export function SettingsPage({
             >
               <button
                 type="button"
-                className="review-settings-button"
+                {...stylex.props(styles.button)}
                 onClick={settings.manageExtensions}
               >
                 Manage…
@@ -246,8 +252,9 @@ export function SettingsPage({
               label="Structural Diffs"
               description="Replace the standard diff view with syntax-aware diffs and linked folds."
             >
-              <label className="review-settings-toggle">
+              <label {...stylex.props(styles.toggle)}>
                 <input
+                  {...stylex.props(styles.checkbox)}
                   type="checkbox"
                   aria-label="Structural Diffs"
                   checked={structuralDiffEnabled}
@@ -273,8 +280,9 @@ export function SettingsPage({
               label="Software Map"
               description="Show the experimental Software Map view in sessions."
             >
-              <label className="review-settings-toggle">
+              <label {...stylex.props(styles.toggle)}>
                 <input
+                  {...stylex.props(styles.checkbox)}
                   type="checkbox"
                   aria-label="Software Map"
                   checked={softwareMapEnabled}
@@ -294,8 +302,9 @@ export function SettingsPage({
               label="Scratchpad"
               description="Show the experimental scratchpad on Home. Agents draw on it through Whiteboard's MCP tools."
             >
-              <label className="review-settings-toggle">
+              <label {...stylex.props(styles.toggle)}>
                 <input
+                  {...stylex.props(styles.checkbox)}
                   type="checkbox"
                   aria-label="Scratchpad"
                   checked={scratchpadEnabled}
@@ -319,7 +328,7 @@ export function SettingsPage({
             ) : null}
           </Section>
 
-          {error ? <p className="review-settings-error">{error}</p> : null}
+          {error ? <p {...stylex.props(styles.error)}>{error}</p> : null}
         </div>
       </div>
     </main>
@@ -328,8 +337,8 @@ export function SettingsPage({
 
 function Section({ label, children }: { label: string; children: ReactNode }) {
   return (
-    <section className="review-settings-section" aria-label={label}>
-      <h2 className="review-settings-section-label">{label}</h2>
+    <section {...stylex.props(styles.section)} aria-label={label}>
+      <h2 {...stylex.props(styles.sectionLabel)}>{label}</h2>
       {children}
     </section>
   );
@@ -345,12 +354,12 @@ function Row({
   children: ReactNode;
 }) {
   return (
-    <div className="review-settings-row">
-      <div className="review-settings-row-text">
-        <span className="review-settings-row-label">{label}</span>
-        <span className="review-settings-row-description">{description}</span>
+    <div {...stylex.props(styles.row)}>
+      <div {...stylex.props(styles.rowText)}>
+        <span {...stylex.props(styles.rowLabel)}>{label}</span>
+        <span {...stylex.props(styles.rowDescription)}>{description}</span>
       </div>
-      <div className="review-settings-row-control">{children}</div>
+      <div {...stylex.props(styles.rowControl)}>{children}</div>
     </div>
   );
 }
@@ -373,7 +382,11 @@ function Choice<T extends string>({
   const choices = Object.keys(labels) as T[];
 
   return (
-    <div className="review-segmented" role="radiogroup" aria-label={label}>
+    <div
+      {...stylex.props(controlStyles.segmented)}
+      role="radiogroup"
+      aria-label={label}
+    >
       {choices.map((choice) => (
         <button
           key={choice}
@@ -381,11 +394,10 @@ function Choice<T extends string>({
           role="radio"
           aria-checked={choice === value}
           disabled={disabled}
-          className={
-            choice === value
-              ? "review-segment review-segment--active"
-              : "review-segment"
-          }
+          {...stylex.props(
+            controlStyles.segment,
+            choice === value && controlStyles.segmentActive,
+          )}
           onClick={() => onChange(choice)}
         >
           {labels[choice]}
