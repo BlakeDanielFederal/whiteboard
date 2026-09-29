@@ -173,6 +173,7 @@ interface SoftwareMapProps {
   title?: string;
   view?: string;
   focusRequest?: { requestId: number; elementPath: string } | null;
+  onFocusRequestHandled?: (requestId: number) => void;
   height?: number | string;
   snapshot?: SoftwareMapResolvedSnapshot | null;
   resolvedSnapshot?: SoftwareMapResolvedSnapshot | null;
@@ -307,6 +308,7 @@ function SoftwareMapWithModel({
   title,
   view,
   focusRequest,
+  onFocusRequestHandled,
   height = 520,
   snapshot,
   resolvedSnapshot,
@@ -595,10 +597,22 @@ function SoftwareMapWithModel({
       selectedNodeId,
     });
 
+    // Keep a selection made after this render (e.g. a focus request's).
     if (nextSelectedNodeId !== selectedNodeId) {
-      setSelectedNodeId(nextSelectedNodeId);
+      setSelectedNodeId((current) =>
+        current === selectedNodeId ? nextSelectedNodeId : current,
+      );
     }
   }, [mapSnapshot.nodes, selectedNodeId]);
+
+  useEffect(() => {
+    if (
+      focusRequest &&
+      mapSnapshot.selectedNodeId === focusRequest.elementPath
+    ) {
+      onFocusRequestHandled?.(focusRequest.requestId);
+    }
+  }, [focusRequest, mapSnapshot.selectedNodeId]);
 
   const frameTitle = title ?? mapSnapshot.title ?? placeholderLabel;
 
@@ -2024,6 +2038,7 @@ function SoftwareMapC4GroupNode({
 }: ReactFlowNodeProps<C4MapFlowGroupNode>) {
   return (
     <div
+      data-selected={data.selected ? "true" : undefined}
       {...stylex.props(
         styles.groupShell,
         data.node.changeStatus === "added" && styles.groupAdded,
@@ -2364,6 +2379,7 @@ function SoftwareMapNodeFrame({
   const codeRing = selected ? "selected" : status;
 
   const props = {
+    "data-selected": selected ? "true" : undefined,
     ...withClass(
       "nodrag nopan",
       styles.node,

@@ -36,6 +36,13 @@ export interface ReviewDiffScope {
   file?: string;
 }
 
+export interface MapFocus {
+  requestId: number;
+  elementPath: string;
+  /** Cleared once the map has selected the element, so remounts don't replay it. */
+  pending: boolean;
+}
+
 /** Which canvas view is showing and what it is scoped to. */
 export interface ReviewNavigationState {
   view: ReviewView;
@@ -44,6 +51,7 @@ export interface ReviewNavigationState {
   diffScope: ReviewDiffScope | null;
   traceSelection: TraceSelection | undefined;
   lens: ReviewLensSelection | null;
+  mapFocus: MapFocus | null;
 }
 
 export interface ReviewPanelActions {
@@ -63,6 +71,8 @@ export interface ReviewNavigationActions {
   clearLens: () => void;
   openTrace: (selection: TraceSelection) => void;
   setAvailableViews: (views: readonly ReviewView[]) => void;
+  focusMapElement: (elementPath: string) => void;
+  consumeMapFocus: (requestId: number) => void;
 }
 
 export type ReviewPanelStoreState = ReviewPanelState &
@@ -89,6 +99,7 @@ export function createReviewPanelStore({
     diffScope: null,
     traceSelection: undefined,
     lens,
+    mapFocus: null,
     suppressMotion: () => set({ motion: "restored" }),
     openPeek: (panel) => set({ active: panel, motion: "live" }),
     openTour: (tour, activeAnchor) => {
@@ -142,8 +153,10 @@ export function createReviewPanelStore({
       }),
     selectLens: (lens) =>
       set((state) => ({
+        ...viewTransition(state, "diff"),
+        active: state.active,
+        motion: state.motion,
         lens,
-        view: state.availableViews.includes("diff") ? "diff" : "review",
         diffScope: null,
       })),
     clearLens: () => set({ lens: null }),
@@ -152,6 +165,25 @@ export function createReviewPanelStore({
         ...viewTransition(state, "trace"),
         traceSelection: selection,
       })),
+    focusMapElement: (elementPath) =>
+      set((state) =>
+        state.availableViews.includes("map")
+          ? {
+              ...viewTransition(state, "map"),
+              mapFocus: {
+                requestId: (state.mapFocus?.requestId ?? 0) + 1,
+                elementPath,
+                pending: true,
+              },
+            }
+          : state,
+      ),
+    consumeMapFocus: (requestId) =>
+      set((state) =>
+        state.mapFocus?.requestId === requestId && state.mapFocus.pending
+          ? { mapFocus: { ...state.mapFocus, pending: false } }
+          : state,
+      ),
     setAvailableViews: (views) =>
       set((state) =>
         views.includes(state.view)
@@ -173,6 +205,10 @@ function viewTransition(
   return {
     view,
     ...(view !== "diff" && { diffScope: null }),
+    ...(view !== "map" &&
+      state.mapFocus?.pending && {
+        mapFocus: { ...state.mapFocus, pending: false },
+      }),
     ...(shouldCloseSidePeekForReviewView(view) &&
       state.active && { active: null, motion: "live" }),
   };
