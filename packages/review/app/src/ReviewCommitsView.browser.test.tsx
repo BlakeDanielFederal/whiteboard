@@ -103,5 +103,5 @@ it("reveals the requested file in a commit-scoped diff", async () => {
     },
   );
 
-  expect(revealFile).toHaveBeenCalledWith(file.path);
+  expect(revealFile.mock.calls[0]?.[0]).toBe(file.path);
 });
