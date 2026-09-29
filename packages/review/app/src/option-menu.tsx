@@ -1,6 +1,6 @@
-import { type ReactNode, useRef, useState } from "react";
+import type { ReactNode } from "react";
 
-import { useDismissOnOutside } from "./use-dismiss-on-outside";
+import { useCanvasMenu } from "./host/canvas-ui";
 
 /** A single-choice menu; the caller renders the trigger's content. */
 export function OptionMenu<T extends string>({
@@ -22,31 +22,26 @@ export function OptionMenu<T extends string>({
   triggerProps?: { "aria-pressed"?: boolean };
   children: ReactNode;
 }) {
-  const [open, setOpen] = useState(false);
-  const container = useRef<HTMLDivElement>(null);
-  const trigger = useRef<HTMLButtonElement>(null);
+  const menu = useCanvasMenu({
+    items: options.map((option) => ({
+      id: option.value,
+      label: option.label,
+      checked: option.value === value,
+    })),
+    onSelect: (id) => {
+      const option = options.find((option) => option.value === id);
 
-  useDismissOnOutside(container, open, setOpen);
+      if (option) onChange(option.value);
+    },
+  });
 
   return (
-    <div
-      className={`review-option-menu ${className}`}
-      ref={container}
-      onKeyDown={(event) => {
-        if (event.key === "Escape") {
-          setOpen(false);
-          trigger.current?.focus();
-        }
-      }}
-    >
+    <div className={`review-option-menu ${className}`}>
       <button
-        ref={trigger}
         className={triggerClassName}
         type="button"
         aria-label={ariaLabel}
-        aria-expanded={open}
-        aria-haspopup="menu"
-        onClick={() => setOpen(!open)}
+        {...menu.triggerProps}
         {...triggerProps}
       >
         {children}
@@ -55,42 +50,9 @@ export function OptionMenu<T extends string>({
           viewBox="0 0 20 20"
           aria-hidden="true"
         >
-          <path d={open ? "m5 12 5-5 5 5" : "m5 8 5 5 5-5"} />
+          <path d={menu.open ? "m5 12 5-5 5 5" : "m5 8 5 5 5-5"} />
         </svg>
       </button>
-      {open ? (
-        <div
-          role="menu"
-          aria-label={ariaLabel}
-          className="review-option-menu-options"
-        >
-          {options.map((option) => (
-            <button
-              key={option.value}
-              type="button"
-              role="menuitemradio"
-              aria-checked={option.value === value}
-              onClick={() => {
-                onChange(option.value);
-                setOpen(false);
-                trigger.current?.focus();
-              }}
-            >
-              {option.icon}
-              <span>{option.label}</span>
-              {option.value === value ? (
-                <svg
-                  className="review-option-menu-check"
-                  viewBox="0 0 20 20"
-                  aria-hidden="true"
-                >
-                  <path d="m5 10 3.5 3.5L15 6.5" />
-                </svg>
-              ) : null}
-            </button>
-          ))}
-        </div>
-      ) : null}
     </div>
   );
 }
