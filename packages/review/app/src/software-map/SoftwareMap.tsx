@@ -11,7 +11,7 @@ import { useReviewSession } from "@canvas/host/review-session";
 import { CloseIcon, RefreshIcon } from "@canvas/icons";
 import { mapFrameMarker } from "@canvas/markers.stylex";
 import { useReviewContainer } from "@canvas/review-root-context";
-import { motion, radius } from "@canvas/scale.stylex";
+import { fontSize, motion, radius, tracking } from "@canvas/scale.stylex";
 import { shellStyles } from "@canvas/shell-styles";
 import { useRightPanelResize } from "@canvas/side-panel-resizer";
 import { withClass } from "@canvas/stylex-props";
@@ -19,7 +19,9 @@ import { themeStyles } from "@canvas/theme-styles";
 import { tokens } from "@canvas/tokens.stylex";
 import { captureUiEvent } from "@canvas/ui-telemetry";
 import { IconButton } from "@canvas/ui/button";
+import { Chip } from "@canvas/ui/chip";
 import { surfaceStyles } from "@canvas/ui/surface";
+import { textStyles } from "@canvas/ui/text";
 import { codePeekSource } from "@review/source";
 import * as stylex from "@stylexjs/stylex";
 import {
@@ -931,9 +933,7 @@ export function SoftwareMapFrame({
       {showChrome && (
         <header {...stylex.props(styles.header)}>
           <div {...stylex.props(diagramStyles.headerMain, styles.titleBlock)}>
-            <span {...stylex.props(diagramStyles.kindBadge, styles.kindBadge)}>
-              {VIEW_TYPE_LABELS[viewType]}
-            </span>
+            <Chip xstyle={styles.kindBadge}>{VIEW_TYPE_LABELS[viewType]}</Chip>
             <figcaption
               {...stylex.props(diagramStyles.title, styles.title)}
               data-review-copy-prose
@@ -1075,7 +1075,7 @@ function SoftwareMapCodeInspector({
     >
       <header {...stylex.props(styles.inspectorHeader)}>
         <div {...stylex.props(styles.inspectorTitle)}>
-          <span {...stylex.props(styles.inspectorKind)}>
+          <span {...stylex.props(textStyles.eyebrow, styles.inspectorKind)}>
             {softwareMapNodeTypeLabel(node)}
           </span>
           <strong {...stylex.props(styles.inspectorLabel)} title={node.label}>
@@ -2059,7 +2059,7 @@ function SoftwareMapC4GroupNode({
           data.node.type === "softwareSystem" && styles.groupTitleSystem,
         )}
       >
-        <span {...stylex.props(styles.groupKind)}>
+        <span {...stylex.props(textStyles.eyebrow, styles.groupKind)}>
           {softwareMapNodeTypeLabel(data.node)}
         </span>
         <strong
@@ -2436,7 +2436,7 @@ function SoftwareMapNodeFrame({
               isCollection && styles.hidden,
             )}
           >
-            <div {...stylex.props(styles.nodeType)}>
+            <div {...stylex.props(textStyles.eyebrow, styles.nodeType)}>
               {softwareMapNodeTypeLabel(node)}
             </div>
             <SoftwareMapChangeBadge
@@ -2553,17 +2553,17 @@ function SoftwareMapDataStoreSchema({
               >
                 <span {...stylex.props(styles.schemaRowName)}>
                   {row.primaryKey && (
-                    <strong {...stylex.props(styles.schemaKeyFlag)}>PK</strong>
+                    <Chip xstyle={styles.schemaKeyFlag}>PK</Chip>
                   )}
                   {row.foreignKey && (
-                    <strong
-                      {...stylex.props(
+                    <Chip
+                      xstyle={[
                         styles.schemaKeyFlag,
                         styles.schemaKeyFlagForeign,
-                      )}
+                      ]}
                     >
                       FK
-                    </strong>
+                    </Chip>
                   )}
                   {row.label}
                 </span>
@@ -3016,12 +3016,7 @@ const styles = stylex.create({
   },
   inspectorKind: {
     flex: "none",
-    color: tokens.inkFaint,
-    fontSize: "10px",
-    fontWeight: 500,
-    letterSpacing: "0.08em",
     lineHeight: "14px",
-    textTransform: "uppercase",
   },
   inspectorLabel: {
     minWidth: 0,
@@ -3285,11 +3280,6 @@ const styles = stylex.create({
   },
   groupKind: {
     flex: "0 0 auto",
-    color: tokens.inkFaint,
-    fontSize: "10px",
-    fontWeight: 500,
-    letterSpacing: "0.08em",
-    textTransform: "uppercase",
   },
   groupLabel: {
     minWidth: 0,
@@ -3427,13 +3417,8 @@ const styles = stylex.create({
   nodeType: {
     minWidth: 0,
     overflow: "hidden",
-    color: tokens.inkFaint,
-    fontSize: "10px",
-    fontWeight: 500,
-    letterSpacing: "0.08em",
     lineHeight: "14px",
     textOverflow: "ellipsis",
-    textTransform: "uppercase",
     whiteSpace: "nowrap",
   },
   label: {
@@ -3529,8 +3514,8 @@ const styles = stylex.create({
   badgeInGroup: {
     marginLeft: "auto",
     color: tokens.inkFaint,
-    fontSize: "10px",
-    letterSpacing: "0.08em",
+    fontSize: fontSize.micro,
+    letterSpacing: tracking.caps,
     textTransform: "uppercase",
   },
   count: {
@@ -3548,8 +3533,8 @@ const styles = stylex.create({
   countInGroup: {
     flex: "0 0 auto",
     color: tokens.inkFaint,
-    fontSize: "10px",
-    letterSpacing: "0.08em",
+    fontSize: fontSize.micro,
+    letterSpacing: tracking.caps,
     textTransform: "uppercase",
   },
   storageOutline: {
@@ -3732,11 +3717,8 @@ const styles = stylex.create({
   },
   schemaKeyFlag: {
     marginRight: "6px",
-    padding: "1px 4px",
-    borderRadius: "4px",
     backgroundColor: tokens.diffModifiedBg,
     color: tokens.diffModified,
-    fontSize: "10px",
   },
   schemaKeyFlagForeign: {
     backgroundColor: tokens.rpcWash,
