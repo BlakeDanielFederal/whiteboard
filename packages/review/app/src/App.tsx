@@ -660,7 +660,7 @@ function ReviewLayoutContent({
                   }}
                 />
               </div>
-              {!scratchpad && <ShareControl />}
+              <ShareControl />
               <button
                 type="button"
                 {...stylex.props(
