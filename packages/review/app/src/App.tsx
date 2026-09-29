@@ -53,25 +53,20 @@ import {
 } from "./review-find";
 import { useReviewLenses } from "./review-lenses";
 import {
-  ReviewPanelProvider,
   useReviewPanel,
   useReviewPanelStore,
   useSuppressPanelMotionOnCanvasResume,
 } from "./review-panel";
+import type { ReviewDiffScope } from "./review-panel-store";
 import { ReviewRootsProvider } from "./review-root-context";
 import { ReviewToc } from "./review-toc";
-import {
-  type ReviewView,
-  normalizeReviewView,
-  reviewViewLabel,
-  shouldCloseSidePeekForReviewView,
-} from "./review-view-route";
+import { offeredReviewViews, reviewViewLabel } from "./review-view-route";
 import {
   ReviewViewStateProvider,
   useReviewViewStateSync,
 } from "./review-view-state";
 import { ReviewCommitsView } from "./ReviewCommitsView";
-import { ReviewTraceView, type TraceSelection } from "./ReviewTraceView";
+import { ReviewTraceView } from "./ReviewTraceView";
 import { ShareControl } from "./share-control";
 import { useRightPanelResize } from "./side-panel-resizer";
 import { selectActiveSoftwareMapModel } from "./software-map-selection";
@@ -210,7 +205,7 @@ function useResolvedReviewDocument(
 /** A commit-scoped diff stays "commit"; otherwise it follows the reader's
  * structural-diff setting. */
 function diffOpenedKind(
-  diffScope: { commit: ReviewCommitSummary } | null,
+  diffScope: ReviewDiffScope | null,
   structuralDiffEnabled: boolean,
 ): "commit" | "file" | "structural" {
   if (diffScope) return "commit";
@@ -241,6 +236,8 @@ function ReviewLayout({
     revision: documentRevision,
   } = resolved;
 
+  const panelStore = useReviewPanelStore();
+
   const softwareMap =
     softwareMapState.state === "ready" ? softwareMapState.softwareMap : null;
 
@@ -248,10 +245,6 @@ function ReviewLayout({
   const appRef = useRef<HTMLDivElement | null>(null);
   const shellRef = useRef<HTMLElement | null>(null);
   const scrollRegionRef = useRef<HTMLElement | null>(null);
-
-  const [traceSelection, setTraceSelection] = useState<
-    TraceSelection | undefined
-  >(undefined);
 
   const roots = useMemo(
     () => ({ appRef, shellRef, scrollRegionRef, articleRef }),
@@ -262,7 +255,6 @@ function ReviewLayout({
     <ReviewRootsProvider roots={roots}>
       <ReviewFindProvider
         articleRef={articleRef}
-        scrollRegionRef={scrollRegionRef}
         documentKey={documentRevision}
         host={findHost}
       >
@@ -271,35 +263,32 @@ function ReviewLayout({
             key={documentRoute}
             documentRoute={documentRoute}
             softwareMapEnabled={softwareMapEnabled}
-            openTraceSession={setTraceSelection}
+            openTraceSession={panelStore.getState().openTrace}
           >
             <AgentSelectionProvider revision={documentRevision}>
-              <ReviewPanelProvider detailRevision={documentRevision}>
-                <ReviewLayoutContent
-                  appRef={appRef}
-                  shellRef={shellRef}
-                  scrollRegionRef={scrollRegionRef}
-                  articleRef={articleRef}
-                  documentState={documentState}
-                  documentRevision={documentRevision}
-                  softwareModels={[
-                    ...(softwareMap?.head ? [softwareMap.head] : []),
-                    ...(document?.documentSoftwareModels ?? []),
-                  ]}
-                  softwareMapState={softwareMapState}
-                  repoSoftwareMap={softwareMap?.head ?? null}
-                  baseSoftwareMap={softwareMap?.base ?? null}
-                  softwareMapTopologyDiff={
-                    softwareMap
-                      ? diffSoftwareMaps(softwareMap.base, softwareMap.head)
-                      : null
-                  }
-                  softwareMapEnabled={softwareMapEnabled}
-                  range={range}
-                  commits={commits}
-                  traceSelection={traceSelection}
-                />
-              </ReviewPanelProvider>
+              <ReviewLayoutContent
+                appRef={appRef}
+                shellRef={shellRef}
+                scrollRegionRef={scrollRegionRef}
+                articleRef={articleRef}
+                documentState={documentState}
+                documentRevision={documentRevision}
+                softwareModels={[
+                  ...(softwareMap?.head ? [softwareMap.head] : []),
+                  ...(document?.documentSoftwareModels ?? []),
+                ]}
+                softwareMapState={softwareMapState}
+                repoSoftwareMap={softwareMap?.head ?? null}
+                baseSoftwareMap={softwareMap?.base ?? null}
+                softwareMapTopologyDiff={
+                  softwareMap
+                    ? diffSoftwareMaps(softwareMap.base, softwareMap.head)
+                    : null
+                }
+                softwareMapEnabled={softwareMapEnabled}
+                range={range}
+                commits={commits}
+              />
             </AgentSelectionProvider>
           </ReviewProvider>
         </ReviewDebugSettingsProvider>
@@ -323,7 +312,6 @@ function ReviewLayoutContent({
   softwareMapEnabled,
   range,
   commits,
-  traceSelection,
 }: {
   appRef: RefObject<HTMLDivElement | null>;
   shellRef: RefObject<HTMLElement | null>;
@@ -339,7 +327,6 @@ function ReviewLayoutContent({
   softwareMapEnabled: boolean;
   range: ReviewCanvasRange;
   commits: readonly ReviewCommitSummary[];
-  traceSelection?: TraceSelection;
 }): ReactElement {
   const session = useReviewSession();
   const review = useReview();
@@ -355,10 +342,10 @@ function ReviewLayoutContent({
   useSuppressPanelMotionOnCanvasResume(appRef);
   const activePanel = useReviewPanel((state) => state.active);
   const panelMotion = useReviewPanel((state) => state.motion);
-
-  const closeForDocumentChange = useReviewPanel(
-    (state) => state.closeForDocumentChange,
-  );
+  const activeView = useReviewPanel((state) => state.view);
+  const diffScope = useReviewPanel((state) => state.diffScope);
+  const traceSelection = useReviewPanel((state) => state.traceSelection);
+  const showView = useReviewPanel((state) => state.showView);
 
   const debugSettings = useReviewDebugSettings();
 
@@ -377,19 +364,6 @@ function ReviewLayoutContent({
 
   const hasChangeRange =
     !!range.worktreeRevision || range.baseCommit !== range.headCommit;
-
-  const [activeView, setActiveView] = useState<ReviewView>(() =>
-    normalizeReviewView(
-      viewStateSync.initialActiveView ?? "review",
-      softwareMapEnabled,
-      hasChangeRange,
-    ),
-  );
-
-  const [diffScope, setDiffScope] = useState<{
-    commit: ReviewCommitSummary;
-    file?: string;
-  } | null>(null);
 
   const selectForAgent = useAgentSelection();
   useEffect(() => {
@@ -424,71 +398,28 @@ function ReviewLayoutContent({
       ? diffFiles.files.length
       : null;
 
-  const reviewViews: readonly ReviewView[] = [
-    "review",
-    ...(hasChangeRange ? (["commits", "diff"] as const) : []),
-    ...(softwareMapEnabled ? (["map"] as const) : []),
-    ...(hasTraceSessions ? (["trace"] as const) : []),
-  ];
+  const reviewViews = useMemo(
+    () =>
+      offeredReviewViews({
+        hasChangeRange,
+        softwareMapEnabled,
+        hasTraceSessions,
+      }),
+    [hasChangeRange, hasTraceSessions, softwareMapEnabled],
+  );
+
+  useLayoutEffect(() => {
+    panelStore.getState().setAvailableViews(reviewViews);
+  }, [panelStore, reviewViews]);
 
   const lenses = useReviewLenses();
-  useEffect(() => {
-    if (lenses?.active) {
-      setDiffScope(null);
-      captureUiEvent(session, "diff_opened", {
-        kind: diffOpenedKind(null, Boolean(lenses.structuralDiffEnabled)),
-        via: "lens",
-      });
-      setActiveView("diff");
-    }
-  }, [lenses?.active, lenses?.structuralDiffEnabled, session]);
 
-  const reviewViewsRef = useRef(reviewViews);
-  reviewViewsRef.current = reviewViews;
-
-  const applyReviewView = (view: ReviewView) => {
-    const normalizedView = normalizeReviewView(
-      view,
-      softwareMapEnabled,
-      hasChangeRange,
-      hasTraceSessions !== false,
-    );
-
-    if (normalizedView !== "diff") setDiffScope(null);
-
-    if (shouldCloseSidePeekForReviewView(normalizedView)) {
-      closeForDocumentChange();
-    }
-
-    setActiveView(normalizedView);
-    viewStateSync.persistActiveView(normalizedView);
-  };
-
-  useEffect(() => {
-    if (
-      normalizeReviewView(
-        activeView,
-        softwareMapEnabled,
-        hasChangeRange,
-        hasTraceSessions !== false,
-      ) !== activeView
-    ) {
-      applyReviewView("review");
-    }
-  }, [activeView, hasChangeRange, hasTraceSessions, softwareMapEnabled]);
   useReviewTabTelemetry(activeView);
-  useEffect(() => {
-    if (traceSelection) {
-      applyReviewView("trace");
-    }
-  }, [traceSelection]);
 
   useEffect(() => {
     if (!softwareMapEnabled || !review.softwareMapFocusRequest) return;
-    applyReviewView("map");
-  }, [review.softwareMapFocusRequest, softwareMapEnabled]);
-  const applyReviewViewRef = useRef(applyReviewView);
-  applyReviewViewRef.current = applyReviewView;
+    panelStore.getState().showView("map");
+  }, [panelStore, review.softwareMapFocusRequest, softwareMapEnabled]);
 
   const tutorial = useTutorial() !== null;
 
@@ -501,14 +432,12 @@ function ReviewLayoutContent({
   // mounting cannot outrun the listener.
   useLayoutEffect(() => {
     return session.surface.subscribe((event) => {
-      if (
-        event.event === "showReviewView" &&
-        reviewViewsRef.current.includes(event.view)
-      ) {
-        applyReviewViewRef.current(event.view);
-      }
+      if (event.event !== "showReviewView") return;
+      const { availableViews, showView } = panelStore.getState();
+
+      if (availableViews.includes(event.view)) showView(event.view);
     });
-  }, [session.surface]);
+  }, [panelStore, session.surface]);
 
   const activeSoftwareMapSource = useMemo(
     () =>
@@ -595,7 +524,7 @@ function ReviewLayoutContent({
                           ),
                           via: "topbar",
                         });
-                      applyReviewView(view);
+                      showView(view);
                     }}
                   >
                     {view === "review" ? (
@@ -659,7 +588,7 @@ function ReviewLayoutContent({
                         ),
                         via: "locate",
                       });
-                    applyReviewView(view);
+                    showView(view);
                   }}
                 />
               </div>
@@ -785,9 +714,8 @@ function ReviewLayoutContent({
                 commits={commits}
                 range={range}
                 onOpenDiff={(commit, via, file) => {
-                  setDiffScope({ commit, file });
                   captureUiEvent(session, "commit_diff_opened", { via });
-                  applyReviewView("diff");
+                  panelStore.getState().openCommitDiff({ commit, file });
                 }}
               />
             )}
@@ -805,10 +733,7 @@ function ReviewLayoutContent({
               <div className="review-diff-view review-diff-view--scoped">
                 <CommitDiffScopeBar
                   commit={diffScope.commit}
-                  onBack={() => {
-                    setDiffScope(null);
-                    applyReviewView("commits");
-                  }}
+                  onBack={() => showView("commits")}
                 />
                 <ReviewDiffView
                   scope={{ commit: diffScope.commit.commit }}

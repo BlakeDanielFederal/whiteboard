@@ -1,3 +1,8 @@
+import {
+  type ReviewCommitSummary,
+  type ReviewView,
+  reviewViewSchema,
+} from "@dev.fast/review-protocol";
 import { createStore } from "zustand/vanilla";
 
 import type {
@@ -6,10 +11,39 @@ import type {
   ReviewPanel,
   ReviewPanelMotion,
 } from "./review-panel-model";
+import { shouldCloseSidePeekForReviewView } from "./review-view-route";
 
 export interface ReviewPanelState {
   active: ReviewPanel | null;
   motion: ReviewPanelMotion;
+}
+
+export interface TraceSelection {
+  sessionId: string;
+  trace?: string;
+  eventIndex?: number;
+}
+
+/** A lens applies only to the version and diff mode it was chosen on. */
+export interface ReviewLensSelection {
+  id: string;
+  version: number;
+  mode: "structural" | "textual";
+}
+
+export interface ReviewDiffScope {
+  commit: ReviewCommitSummary;
+  file?: string;
+}
+
+/** Which canvas view is showing and what it is scoped to. */
+export interface ReviewNavigationState {
+  view: ReviewView;
+  /** Views the canvas offers; navigation to any other lands on "review". */
+  availableViews: readonly ReviewView[];
+  diffScope: ReviewDiffScope | null;
+  traceSelection: TraceSelection | undefined;
+  lens: ReviewLensSelection | null;
 }
 
 export interface ReviewPanelActions {
@@ -19,17 +53,42 @@ export interface ReviewPanelActions {
   restoreTour: (tour: GuidedTour, activeAnchor: string) => void;
   activateTourAnchor: (anchorId: string, options: { reveal: boolean }) => void;
   close: () => void;
-  closeForDocumentChange: () => void;
 }
 
-export type ReviewPanelStoreState = ReviewPanelState & ReviewPanelActions;
+export interface ReviewNavigationActions {
+  showView: (view: ReviewView) => void;
+  openCommitDiff: (scope: ReviewDiffScope) => void;
+  /** A lens opens its diff alongside any open peek. */
+  selectLens: (lens: ReviewLensSelection) => void;
+  clearLens: () => void;
+  openTrace: (selection: TraceSelection) => void;
+  setAvailableViews: (views: readonly ReviewView[]) => void;
+}
+
+export type ReviewPanelStoreState = ReviewPanelState &
+  ReviewPanelActions &
+  ReviewNavigationState &
+  ReviewNavigationActions;
 
 export type ReviewPanelStore = ReturnType<typeof createReviewPanelStore>;
 
-export function createReviewPanelStore() {
+export type ReviewNavigationRestore = Partial<
+  Pick<ReviewNavigationState, "view" | "availableViews" | "lens">
+>;
+
+export function createReviewPanelStore({
+  view = "review",
+  availableViews = reviewViewSchema.options,
+  lens = null,
+}: ReviewNavigationRestore = {}) {
   return createStore<ReviewPanelStoreState>()((set) => ({
     active: null,
     motion: "live",
+    view: availableViews.includes(view) ? view : "review",
+    availableViews,
+    diffScope: null,
+    traceSelection: undefined,
+    lens,
     suppressMotion: () => set({ motion: "restored" }),
     openPeek: (panel) => set({ active: panel, motion: "live" }),
     openTour: (tour, activeAnchor) => {
@@ -72,7 +131,49 @@ export function createReviewPanelStore() {
       });
     },
     close: () => set({ active: null, motion: "live" }),
-    closeForDocumentChange: () =>
-      set((state) => (state.active ? { active: null, motion: "live" } : state)),
+    showView: (next) => set((state) => viewTransition(state, next)),
+    openCommitDiff: (scope) =>
+      set((state) => {
+        const transition = viewTransition(state, "diff");
+
+        return transition.view === "diff"
+          ? { ...transition, diffScope: scope }
+          : transition;
+      }),
+    selectLens: (lens) =>
+      set((state) => ({
+        lens,
+        view: state.availableViews.includes("diff") ? "diff" : "review",
+        diffScope: null,
+      })),
+    clearLens: () => set({ lens: null }),
+    openTrace: (selection) =>
+      set((state) => ({
+        ...viewTransition(state, "trace"),
+        traceSelection: selection,
+      })),
+    setAvailableViews: (views) =>
+      set((state) =>
+        views.includes(state.view)
+          ? { availableViews: views }
+          : {
+              ...viewTransition({ ...state, availableViews: views }, "review"),
+              availableViews: views,
+            },
+      ),
   }));
+}
+
+function viewTransition(
+  state: ReviewPanelState & ReviewNavigationState,
+  requested: ReviewView,
+): Partial<ReviewPanelState & ReviewNavigationState> {
+  const view = state.availableViews.includes(requested) ? requested : "review";
+
+  return {
+    view,
+    ...(view !== "diff" && { diffScope: null }),
+    ...(shouldCloseSidePeekForReviewView(view) &&
+      state.active && { active: null, motion: "live" }),
+  };
 }
