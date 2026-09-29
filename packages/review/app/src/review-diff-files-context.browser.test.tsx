@@ -3,6 +3,7 @@ import { act, useLayoutEffect } from "react";
 import { createRoot } from "react-dom/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import { TestCanvasQuery } from "./canvas-query-test-utils";
 import { ReviewSessionProvider } from "./host/review-session";
 import {
   ReviewDiffFilesProvider,
@@ -62,15 +63,19 @@ describe("ReviewDiffFilesProvider", () => {
 
     await act(async () => {
       root!.render(
-        <ReviewSessionProvider session={nativeSession}>
-          <ReviewDiffFilesProvider documentKey="review-one">
-            <Probe />
-          </ReviewDiffFilesProvider>
-        </ReviewSessionProvider>,
+        <TestCanvasQuery>
+          <ReviewSessionProvider session={nativeSession}>
+            <ReviewDiffFilesProvider documentKey="review-one">
+              <Probe />
+            </ReviewDiffFilesProvider>
+          </ReviewSessionProvider>
+        </TestCanvasQuery>,
       );
     });
 
-    expect(container.textContent).toBe("src/prefetched.ts");
+    await vi.waitFor(() =>
+      expect(container.textContent).toBe("src/prefetched.ts"),
+    );
     expect(files).toHaveBeenCalledTimes(1);
     expect(fetchMock).not.toHaveBeenCalled();
   });
@@ -121,12 +126,14 @@ describe("ReviewDiffFilesProvider", () => {
 
     await act(async () => {
       root!.render(
-        <ReviewSessionProvider session={session}>
-          <ReviewDiffFilesProvider documentKey="review-one">
-            <Probe label="one" />
-            <Probe label="two" />
-          </ReviewDiffFilesProvider>
-        </ReviewSessionProvider>,
+        <TestCanvasQuery>
+          <ReviewSessionProvider session={session}>
+            <ReviewDiffFilesProvider documentKey="review-one">
+              <Probe label="one" />
+              <Probe label="two" />
+            </ReviewDiffFilesProvider>
+          </ReviewSessionProvider>
+        </TestCanvasQuery>,
       );
     });
     expect(files).toHaveBeenCalledTimes(1);
@@ -142,8 +149,10 @@ describe("ReviewDiffFilesProvider", () => {
       ]);
       await pendingResponse;
     });
-    expect(container.textContent).toContain("one:loaded:1");
-    expect(container.textContent).toContain("two:loaded:1");
+    await vi.waitFor(() => {
+      expect(container.textContent).toContain("one:loaded:1");
+      expect(container.textContent).toContain("two:loaded:1");
+    });
     expect(files).toHaveBeenCalledTimes(1);
   });
 
@@ -212,23 +221,29 @@ describe("ReviewDiffFilesProvider", () => {
 
     await act(async () => {
       root!.render(
-        <ReviewSessionProvider session={session}>
-          <ReviewDiffFilesProvider documentKey="review-one">
-            <Probe />
-          </ReviewDiffFilesProvider>
-        </ReviewSessionProvider>,
+        <TestCanvasQuery>
+          <ReviewSessionProvider session={session}>
+            <ReviewDiffFilesProvider documentKey="review-one">
+              <Probe />
+            </ReviewDiffFilesProvider>
+          </ReviewSessionProvider>
+        </TestCanvasQuery>,
       );
     });
-    expect(container.textContent).toBe("loaded:src/first.ts");
+    await vi.waitFor(() =>
+      expect(container.textContent).toBe("loaded:src/first.ts"),
+    );
 
     const transitionStart = committedStates.length;
     await act(async () => {
       root!.render(
-        <ReviewSessionProvider session={session}>
-          <ReviewDiffFilesProvider documentKey="review-two">
-            <Probe />
-          </ReviewDiffFilesProvider>
-        </ReviewSessionProvider>,
+        <TestCanvasQuery>
+          <ReviewSessionProvider session={session}>
+            <ReviewDiffFilesProvider documentKey="review-two">
+              <Probe />
+            </ReviewDiffFilesProvider>
+          </ReviewSessionProvider>
+        </TestCanvasQuery>,
       );
     });
     expect(committedStates.slice(transitionStart)).not.toContain(
@@ -238,14 +253,18 @@ describe("ReviewDiffFilesProvider", () => {
 
     await act(async () => {
       root!.render(
-        <ReviewSessionProvider session={session}>
-          <ReviewDiffFilesProvider documentKey="review-three">
-            <Probe />
-          </ReviewDiffFilesProvider>
-        </ReviewSessionProvider>,
+        <TestCanvasQuery>
+          <ReviewSessionProvider session={session}>
+            <ReviewDiffFilesProvider documentKey="review-three">
+              <Probe />
+            </ReviewDiffFilesProvider>
+          </ReviewSessionProvider>
+        </TestCanvasQuery>,
       );
     });
-    expect(container.textContent).toBe("loaded:src/third.ts");
+    await vi.waitFor(() =>
+      expect(container.textContent).toBe("loaded:src/third.ts"),
+    );
 
     await act(async () => {
       resolveSecondDocument([
@@ -257,8 +276,75 @@ describe("ReviewDiffFilesProvider", () => {
         },
       ]);
       await secondDocument;
+      await new Promise((resolve) => setTimeout(resolve, 0));
     });
     expect(container.textContent).toBe("loaded:src/third.ts");
     expect(files).toHaveBeenCalledTimes(3);
+  });
+  it("keeps the shown files while a save refetches them", async () => {
+    let resolveSave!: (files: ReviewDiffFileWire[]) => void;
+
+    const file = (path: string) => ({
+      path,
+      status: "modified" as const,
+      additions: 1,
+      deletions: 0,
+    });
+
+    const files = vi
+      .fn<() => Promise<ReviewDiffFileWire[]>>()
+      .mockResolvedValueOnce([file("src/before.ts")])
+      .mockReturnValueOnce(
+        new Promise((resolve) => {
+          resolveSave = resolve;
+        }),
+      );
+
+    const session = testReviewSession(
+      {},
+      {
+        diffView: {
+          create: () => {
+            throw new Error("unused");
+          },
+          files,
+        },
+      },
+    );
+
+    const container = document.createElement("div");
+    document.body.append(container);
+    root = createRoot(container);
+
+    function Probe() {
+      const state = useReviewDiffFiles();
+
+      return (
+        <span>
+          {state.status === "loaded" ? state.files[0]?.path : state.status}
+        </span>
+      );
+    }
+
+    const render = (revision: string) =>
+      act(async () => {
+        root!.render(
+          <TestCanvasQuery>
+            <ReviewSessionProvider session={session}>
+              <ReviewDiffFilesProvider documentKey="live" revision={revision}>
+                <Probe />
+              </ReviewDiffFilesProvider>
+            </ReviewSessionProvider>
+          </TestCanvasQuery>,
+        );
+      });
+
+    await render("first-save");
+    await vi.waitFor(() => expect(container.textContent).toBe("src/before.ts"));
+    await render("second-save");
+    expect(files).toHaveBeenCalledTimes(2);
+    expect(container.textContent).toBe("src/before.ts");
+    await act(async () => resolveSave([file("src/after.ts")]));
+    await vi.waitFor(() => expect(container.textContent).toBe("src/after.ts"));
   });
 });
