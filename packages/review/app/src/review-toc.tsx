@@ -327,6 +327,7 @@ export function ReviewToc({
                   {...stylex.props(
                     styles.number,
                     showRail && styles.numberRail,
+                    entry.level === "h3" && styles.numberH3,
                     active === entry.id && styles.numberActive,
                   )}
                 >
@@ -495,6 +496,8 @@ const styles = stylex.create({
   body: {
     maxHeight: "min(488px, calc(100dvh - 196px))",
     overflow: "auto",
+    // Same scrollbar as the review document.
+    scrollbarWidth: "thin",
     opacity: 0,
     pointerEvents: "none",
     transition: {
@@ -596,9 +599,12 @@ const styles = stylex.create({
     fontSize: "11px",
   },
   numberRail: {
-    flex: { default: "0 0 auto", [besideDocumentHeader]: "0 0 12px" },
     minWidth: { default: "22px", [besideDocumentHeader]: "12px" },
     fontSize: { default: "11px", [besideDocumentHeader]: "12px" },
+  },
+  // Fits "5.10".
+  numberH3: {
+    minWidth: "4ch",
   },
   numberActive: {
     color: tokens.ink,
