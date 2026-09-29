@@ -1,3 +1,4 @@
+import type { Step } from "@review/review-api/document";
 import {
   BaseEdge,
   EdgeLabelRenderer,
@@ -22,7 +23,6 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 
-import type { Step } from "../../src/review-api/document";
 import { useReviewDebugSettings } from "./debug-settings";
 import { DiagramHeader } from "./diagram-header";
 import { hasTextSelectionWithin } from "./diagram-text-selection";
@@ -33,8 +33,6 @@ import { useReviewPanel } from "./review-panel";
 import type { GuidedTour, PeekAnchor } from "./review-panel-model";
 import { useTourPersist, useTourRestore } from "./review-view-state";
 import { captureUiEvent } from "./ui-telemetry";
-
-import "@xyflow/react/dist/style.css";
 
 type SequenceParticipantNodeData = {
   participant: SequenceParticipant;
@@ -569,7 +567,7 @@ function SequenceDiagramFigure({
         <DiagramHeader
           kind="SEQ"
           title={sequence.title}
-          meta={`${stopCount} stops`}
+          meta={`${stopCount} ${stopCount === 1 ? "stop" : "stops"}`}
           action={
             // The tour panel's header owns the close control fullscreen.
             onCloseTour ? null : (

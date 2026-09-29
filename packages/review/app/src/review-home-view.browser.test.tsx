@@ -1,16 +1,33 @@
-import type { ReviewApiSummary } from "@dev.fast/review-protocol";
-import { act } from "react";
+import type {
+  ReviewApiSummary,
+  ReviewCanvasUi,
+  ReviewMenuRequest,
+} from "@dev.fast/review-protocol";
+import { type ReactNode, act } from "react";
 import { type Root, createRoot } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { testCanvasUi } from "./canvas-ui-test-utils";
+import { CanvasUiContext } from "./host/canvas-ui";
 import { ReviewHome, formatRelativeTime } from "./review-home-view";
 
 describe("ReviewHome", () => {
+  let host: ReturnType<typeof testCanvasUi>;
+
+  function renderWithHost(node: ReactNode) {
+    root.render(
+      <CanvasUiContext.Provider value={host.ui}>
+        {node}
+      </CanvasUiContext.Provider>,
+    );
+  }
+
   let container: HTMLDivElement;
   let root: Root;
 
   beforeEach(() => {
     localStorage.clear();
+    host = testCanvasUi();
     container = document.createElement("div");
     document.body.append(container);
     root = createRoot(container);
@@ -53,7 +70,7 @@ describe("ReviewHome", () => {
     ];
 
     await act(async () =>
-      root.render(<ReviewHome reviews={reviews} onOpen={() => {}} />),
+      renderWithHost(<ReviewHome reviews={reviews} onOpen={() => {}} />),
     );
     expect(
       [...container.querySelectorAll(".review-home-review-title")].map(
@@ -92,9 +109,12 @@ describe("ReviewHome", () => {
       async () => undefined,
     );
 
+    const host = testCanvasUi();
     await act(async () =>
-      root.render(
-        <ReviewHome reviews={reviews} onOpen={onOpen} onDismiss={onDismiss} />,
+      renderWithHost(
+        <CanvasUiContext.Provider value={host.ui}>
+          <ReviewHome reviews={reviews} onOpen={onOpen} onDismiss={onDismiss} />
+        </CanvasUiContext.Provider>,
       ),
     );
 
@@ -106,26 +126,13 @@ describe("ReviewHome", () => {
       ].map((element) => element.textContent);
 
     const select = async (label: string, value: string) => {
-      const names = new Map([
-        ["updated", "Recently updated"],
-        ["oldest", "Oldest first"],
-        ["pr", "PR number"],
-        ["title", "Title A–Z"],
-      ]);
-
       await act(async () =>
         container
           .querySelector<HTMLButtonElement>(`button[aria-label="${label}"]`)!
           .click(),
       );
 
-      const option = [
-        ...container.querySelectorAll<HTMLButtonElement>(
-          '[role="menuitemradio"]',
-        ),
-      ].find((element) => element.textContent === (names.get(value) ?? value));
-
-      await act(async () => option!.click());
+      await act(async () => host.select(value));
     };
 
     expect(titles()).toEqual(["Alpha", "Zulu"]);
@@ -174,7 +181,7 @@ describe("ReviewHome", () => {
     const review = summary({ reviewId: uuid(1), title: "A review" });
     const onOpen = vi.fn<(review: ReviewApiSummary) => void>();
     await act(async () =>
-      root.render(<ReviewHome reviews={[review, pad]} onOpen={onOpen} />),
+      renderWithHost(<ReviewHome reviews={[review, pad]} onOpen={onOpen} />),
     );
 
     const labels = Array.from(container.querySelectorAll("button")).map(
@@ -204,7 +211,7 @@ describe("ReviewHome", () => {
     const item = { ...review, repositoryName: "Review repository" };
     const onOpen = vi.fn<(review: typeof item) => void>();
     await act(async () =>
-      root.render(<ReviewHome reviews={[item]} onOpen={onOpen} />),
+      renderWithHost(<ReviewHome reviews={[item]} onOpen={onOpen} />),
     );
     expect(container.textContent).toContain("Review repository");
 
@@ -229,7 +236,7 @@ describe("ReviewHome", () => {
     ];
 
     await act(async () =>
-      root.render(<ReviewHome reviews={reviews} onOpen={() => {}} />),
+      renderWithHost(<ReviewHome reviews={reviews} onOpen={() => {}} />),
     );
 
     expect(container.querySelectorAll(".review-home-table")).toHaveLength(1);
@@ -240,38 +247,176 @@ describe("ReviewHome", () => {
     expect(container.querySelector('[title^="/repo/other"]')).not.toBeNull();
   });
 
-  it("opens the row menu without opening the review and requires confirmation to delete", async () => {
-    const review = summary({ title: "Menu review" });
-    const onOpen = vi.fn<(review: ReviewApiSummary) => void>();
+  it.each(["ArrowDown", "ArrowUp"])(
+    "%s opens row actions once without opening or deleting the review",
+    async (key) => {
+      const review = summary({ title: "Keyboard review" });
+      const onOpen = vi.fn<(review: ReviewApiSummary) => void>();
 
-    const onDelete = vi.fn<(review: ReviewApiSummary) => Promise<void>>(
-      async () => undefined,
+      const onDelete = vi.fn<(review: ReviewApiSummary) => Promise<void>>(
+        async () => {},
+      );
+
+      await act(async () =>
+        renderWithHost(
+          <ReviewHome reviews={[review]} onOpen={onOpen} onDelete={onDelete} />,
+        ),
+      );
+
+      const trigger = container.querySelector<HTMLButtonElement>(
+        '[aria-label="Actions for Keyboard review"]',
+      )!;
+
+      for (let attempt = 0; attempt < 2; attempt++) {
+        await act(async () =>
+          trigger.dispatchEvent(
+            new KeyboardEvent("keydown", { key, bubbles: true }),
+          ),
+        );
+      }
+
+      expect(host.ui.showMenu).toHaveBeenCalledOnce();
+      expect(host.menu.items.map((item) => item.id)).toEqual(["delete"]);
+      expect(onOpen).not.toHaveBeenCalled();
+      expect(onDelete).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each([false, true])(
+    "host deletion waits for confirmation and preserves the original target (confirmed: %s)",
+    async (confirmed) => {
+      const original = summary({ title: "Original session" });
+      const confirmation = Promise.withResolvers<boolean>();
+      const deletion = Promise.withResolvers<void>();
+
+      const onDelete = vi.fn<(review: ReviewApiSummary) => Promise<void>>(
+        () => deletion.promise,
+      );
+
+      const onOpen = vi.fn<(review: ReviewApiSummary) => void>();
+
+      const confirmDelete = vi.fn<(title: string) => Promise<boolean>>(
+        () => confirmation.promise,
+      );
+
+      let menu!: ReviewMenuRequest;
+
+      const ui: ReviewCanvasUi = Object.freeze<ReviewCanvasUi>({
+        confirmDelete,
+        showMenu: (request) => {
+          menu = request;
+
+          return { dispose() {} };
+        },
+      });
+
+      const render = async (reviews: ReviewApiSummary[]) =>
+        act(async () =>
+          renderWithHost(
+            <CanvasUiContext.Provider value={ui}>
+              <ReviewHome
+                reviews={reviews}
+                onOpen={onOpen}
+                onDelete={onDelete}
+              />
+            </CanvasUiContext.Provider>,
+          ),
+        );
+
+      await render([original]);
+      await act(async () =>
+        container
+          .querySelector<HTMLButtonElement>(
+            '[aria-label="Actions for Original session"]',
+          )!
+          .click(),
+      );
+      let selected!: Promise<void>;
+      await act(async () => {
+        menu.onHide();
+        selected = Promise.resolve(menu.onSelect("delete"));
+      });
+      await act(async () => {
+        await menu.onSelect("delete");
+      });
+      expect(confirmDelete).toHaveBeenCalledExactlyOnceWith("Original session");
+      expect(onDelete).not.toHaveBeenCalled();
+      expect(container.textContent).toContain("Original session");
+      const other = summary({ reviewId: uuid(2), title: "Another session" });
+      await render([other, original]);
+      await act(async () => confirmation.resolve(confirmed));
+      expect(onOpen).not.toHaveBeenCalled();
+
+      expect(onDelete).toHaveBeenCalledTimes(confirmed ? 1 : 0);
+      expect(onDelete.mock.calls[0]?.[0]).toBe(
+        confirmed ? original : undefined,
+      );
+      expect(container.textContent?.includes("Original session")).toBe(
+        !confirmed,
+      );
+
+      if (confirmed) {
+        await act(async () => {
+          deletion.reject(new Error("Offline"));
+          await selected;
+        });
+      }
+
+      await selected;
+      expect(container.textContent).toContain("Original session");
+      expect(container.textContent?.includes("Could not delete")).toBe(
+        confirmed,
+      );
+
+      expect(container.textContent).toContain("Another session");
+    },
+  );
+
+  it("a dismissed session uses a single host confirmation without an arming click", async () => {
+    const review = summary({
+      title: "Dismissed session",
+      dismissedAt: "2026-09-01T00:00:00Z",
+    });
+
+    const confirmDelete = vi.fn<(title: string) => Promise<boolean>>(
+      async () => false,
     );
 
+    const onDelete = vi.fn<(review: ReviewApiSummary) => Promise<void>>(
+      async () => {},
+    );
+
+    const ui: ReviewCanvasUi = Object.freeze<ReviewCanvasUi>({
+      confirmDelete,
+      showMenu: () => ({ dispose() {} }),
+    });
+
     await act(async () =>
-      root.render(
-        <ReviewHome reviews={[review]} onOpen={onOpen} onDelete={onDelete} />,
+      renderWithHost(
+        <CanvasUiContext.Provider value={ui}>
+          <ReviewHome
+            reviews={[review]}
+            onOpen={() => {}}
+            onDelete={onDelete}
+          />
+        </CanvasUiContext.Provider>,
       ),
     );
     await act(async () =>
       container
+        .querySelector<HTMLButtonElement>(".review-home-dismissed-toggle")!
+        .click(),
+    );
+    await act(async () =>
+      container
         .querySelector<HTMLButtonElement>(
-          '[aria-label="Actions for Menu review"]',
+          '[aria-label="Delete Dismissed session"]',
         )!
         .click(),
     );
-    expect(container.querySelector('[role="menu"]')).not.toBeNull();
-    expect(onOpen).not.toHaveBeenCalled();
-
-    const remove =
-      container.querySelector<HTMLButtonElement>('[role="menuitem"]')!;
-
-    await act(async () => remove.click());
+    expect(confirmDelete).toHaveBeenCalledExactlyOnceWith("Dismissed session");
     expect(onDelete).not.toHaveBeenCalled();
-    expect(remove.textContent).toContain("Confirm delete");
-    await act(async () => remove.click());
-    expect(onDelete).toHaveBeenCalledWith(review);
-    expect(onOpen).not.toHaveBeenCalled();
+    expect(container.textContent).toContain("Dismissed session");
   });
 
   it("deletes a review after an arming click without opening it", async () => {
@@ -290,7 +435,7 @@ describe("ReviewHome", () => {
     ];
 
     await act(async () =>
-      root.render(
+      renderWithHost(
         <ReviewHome reviews={reviews} onOpen={onOpen} onDelete={onDelete} />,
       ),
     );
@@ -307,13 +452,7 @@ describe("ReviewHome", () => {
 
     expect(remove).not.toBeNull();
     await act(async () => remove?.click());
-    expect(onDelete).not.toHaveBeenCalled();
-
-    const confirm = container.querySelector<HTMLButtonElement>(
-      'button[aria-label="Confirm delete Removable"]',
-    );
-
-    await act(async () => confirm?.click());
+    expect(host.ui.confirmDelete).toHaveBeenCalledExactlyOnceWith("Removable");
     expect(onDelete).toHaveBeenCalledWith(reviews[0]);
     expect(onOpen).not.toHaveBeenCalled();
   });
@@ -333,7 +472,7 @@ describe("ReviewHome", () => {
       );
 
       await act(async () =>
-        root.render(
+        renderWithHost(
           <ReviewHome
             reviews={[review]}
             onOpen={() => {}}
@@ -351,13 +490,15 @@ describe("ReviewHome", () => {
           .click(),
       );
 
-      const remove = container.querySelector<HTMLButtonElement>(
-        '[aria-label="Delete Pending review"]',
-      )!;
-
-      await act(async () => remove.click());
-      expect(container.textContent).toContain("Pending review");
-      await act(async () => remove.click());
+      await act(async () => {
+        if (isDismissed)
+          container
+            .querySelector<HTMLButtonElement>(
+              '[aria-label="Delete Pending review"]',
+            )!
+            .click();
+        else void host.select("delete");
+      });
       expect(onDelete).toHaveBeenCalledWith(review);
       expect(container.textContent).not.toContain("Pending review");
       expect(container.querySelector('[role="menu"]')).toBeNull();
@@ -386,7 +527,7 @@ describe("ReviewHome", () => {
 
     const render = async (reviews: ReviewApiSummary[]) =>
       act(async () =>
-        root.render(
+        renderWithHost(
           <ReviewHome
             reviews={reviews}
             onOpen={() => {}}
@@ -404,11 +545,9 @@ describe("ReviewHome", () => {
         .click(),
     );
 
-    const remove =
-      container.querySelector<HTMLButtonElement>('[role="menuitem"]')!;
-
-    await act(async () => remove.click());
-    await act(async () => remove.click());
+    await act(async () => {
+      void host.select("delete");
+    });
     expect(container.textContent).not.toContain("Pending review");
     await act(async () => deletion.resolve());
     await render([review]);
@@ -437,7 +576,7 @@ describe("ReviewHome", () => {
 
     const render = async (item: ReviewApiSummary) =>
       act(async () =>
-        root.render(
+        renderWithHost(
           <ReviewHome
             reviews={[item]}
             onOpen={onOpen}
@@ -496,7 +635,7 @@ describe("ReviewHome", () => {
     async ({ platform, find, other }) => {
       vi.spyOn(navigator, "platform", "get").mockReturnValue(platform);
       await act(async () =>
-        root.render(<ReviewHome reviews={[summary()]} onOpen={() => {}} />),
+        renderWithHost(<ReviewHome reviews={[summary()]} onOpen={() => {}} />),
       );
 
       const press = async (modifiers: KeyboardEventInit) => {
@@ -523,7 +662,7 @@ describe("ReviewHome", () => {
 
   it("hides the delete action when the host does not support deletion", async () => {
     await act(async () =>
-      root.render(<ReviewHome reviews={[summary()]} onOpen={() => {}} />),
+      renderWithHost(<ReviewHome reviews={[summary()]} onOpen={() => {}} />),
     );
     expect(container.querySelector(".review-home-delete")).toBeNull();
   });
@@ -538,7 +677,7 @@ describe("ReviewHome", () => {
     });
 
     await act(async () =>
-      root.render(<ReviewHome reviews={[review]} onOpen={() => {}} />),
+      renderWithHost(<ReviewHome reviews={[review]} onOpen={() => {}} />),
     );
     expect(container.textContent).toContain("6 min ago");
     expect(container.textContent).not.toContain("updated not published");

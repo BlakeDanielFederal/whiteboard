@@ -19,12 +19,12 @@ import { fileURLToPath } from "node:url";
 
 import { setLocalVcsCommandObserver } from "@dev.fast/local-vcs";
 import type { JsonValue } from "@dev.fast/review-protocol";
+import { selectSource } from "@review/lens-selection";
+import { createGlobalReviewServer } from "@review/server/desktop-server.js";
 import { Hono } from "hono";
 import sharp from "sharp";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { selectSource } from "../lens-selection";
-import { createGlobalReviewServer } from "../server/desktop-server.js";
 import {
   type AuthoringTool,
   ToolText,
@@ -107,7 +107,7 @@ beforeEach(async () => {
   database = path.join(directory, "reviews.db");
   vi.stubEnv("DEV_REVIEW_HOME", directory);
   mkdirSync(repository);
-  git("init", "-q");
+  git("init", "-q", "-b", "main");
   git("config", "user.name", "Review Test");
   git("config", "user.email", "review-test@example.invalid");
   writeFileSync(
@@ -1444,6 +1444,59 @@ it("refuses a committed binary file as a code reference", async () => {
   ).rejects.toThrow("Binary files cannot be used as code references.");
 });
 
+it("describes binary source for browsing without allowing it as code evidence", async () => {
+  writeFileSync(path.join(repository, "binary.bin"), "text\u0000more\n");
+  git("add", "binary.bin");
+  git("-c", "commit.gpgsign=false", "commit", "-qm", "Binary");
+
+  const binaryPins = await local.data.resolvePins(
+    pins.repositoryId,
+    pins.head,
+    "HEAD",
+  );
+
+  const review = await local.store.execute(
+    command({ type: "create", title: "Binary", pins: binaryPins }),
+  );
+
+  const app = createReviewApi(local.store, local.data);
+  // The Diff view learns a file is binary from the list, before it reads anything.
+  expect(
+    await (await app.request(`/${review.reviewId}/diff`)).json(),
+  ).toContainEqual(
+    expect.objectContaining({
+      path: "binary.bin",
+      binary: true,
+      additions: 0,
+      deletions: 0,
+    }),
+  );
+  const route = `/${review.reviewId}/file?side=head&file=binary.bin`;
+  const response = await app.request(`${route}&binary=describe`);
+  expect(response.status).toBe(200);
+  expect(await response.json()).toEqual({
+    binary: true,
+    file: "binary.bin",
+    side: "head",
+    commit: binaryPins.head,
+  });
+  expect((await app.request(route)).status).toBe(400);
+  await expect(
+    insert(review.reviewId, {
+      type: "code_peek",
+      source: selectSource({ ...source, file: "binary.bin", toLine: 1 }),
+    }),
+  ).rejects.toThrow("Binary files cannot be used as code references.");
+
+  const text = await app.request(
+    `/${review.reviewId}/file?side=head&file=example.ts&binary=describe`,
+  );
+
+  expect(await text.json()).toMatchObject({
+    text: "export const value = 2;\nexport const saved = true;\n",
+  });
+});
+
 it("reads a committed empty file as empty text, not a missing file", async () => {
   writeFileSync(path.join(repository, "blank.ts"), "");
   git("add", "blank.ts");
@@ -2729,6 +2782,133 @@ it("reads current working source across authored versions, commits and retargeti
   ).toContain("live = 2");
 });
 
+describe("worktree base", () => {
+  let root: string;
+  let repositoryId: string;
+
+  const run = (...args: string[]) =>
+    execFileSync("git", ["-c", "commit.gpgsign=false", ...args], {
+      cwd: root,
+      encoding: "utf8",
+    }).trim();
+
+  const commit = (file: string, text: string, message: string) => {
+    writeFileSync(path.join(root, file), text);
+    run("add", file);
+    run("commit", "-qm", message);
+  };
+
+  const create = (base?: string) =>
+    local.store.execute(
+      command({
+        type: "create",
+        title: "Branch work",
+        target: { kind: "worktree", repositoryId, base },
+      }),
+    );
+
+  const changedPaths = async (reviewId: string) =>
+    (await local.data.changes(local.store.read(reviewId).pins!))
+      .map(({ path, status }) => `${status} ${path}`)
+      .sort();
+
+  beforeEach(async () => {
+    root = path.join(directory, "branching");
+    mkdirSync(root);
+    run("init", "-q", "-b", "main");
+    run("config", "user.name", "Review Test");
+    run("config", "user.email", "review-test@example.invalid");
+    commit("shared.ts", "export const shared = 1;\n", "Root");
+    commit("removed.ts", "export const removed = 1;\n", "Removable");
+    run("checkout", "-qb", "feature");
+    commit("committed.ts", "export const committed = 1;\n", "Branch work");
+    run("checkout", "-q", "main");
+    commit("main-only.ts", "export const later = 1;\n", "Main moves on");
+    run("checkout", "-q", "feature");
+    writeFileSync(path.join(root, "staged.ts"), "export const staged = 1;\n");
+    run("add", "staged.ts");
+    writeFileSync(path.join(root, "shared.ts"), "export const shared = 22;\n");
+    writeFileSync(path.join(root, "untracked.ts"), "export const fresh = 1;\n");
+    writeFileSync(path.join(root, ".gitignore"), "ignored.ts\n");
+    writeFileSync(path.join(root, "ignored.ts"), "export const hidden = 1;\n");
+    rmSync(path.join(root, "removed.ts"));
+    repositoryId = (await local.data.register(root)).id;
+  });
+
+  it("compares everything in the checkout against the default branch's merge base", async () => {
+    const { reviewId } = await create();
+    const snapshot = local.store.read(reviewId);
+
+    expect(snapshot.target).toEqual({
+      kind: "worktree",
+      repositoryId,
+      base: "main",
+    });
+    expect(snapshot.pins?.base).toBe(run("merge-base", "main", "HEAD"));
+    expect(await changedPaths(reviewId)).toEqual([
+      "added .gitignore",
+      "added committed.ts",
+      "added staged.ts",
+      "added untracked.ts",
+      "deleted removed.ts",
+      "modified shared.ts",
+    ]);
+  });
+
+  it("treats a named base as the branch to compare against", async () => {
+    const { reviewId } = await create("main");
+
+    expect(local.store.read(reviewId).pins?.base).toBe(
+      run("merge-base", "main", "HEAD"),
+    );
+    expect(await changedPaths(reviewId)).not.toContain("deleted main-only.ts");
+  });
+
+  it("follows the fork point as the branch commits, rebases and loses its base", async () => {
+    const { reviewId } = await create();
+    const forkPoint = local.store.read(reviewId).pins!.base;
+
+    const refresh = async () => {
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      await local.store.refreshWorktrees();
+
+      return local.store.read(reviewId).pins!.base;
+    };
+
+    run("add", ".");
+    run("commit", "-qm", "Save");
+    expect(await refresh()).toBe(forkPoint);
+    expect(await changedPaths(reviewId)).toContain("added untracked.ts");
+
+    run("rebase", "-q", "main");
+    const main = run("rev-parse", "main");
+    expect(await refresh()).toBe(main);
+    expect(await changedPaths(reviewId)).not.toContain("added main-only.ts");
+    expect(await changedPaths(reviewId)).toContain("added untracked.ts");
+
+    run("branch", "-m", "main", "trunk");
+    expect(await refresh()).toBe(main);
+
+    // Idle refreshes don't retry; a late file event may add one lookup.
+    recordSpawns();
+
+    for (let i = 0; i < 10; i++) await local.store.refreshWorktrees();
+
+    expect(
+      spawns.filter((spawn) => spawn.some((arg) => arg.startsWith("main")))
+        .length,
+    ).toBeLessThanOrEqual(2);
+  });
+
+  it("names the branches it tried when there is no default branch", async () => {
+    run("branch", "-m", "main", "trunk");
+
+    await expect(create()).rejects.toThrow(
+      /No default branch.*origin\/HEAD.*main.*base/,
+    );
+  });
+});
+
 it("reads symlink text and an unborn repository without following external links or pinning", async () => {
   const root = path.join(directory, "unborn");
   mkdirSync(root);
@@ -2764,6 +2944,34 @@ it("reads symlink text and an unborn repository without following external links
       encoding: "utf8",
     }).match(/^worktree /gm),
   ).toHaveLength(1);
+
+  // The first commit moves the head; the review still starts from nothing.
+  execFileSync("git", ["-C", root, "add", "first.ts"]);
+  execFileSync("git", [
+    "-C",
+    root,
+    "-c",
+    "user.name=Review Test",
+    "-c",
+    "user.email=review-test@example.invalid",
+    "-c",
+    "commit.gpgsign=false",
+    "commit",
+    "-qm",
+    "First",
+  ]);
+  await new Promise((resolve) => setTimeout(resolve, 50));
+  await local.store.refreshWorktrees();
+  expect(local.store.read(result.reviewId).pins!.head).not.toBe(
+    snapshot.pins!.head,
+  );
+  expect(
+    await local.data.changes(local.store.read(result.reviewId).pins!),
+  ).toEqual(
+    expect.arrayContaining([
+      expect.objectContaining({ path: "first.ts", status: "added" }),
+    ]),
+  );
 });
 
 it("keeps authored coordinates fixed as live source changes and warns only on unavailable ranges", async () => {

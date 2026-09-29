@@ -1,12 +1,13 @@
+import type { ActivitySnapshot } from "@review/review-api/activity";
+import type { Block } from "@review/review-api/document";
 import { act, createRef } from "react";
 import { type Root, createRoot } from "react-dom/client";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 
-import type { ActivitySnapshot } from "../../src/review-api/activity";
-import type { Block } from "../../src/review-api/document";
 import { ApiDocument } from "./api-document";
 import { AuthoringActivityContext } from "./authoring-activity";
 import type { AuthoringCursor } from "./authoring-cursor";
+import { TestCanvasQuery } from "./canvas-query-test-utils";
 import { AuthoringCursorContext } from "./courier";
 import { ReviewSessionProvider } from "./host/review-session";
 import type { ReviewRoots } from "./review-root-context";
@@ -17,7 +18,6 @@ import {
 } from "./review-session-test-utils";
 
 import "./styles.css";
-import "./whiteboard.css";
 
 const blocks: Block[] = [
   { id: "intro", type: "markdown", markdown: "Before the sections.\n" },
@@ -79,15 +79,17 @@ const render = async (
 
   await act(async () =>
     root.render(
-      <ReviewSessionProvider session={testReviewSession()}>
-        <ReviewRootsProvider roots={roots}>
-          <AuthoringActivityContext.Provider value={activity}>
-            <AuthoringCursorContext.Provider value={cursor}>
-              <ApiDocument data={data} />
-            </AuthoringCursorContext.Provider>
-          </AuthoringActivityContext.Provider>
-        </ReviewRootsProvider>
-      </ReviewSessionProvider>,
+      <TestCanvasQuery>
+        <ReviewSessionProvider session={testReviewSession()}>
+          <ReviewRootsProvider roots={roots}>
+            <AuthoringActivityContext.Provider value={activity}>
+              <AuthoringCursorContext.Provider value={cursor}>
+                <ApiDocument data={data} />
+              </AuthoringCursorContext.Provider>
+            </AuthoringActivityContext.Provider>
+          </ReviewRootsProvider>
+        </ReviewSessionProvider>
+      </TestCanvasQuery>,
     ),
   );
 };

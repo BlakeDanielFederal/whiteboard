@@ -1,14 +1,16 @@
+import type { ActivitySnapshot } from "@review/review-api/activity";
 import { act } from "react";
 import { type Root, createRoot } from "react-dom/client";
 import { afterEach, beforeEach, expect, it } from "vitest";
 
-import type { ActivitySnapshot } from "../../src/review-api/activity";
 import {
   AuthoringActivityBadge,
   AuthoringActivityContext,
   ReviewSurfaceLabel,
 } from "./authoring-activity";
 import { DisplayedReviewVersionContext } from "./displayed-review-version-context";
+
+import "./styles.css";
 
 const working: ActivitySnapshot = {
   workingCount: 1,

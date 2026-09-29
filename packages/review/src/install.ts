@@ -1,7 +1,14 @@
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-export type InstallTarget = "claude" | "codex" | "cursor" | "opencode" | "pi";
+export type InstallTarget =
+  | "claude"
+  | "codex"
+  | "cursor"
+  | "opencode"
+  | "pi"
+  | "omp"
+  | "copilot";
 
 export const ALL_INSTALL_TARGETS: InstallTarget[] = [
   "claude",
@@ -9,6 +16,8 @@ export const ALL_INSTALL_TARGETS: InstallTarget[] = [
   "cursor",
   "opencode",
   "pi",
+  "omp",
+  "copilot",
 ];
 
 export function isInstallTarget(value: string): value is InstallTarget {

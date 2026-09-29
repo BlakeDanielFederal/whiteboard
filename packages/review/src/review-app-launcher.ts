@@ -55,7 +55,7 @@ interface ReviewAppLauncherRuntime {
 
 export interface RunReviewAppLaunchInput {
   timeoutMs?: number;
-  /** Bring Review Desktop forward. */
+  /** Bring Whiteboard Desktop forward. */
   focus?: boolean;
 }
 
@@ -68,7 +68,6 @@ export interface ReviewAppLaunchEvent {
 
 export interface DesktopLaunchAttempt {
   method: string;
-  successfulExitIsExpected: boolean;
   completion: Promise<DesktopLaunchCompletion>;
 }
 
@@ -181,10 +180,7 @@ export async function runReviewAppLaunch(
     if (outcome.completion) {
       assertSuccessfulLaunchCompletion(attempt.method, outcome.completion);
 
-      if (!attempt.successfulExitIsExpected) {
-        unexpectedSuccessfulExitAt = runtime.now();
-      }
-
+      unexpectedSuccessfulExitAt = runtime.now();
       completion = undefined;
     }
   }
@@ -197,7 +193,7 @@ export async function runReviewAppLaunch(
   }
 
   throw new Error(
-    `Review Desktop did not become ready within ${Math.ceil((input.timeoutMs ?? DEFAULT_LAUNCH_TIMEOUT_MS) / 1_000)} seconds after ${attempt.method}. Open Review Desktop once, then run \`review app launch\` again.`,
+    `Whiteboard Desktop did not become ready within ${Math.ceil((input.timeoutMs ?? DEFAULT_LAUNCH_TIMEOUT_MS) / 1_000)} seconds after ${attempt.method}. Open Whiteboard Desktop once, then run \`whiteboard app launch\` again.`,
   );
 }
 
@@ -216,7 +212,7 @@ export async function focusReviewDesktop(
   if (!response.ok || !result.ok) {
     throw new Error(
       result.ok
-        ? `Review Desktop focus returned ${response.status}.`
+        ? `Whiteboard Desktop focus returned ${response.status}.`
         : result.error,
     );
   }
@@ -230,7 +226,6 @@ export function launchDesktopApplication(
   if (platform !== "darwin" && platform !== "linux") {
     return {
       method: `the ${platform} application launcher`,
-      successfulExitIsExpected: false,
       completion: Promise.reject(
         new Error("automatic launch is available only on macOS and Linux"),
       ),
@@ -239,38 +234,33 @@ export function launchDesktopApplication(
 
   const electron = input.electron ?? Boolean(process.versions.electron);
   const env = { ...(input.env ?? process.env) };
-  const directLaunch = electron || platform === "linux";
+  const execPath = input.execPath ?? process.execPath;
   const focus = input.focus === true;
 
   if (focus) delete env[REVIEW_DESKTOP_BACKGROUND_ENV];
   else env[REVIEW_DESKTOP_BACKGROUND_ENV] = "1";
 
-  if (directLaunch) delete env.ELECTRON_RUN_AS_NODE;
-
-  if (platform === "linux") {
-    delete env.VSCODE_DEV;
-    delete env.VSCODE_CLI;
-  }
+  delete env.ELECTRON_RUN_AS_NODE;
 
   // An installed app must never inherit a dev Desktop's identity.
   delete env.DEV_FAST_REVIEW_CHECKOUT;
   const release = RELEASE_APPS[input.instance?.key ?? "stable"];
-  const appPath = input.instance?.appPath;
+  const stateRoot = env.DEV_FAST_REVIEW_DESKTOP_STATE_ROOT?.trim();
+
+  const profileArgs = stateRoot
+    ? [
+        `--user-data-dir=${path.resolve(stateRoot, "user-data")}`,
+        `--extensions-dir=${path.resolve(stateRoot, "extensions")}`,
+      ]
+    : [];
+
   let command = "/usr/bin/open";
+  let method: string;
+  let args: string[];
 
-  let method = appPath?.endsWith(".app")
-    ? `the macOS application at "${appPath}"`
-    : `the macOS bundle identifier "${release.bundleId}"`;
-
-  let args = appPath?.endsWith(".app")
-    ? ["-a", appPath]
-    : ["-b", release.bundleId];
-
-  // open(1) drops the caller's env; --env carries the marker.
-  if (!focus)
-    args = ["-g", ...args, "--env", `${REVIEW_DESKTOP_BACKGROUND_ENV}=1`];
-
-  if (directLaunch) {
+  if (platform === "linux") {
+    delete env.VSCODE_DEV;
+    delete env.VSCODE_CLI;
     // With no selection, the Fedora CLI wrappers name their own channel's launcher.
     command =
       (input.instance ? "" : env.DEV_FAST_REVIEW_DESKTOP_COMMAND?.trim()) ||
@@ -278,19 +268,37 @@ export function launchDesktopApplication(
     method = `the installed Linux launcher at "${command}"`;
 
     if (electron) {
-      command = input.execPath ?? process.execPath;
+      command = execPath;
       method = `the Desktop-managed bundle at "${command}"`;
     }
 
-    args = [];
-    const stateRoot = env.DEV_FAST_REVIEW_DESKTOP_STATE_ROOT?.trim();
+    args = profileArgs;
+  } else {
+    // Direct app execs abort in AppKit under Codex's sandbox.
+    const appPath = input.instance
+      ? input.instance.appPath
+      : electron
+        ? execPath.match(/^(.*?\.app)\/Contents\/MacOS\//)?.[1]
+        : undefined;
 
-    if (stateRoot) {
-      args = [
-        `--user-data-dir=${path.resolve(stateRoot, "user-data")}`,
-        `--extensions-dir=${path.resolve(stateRoot, "extensions")}`,
-      ];
+    const target = appPath?.endsWith(".app")
+      ? ["-a", appPath]
+      : ["-b", release.bundleId];
+
+    method = appPath?.endsWith(".app")
+      ? `the macOS application at "${appPath}"`
+      : `the macOS bundle identifier "${release.bundleId}"`;
+
+    // -n allows parallel profiles; -W exits with Desktop, so a startup crash
+    // surfaces early; --env carries Whiteboard's context.
+    args = ["-n", "-W", ...(focus ? [] : ["-g"]), ...target];
+
+    for (const [key, value] of Object.entries(env)) {
+      if (value !== undefined && /^DEV_(REVIEW|FAST)_/.test(key))
+        args.push("--env", `${key}=${value}`);
     }
+
+    if (profileArgs.length > 0) args.push("--args", ...profileArgs);
   }
 
   let resolveCompletion: (result: DesktopLaunchCompletion) => void = () =>
@@ -323,7 +331,6 @@ export function launchDesktopApplication(
 
   return {
     method,
-    successfulExitIsExpected: !directLaunch,
     completion,
   };
 }
@@ -337,7 +344,7 @@ function launchEvent(
 
 function launchFailure(method: string, error: Error): Error {
   return new Error(
-    `Could not launch Review Desktop with ${method}: ${error.message}. Open Review Desktop once, then run \`review app launch\` again.`,
+    `Could not launch Whiteboard with ${method}: ${error.message}. Open Whiteboard once, then run \`whiteboard app launch\` again. A sandboxed agent must run it outside the sandbox.`,
   );
 }
 

@@ -1,21 +1,23 @@
+import type { ActivitySnapshot } from "@review/review-api/activity";
+import { ReviewApiClient } from "@review/review-api/client";
+import type { Lens } from "@review/review-api/diff-lenses";
+import type { Snapshot } from "@review/review-api/store";
 import { act, createRef } from "react";
 import { type Root, createRoot } from "react-dom/client";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 
-import type { ActivitySnapshot } from "../../src/review-api/activity";
-import { ReviewApiClient } from "../../src/review-api/client";
-import type { Lens } from "../../src/review-api/diff-lenses";
-import type { Snapshot } from "../../src/review-api/store";
 import {
   AuthoringActivityBadge,
   AuthoringActivityContext,
 } from "./authoring-activity";
 import type { AuthoringCursor } from "./authoring-cursor";
+import { TestCanvasQuery } from "./canvas-query-test-utils";
 import { AuthoringCursorContext } from "./courier";
 import { ReviewDiffView } from "./DiffView";
 import { type DrawQueueClock, DrawQueueProvider } from "./draw-queue-provider";
 import { ReviewSessionProvider } from "./host/review-session";
 import { ReviewLensesProvider } from "./review-lenses";
+import { ReviewPanelProvider } from "./review-panel";
 import { type ReviewRoots, ReviewRootsProvider } from "./review-root-context";
 import { testReviewSession } from "./review-session-test-utils";
 
@@ -175,28 +177,32 @@ const render = async (state: {
 
   await act(async () =>
     root.render(
-      <ReviewSessionProvider session={session}>
-        <ReviewRootsProvider roots={roots}>
-          <AuthoringActivityContext.Provider
-            value={state.activity ?? lensesOnly}
-          >
-            <AuthoringCursorContext.Provider
-              value={state.documentCursor ?? null}
+      <TestCanvasQuery>
+        <ReviewSessionProvider session={session}>
+          <ReviewRootsProvider roots={roots}>
+            <AuthoringActivityContext.Provider
+              value={state.activity ?? lensesOnly}
             >
-              <DrawQueueProvider
-                scope="lenses"
-                cursor={state.lensCursor}
-                clock={manualClock.clock}
+              <AuthoringCursorContext.Provider
+                value={state.documentCursor ?? null}
               >
-                <ReviewLensesProvider client={client} snapshot={snapshot}>
-                  <AuthoringActivityBadge onLocate={onLocate} />
-                  <ReviewDiffView />
-                </ReviewLensesProvider>
-              </DrawQueueProvider>
-            </AuthoringCursorContext.Provider>
-          </AuthoringActivityContext.Provider>
-        </ReviewRootsProvider>
-      </ReviewSessionProvider>,
+                <DrawQueueProvider
+                  scope="lenses"
+                  cursor={state.lensCursor}
+                  clock={manualClock.clock}
+                >
+                  <ReviewPanelProvider>
+                    <ReviewLensesProvider client={client} snapshot={snapshot}>
+                      <AuthoringActivityBadge onLocate={onLocate} />
+                      <ReviewDiffView />
+                    </ReviewLensesProvider>
+                  </ReviewPanelProvider>
+                </DrawQueueProvider>
+              </AuthoringCursorContext.Provider>
+            </AuthoringActivityContext.Provider>
+          </ReviewRootsProvider>
+        </ReviewSessionProvider>
+      </TestCanvasQuery>,
     ),
   );
 };

@@ -1,4 +1,5 @@
-import type { ReviewNodeTint, ReviewTheme } from "../debug-settings";
+import type { ReviewNodeTint, ReviewTheme } from "@canvas/debug-settings";
+
 import type {
   C4LayoutResult,
   C4MapAnyFlowNode,
@@ -455,30 +456,6 @@ export function focusSoftwareMapKeyboardTarget(element: HTMLElement | null) {
 
   if (activeElement === element) return;
   element.focus({ preventScroll: true });
-}
-
-export function observeSoftwareMapVisibility(
-  element: Element,
-  onVisible: () => void,
-) {
-  if (typeof IntersectionObserver === "undefined") {
-    onVisible();
-
-    return () => {};
-  }
-
-  const observer = new IntersectionObserver(
-    (entries) => {
-      if (!entries.some((entry) => entry.isIntersecting)) return;
-      onVisible();
-      observer.disconnect();
-    },
-    { rootMargin: "200px" },
-  );
-
-  observer.observe(element);
-
-  return () => observer.disconnect();
 }
 
 export function softwareMapOverlayClassName({

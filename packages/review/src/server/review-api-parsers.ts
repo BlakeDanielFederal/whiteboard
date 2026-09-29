@@ -1,13 +1,12 @@
 import {
   type JsonValue,
   ReviewBugReportRequestSchema,
-  ReviewDiffFilesRequestSchema,
   parseZod,
 } from "@dev.fast/review-protocol";
+import type { ReviewTabTelemetryEvent } from "@review/telemetry";
+import { REVIEW_TELEMETRY_TABS } from "@review/ui-telemetry-events";
 import { z } from "zod";
 
-import type { ReviewTabTelemetryEvent } from "../telemetry";
-import { REVIEW_TELEMETRY_TABS } from "../ui-telemetry-events";
 import { HttpJsonError } from "./http-json";
 
 const MIN_REVIEW_TAB_DWELL_MS = 250;
@@ -104,17 +103,6 @@ export const SoftwareMapCodeElementInputSchema = z.strictObject({
   sourceRanges: z.array(SoftwareMapSourceRangeInputSchema).optional(),
 });
 
-const SoftwareMapCoverageFileInputSchema = z.strictObject({
-  path: nonEmptyStringSchema,
-  ranges: optionalLineRangesSchema,
-});
-
-export const SoftwareMapCoverageClaimInputSchema = z.strictObject({
-  path: nonEmptyStringSchema,
-  files: z.array(SoftwareMapCoverageFileInputSchema).default([]),
-  globs: z.array(z.string()).optional(),
-});
-
 export const ReviewTabTelemetryInputSchema = z
   .strictObject({
     tab: z.enum(REVIEW_TELEMETRY_TABS, {
@@ -156,20 +144,6 @@ export function parseSoftwareMapCodeElements(value: JsonValue) {
   );
 }
 
-export function parseSoftwareMapCoverageClaims(value: JsonValue | undefined) {
-  if (value === undefined) return [];
-
-  if (!Array.isArray(value)) {
-    throw new Error("SoftwareMap coverageClaims must be an array");
-  }
-
-  return parseZod(
-    z.array(SoftwareMapCoverageClaimInputSchema),
-    value,
-    "SoftwareMap coverageClaims",
-  );
-}
-
 export function parseReviewTabTelemetryInput(
   value: JsonValue,
 ): ReviewTabTelemetryEvent {
@@ -178,14 +152,4 @@ export function parseReviewTabTelemetryInput(
     value,
     "Review tab telemetry event",
   );
-}
-
-export function parseReviewDiffFilesInput(value: JsonValue) {
-  const input = parseZod(ReviewDiffFilesRequestSchema, value);
-
-  return {
-    includePatch: input.includePatch !== false,
-    paths: input.paths,
-    commit: input.commit,
-  };
 }

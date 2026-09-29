@@ -1,14 +1,12 @@
+import type { FlowDiagramBlock } from "@review/review-api/blocks/flow_diagram";
+import type { Snapshot } from "@review/review-api/store";
 import { useCallback, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 
-import type { FlowDiagramBlock } from "../../src/review-api/blocks/flow_diagram";
-import type { Snapshot } from "../../src/review-api/store";
 import { DiagramHeader } from "./diagram-header";
 import { DiagramTourOverlay, useDiagramTourShell } from "./diagram-tour";
 import { FlowGraph } from "./flow-graph";
 import type { GuidedTour, GuidedTourStop } from "./review-panel-model";
-
-import "./flow-diagram.css";
 
 /** Each attachment is a tour stop; selection still belongs to its graph node. */
 export function flowTourStops(
@@ -91,7 +89,7 @@ export function FlowDiagram({
       <DiagramHeader
         kind="FLOW"
         title={node.title}
-        meta={`${node.nodes.length} nodes`}
+        meta={`${node.nodes.length} ${node.nodes.length === 1 ? "node" : "nodes"}`}
         action={
           <button
             className="diagram-tour-button"
@@ -123,7 +121,10 @@ export function FlowDiagram({
         </div>
       </div>
       <footer>
-        <span>Select a node to explore its code</span>
+        <span>
+          Select a node to explore its code
+          {!fullscreen && " · pinch or ⌘/Ctrl + scroll to zoom"}
+        </span>
         <span className="flow-diagram-legend">
           <i className="flow-legend-added" />
           Added

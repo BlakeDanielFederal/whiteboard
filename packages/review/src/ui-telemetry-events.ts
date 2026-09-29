@@ -132,12 +132,12 @@ export const EXTENSION_INSTALL_PHASE = ["download", "install"] as const;
 export const SETTING_NAME = [
   "telemetry_enabled",
   "keymap",
-  "dismissed_retention_days",
   "software_map_enabled",
   "scratchpad_enabled",
   "diffr_config",
   "structural_diff",
   "theme",
+  "ctrl_tab",
 ] as const;
 
 export const REVIEW_OPENED_VIA = ["home", "cli", "other"] as const;
@@ -219,10 +219,6 @@ export const CRASH_PROCESS = [
 ] as const;
 
 export const CRASH_SOURCE = ["live", "minidump"] as const;
-
-export const STALL_PROCESS = ["renderer", "canvas"] as const;
-
-export const STALL_PHASE = ["startup", "running"] as const;
 
 export const DIFF_OPENED_VIA = ["topbar", "lens", "locate"] as const;
 
@@ -524,14 +520,6 @@ export const UI_TELEMETRY_EVENTS = {
   hang_ended: {
     event: "review_hang_ended",
     properties: { duration_ms: "number" },
-  },
-  ui_stall: {
-    event: "review_ui_stall",
-    properties: {
-      duration_ms: "number",
-      process: STALL_PROCESS,
-      phase: STALL_PHASE,
-    },
   },
   app_ready: {
     event: "review_app_ready",

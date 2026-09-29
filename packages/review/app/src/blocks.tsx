@@ -1,10 +1,16 @@
-import { Component, type ReactNode } from "react";
-
 import {
   type Block,
   type BlockType,
   traceQuoteLink,
-} from "../../src/review-api/document";
+} from "@review/review-api/document";
+import {
+  Component,
+  type ReactNode,
+  createContext,
+  useContext,
+  useMemo,
+} from "react";
+
 import { MarkdownContent } from "./agent-markdown";
 import type { ApiDocumentData } from "./api-document";
 import { blockSectionSummary } from "./block-document-derivations";
@@ -53,10 +59,23 @@ export type BlockComponent<K extends BlockType> = (
   props: BlockProps<K>,
 ) => ReactNode;
 
+/** Saves a prose block's Markdown, where the shown document can be edited. */
+export const SaveMarkdown = createContext<
+  ((blockId: string, markdown: string) => void) | undefined
+>(undefined);
+
 function MarkdownBlock({ node, data }: BlockProps<"markdown">) {
+  const save = useContext(SaveMarkdown);
+
+  const onChange = useMemo(
+    () => save && ((markdown: string) => save(node.id, markdown)),
+    [save, node.id],
+  );
+
   return (
     <MarkdownContent
       source={node.markdown}
+      onChange={onChange}
       headingId={(index) => data.headings.get(node.id, index)}
       h1={ReviewDocumentTitle}
       renderLink={(href, children) => {
@@ -266,12 +285,13 @@ export function renderBlock<K extends BlockType>(
 }
 
 interface BlockErrorBoundaryProps {
-  type: BlockType;
+  block: StoredBlock;
   onError(error: Error): void;
   children: ReactNode;
 }
 
 interface BlockErrorBoundaryState {
+  block: StoredBlock;
   error: Error | null;
 }
 
@@ -283,10 +303,23 @@ export class BlockErrorBoundary extends Component<
   BlockErrorBoundaryProps,
   BlockErrorBoundaryState
 > {
-  override state: BlockErrorBoundaryState = { error: null };
+  override state: BlockErrorBoundaryState = {
+    block: this.props.block,
+    error: null,
+  };
 
   static getDerivedStateFromError(error: Error) {
     return { error };
+  }
+
+  static getDerivedStateFromProps(
+    props: BlockErrorBoundaryProps,
+    state: BlockErrorBoundaryState,
+  ): BlockErrorBoundaryState | null {
+    // An edit replaces the block object; the last failure was for the old one.
+    return props.block === state.block
+      ? null
+      : { block: props.block, error: null };
   }
 
   override componentDidCatch(error: Error) {
@@ -295,12 +328,13 @@ export class BlockErrorBoundary extends Component<
 
   override render() {
     const { error } = this.state;
+    const { type } = this.props.block;
 
     if (error)
       return (
-        <div role="alert" data-block-error={this.props.type}>
-          This {this.props.type.replaceAll("_", " ")} block could not be
-          rendered: {error.message}
+        <div role="alert" data-block-error={type}>
+          This {type.replaceAll("_", " ")} block could not be rendered:{" "}
+          {error.message}
         </div>
       );
 

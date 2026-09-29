@@ -10,16 +10,16 @@ import {
   withFileLock,
   writePrivateJsonAtomic,
 } from "@dev.fast/trace-core";
-import { Hono } from "hono";
-
-import { createReviewApi } from "../review-api/http.js";
-import { openReviewProfile } from "../review-api/profile.js";
-import { readScratchpadEnabled } from "../review-preferences.js";
+import { createReviewApi } from "@review/review-api/http.js";
+import { openReviewProfile } from "@review/review-api/profile.js";
+import { readScratchpadEnabled } from "@review/review-preferences.js";
 import {
   type ReviewServerDiscovery,
   reviewServerDiscoveryPath,
-} from "../server-discovery.js";
-import { mountSharingPublisher } from "../sharing/host.js";
+} from "@review/server-discovery.js";
+import { mountSharingPublisher } from "@review/sharing/host.js";
+import { Hono } from "hono";
+
 import {
   type ReviewHonoEnv,
   createNodeRequestListener,
@@ -63,7 +63,7 @@ export async function runHeadlessServer(input: HeadlessServerInput) {
 
   if (!outcome.acquired)
     throw new Error(
-      `A Review server already owns ${stateDir}. Stop it first, or choose another --state-dir.`,
+      `A Whiteboard server already owns ${stateDir}. Stop it first, or choose another --state-dir.`,
     );
 }
 
@@ -125,7 +125,7 @@ async function serve(input: HeadlessServerInput) {
     const address = server.address();
 
     if (!isObjectValue(address))
-      throw new Error("Review server did not bind a TCP port.");
+      throw new Error("Whiteboard server did not bind a TCP port.");
     discovery.url = `http://127.0.0.1:${address.port}`;
     await writePrivateJsonAtomic(
       reviewServerDiscoveryPath(input.stateDir),

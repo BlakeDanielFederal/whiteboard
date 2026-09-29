@@ -6,6 +6,7 @@ import gitUrlParse from "git-url-parse";
 
 import { BlobBatchReader } from "./blob-batch-reader";
 import { execFileAsync, execFileSyncObserved } from "./exec";
+import { refreshWindowsPath } from "./windows-path";
 
 export { type BlobBatchReader } from "./blob-batch-reader";
 
@@ -47,7 +48,7 @@ export interface LocalVcs {
   rootPath: string;
   currentHead(): Promise<ResolvedRevision | null>;
   resolveRevision(revision: string): Promise<ResolvedRevision | null>;
-  defaultBranch(): Promise<ResolvedRevision | null>;
+  defaultBranch(): Promise<DefaultBranch | null>;
   mergeBase(baseRef: string, headRef: string): Promise<ResolvedRevision | null>;
   listTrackedFiles(revision?: string): Promise<string[]>;
   readFileAtRef(ref: string, relativePath: string): Promise<string | null>;
@@ -75,6 +76,10 @@ export interface ResolvedRevision {
   commit: string;
 }
 
+export interface DefaultBranch extends ResolvedRevision {
+  ref: string;
+}
+
 export interface DiffNameStatus {
   changedFiles: string[];
   deletedFiles: string[];
@@ -91,6 +96,8 @@ export interface LocalVcsDiffFileSummary {
   status: "added" | "modified" | "deleted" | "renamed";
   additions: number;
   deletions: number;
+  /** Git reports no line counts for this file's contents. */
+  binary?: true;
 }
 
 export interface LocalVcsCommitSummary {
@@ -104,16 +111,53 @@ export interface LocalVcsCommitSummary {
   deletions: number;
 }
 
+/** Neither git nor jj could be started, so no folder can be recognized as a repository. */
+export class LocalVcsToolsMissingError extends Error {
+  constructor() {
+    super(
+      process.platform === "win32"
+        ? "Git isn't installed or isn't on PATH. Install Git for Windows, then try again."
+        : "Git isn't installed or isn't on PATH. Install Git, then try again.",
+    );
+    this.name = "LocalVcsToolsMissingError";
+  }
+}
+
 export async function detectLocalVcs(
   rootPath: string,
 ): Promise<LocalVcs | null> {
+  const detected = await detectLocalVcsOnce(rootPath);
+
+  if (detected !== TOOLS_MISSING) return detected;
+
+  if (refreshWindowsPath()) {
+    const retried = await detectLocalVcsOnce(rootPath);
+
+    if (retried !== TOOLS_MISSING) return retried;
+  }
+
+  throw new LocalVcsToolsMissingError();
+}
+
+const TOOLS_MISSING = Symbol("tools missing");
+
+async function detectLocalVcsOnce(
+  rootPath: string,
+): Promise<LocalVcs | null | typeof TOOLS_MISSING> {
   const resolvedRootPath = canonicalPath(rootPath);
+  let missing = 0;
+
+  const notStarted = (error: NodeJS.ErrnoException) => {
+    if (error.code === "ENOENT") missing++;
+
+    return null;
+  };
 
   const jjRoot = await commandOutput(
     "jj",
     ["-R", resolvedRootPath, "root", "--ignore-working-copy"],
     { cwd: resolvedRootPath },
-  ).catch(() => null);
+  ).catch(notStarted);
 
   if (jjRoot && isInsideDirectory(resolvedRootPath, canonicalPath(jjRoot))) {
     return createLocalVcs("jj", canonicalPath(jjRoot));
@@ -123,11 +167,14 @@ export async function detectLocalVcs(
     "git",
     ["-C", resolvedRootPath, "rev-parse", "--show-toplevel"],
     { cwd: resolvedRootPath },
-  ).catch(() => null);
+  ).catch(notStarted);
 
   if (gitRoot) return createLocalVcs("git", canonicalPath(gitRoot));
 
-  return null;
+  // execFile also reports ENOENT for a missing cwd, which is not a missing tool.
+  return missing === 2 && fs.existsSync(resolvedRootPath)
+    ? TOOLS_MISSING
+    : null;
 }
 
 export function detectLocalVcsSync(rootPath: string): LocalVcs | null {
@@ -556,7 +603,7 @@ export function resolveRevisionSync(
 
 export async function defaultBranch(
   rootPath: string,
-): Promise<ResolvedRevision | null> {
+): Promise<DefaultBranch | null> {
   const vcs = await detectLocalVcs(rootPath);
 
   if (!vcs) return null;
@@ -646,7 +693,7 @@ function resolveRevisionForKindSync(
 async function defaultBranchForKind(
   rootPath: string,
   kind: LocalVcsKind,
-): Promise<ResolvedRevision | null> {
+): Promise<DefaultBranch | null> {
   const candidates = await defaultBranchCandidates(rootPath);
 
   for (const candidate of candidates) {
@@ -656,7 +703,7 @@ async function defaultBranchForKind(
       kind,
     );
 
-    if (commit) return { commit };
+    if (commit) return { ref: candidate, commit };
   }
 
   return null;
@@ -1116,7 +1163,11 @@ async function withWorkingTreeIndex<T>(
       ).stdout.trim();
 
       try {
-        await fs.promises.copyFile(index, path.join(scratch, "index"));
+        const copy = path.join(scratch, "index");
+        await fs.promises.copyFile(index, copy);
+        // Keep the mtime so Git's racy-index check still compares contents.
+        const { atime, mtime } = await fs.promises.stat(index);
+        await fs.promises.utimes(copy, atime, mtime);
       } catch (error) {
         if (
           !(
@@ -2106,7 +2157,11 @@ export function parseGitRawNumStatSummaries(
   const files: Array<Omit<LocalVcsDiffFileSummary, "additions" | "deletions">> =
     [];
 
-  const counts = new Map<string, { additions: number; deletions: number }>();
+  const counts = new Map<
+    string,
+    { additions: number; deletions: number; binary?: true }
+  >();
+
   let index = 0;
 
   while (index < fields.length) {
@@ -2158,10 +2213,16 @@ export function parseGitRawNumStatSummaries(
     }
 
     if (!path) continue;
-    counts.set(path, {
-      additions: parseGitNumStatCount(rawAdditions),
-      deletions: parseGitNumStatCount(rawDeletions),
-    });
+    // Git prints "-" for both counts when it treats the file as binary.
+    counts.set(
+      path,
+      rawAdditions === "-" && rawDeletions === "-"
+        ? { additions: 0, deletions: 0, binary: true }
+        : {
+            additions: parseGitNumStatCount(rawAdditions),
+            deletions: parseGitNumStatCount(rawDeletions),
+          },
+    );
   }
 
   // Counts without raw records: the sections came out of order.
@@ -2239,8 +2300,12 @@ function parseGitDiffSectionSummary(
   let renameTo: string | undefined;
   let additions = 0;
   let deletions = 0;
+  let binary = false;
 
   for (const line of lines) {
+    if (line.startsWith("Binary files ") || line === "GIT binary patch")
+      binary = true;
+
     const parsedOldPath = parseGitFileLine(line, "--- ");
     const parsedNewPath = parseGitFileLine(line, "+++ ");
 
@@ -2274,7 +2339,7 @@ function parseGitDiffSectionSummary(
 
   if (!filePath) return null;
 
-  return {
+  const summary: LocalVcsDiffFileSummary = {
     path: filePath,
     previousPath:
       status === "renamed" ? (renameFrom ?? oldPath ?? undefined) : undefined,
@@ -2282,6 +2347,10 @@ function parseGitDiffSectionSummary(
     additions,
     deletions,
   };
+
+  if (binary) summary.binary = true;
+
+  return summary;
 }
 
 function parseDiffGitHeaderPaths(

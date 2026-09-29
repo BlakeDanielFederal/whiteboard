@@ -1,27 +1,30 @@
+import type {
+  FlowDiagramBlock,
+  FlowDiagramNode,
+} from "@review/review-api/blocks/flow_diagram";
+import {
+  type CoverageProgress,
+  coverageProgress,
+} from "@review/viewed-coverage";
 import {
   BaseEdge,
+  type CoordinateExtent,
   type Edge,
   type EdgeProps,
   Handle,
   MarkerType,
   type Node,
   type NodeProps,
+  Panel,
   Position,
   ReactFlow,
   ReactFlowProvider,
   useReactFlow,
+  useStoreApi,
 } from "@xyflow/react";
 import ELK, { type ElkNode } from "elkjs/lib/elk.bundled.js";
 import { type RefObject, useEffect, useMemo, useRef, useState } from "react";
 
-import type {
-  FlowDiagramBlock,
-  FlowDiagramNode,
-} from "../../src/review-api/blocks/flow_diagram";
-import {
-  type CoverageProgress,
-  coverageProgress,
-} from "../../src/viewed-coverage";
 import { useReviewDebugSettings } from "./debug-settings";
 import { useMotionPhase } from "./draw-queue-provider";
 import { ElementCountsText } from "./lens-counts";
@@ -55,15 +58,37 @@ export function FlowGraph({
 }) {
   const { theme } = useReviewDebugSettings();
   const [error, setError] = useState<string>();
-  const [layout, setLayout] = useState<Layout>();
+
+  const [computed, setLayout] = useState<{
+    block: FlowDiagramBlock;
+    direction: typeof direction;
+    layout: Layout;
+  }>();
+
+  const layout =
+    computed?.block === block && computed.direction === direction
+      ? computed.layout
+      : cachedLayouts.get(block)?.get(direction);
+
   const frame = useRef<HTMLDivElement>(null);
+
+  // The layout the reader has zoomed or panned by hand. A new layout is a
+  // new drawing, so it starts from its fit again.
+  const [movedLayout, setMovedLayout] = useState<Layout>();
+  const moved = layout !== undefined && movedLayout === layout;
 
   useEffect(() => {
     let cancelled = false;
     setError(undefined);
+
+    if (cachedLayouts.get(block)?.has(direction)) return;
+
     void layoutFlow(block, direction)
       .then((result) => {
-        if (!cancelled) setLayout(result);
+        const byDirection = cachedLayouts.get(block) ?? new Map();
+        cachedLayouts.set(block, byDirection.set(direction, result));
+
+        if (!cancelled) setLayout({ block, direction, layout: result });
       })
       .catch((error) => {
         if (!cancelled) setError(String(error));
@@ -115,13 +140,26 @@ export function FlowGraph({
             markerEnd: ARROW,
             data: {
               unitId: block.edges[edge.index]!.id,
-              label: block.edges[edge.index]!.label,
+              label: edge.label,
               dashed: block.edges[edge.index]!.style === "dashed",
               points: edge.points,
             },
           }))
         : [],
     [block, layout],
+  );
+
+  // Inline, the drawing cannot be panned out of its frame: the view stops at
+  // the drawing's padded edge, and centres it along an axis it fits within.
+  const extent = useMemo<CoordinateExtent | undefined>(
+    () =>
+      layout && !interactive
+        ? [
+            [-PADDING, -PADDING],
+            [layout.width + PADDING, layout.height + PADDING],
+          ]
+        : undefined,
+    [layout, interactive],
   );
 
   if (error) return <p role="alert">Could not lay out diagram: {error}</p>;
@@ -142,8 +180,9 @@ export function FlowGraph({
           edges={edges}
           nodeTypes={nodeTypes}
           edgeTypes={edgeTypes}
-          minZoom={0.1}
-          maxZoom={1}
+          minZoom={MIN_ZOOM}
+          maxZoom={MAX_ZOOM}
+          translateExtent={extent}
           onNodeClick={(_, node) => {
             if (node.type === "flowNode") node.data.select();
           }}
@@ -153,14 +192,38 @@ export function FlowGraph({
           edgesFocusable={false}
           elementsSelectable={false}
           panActivationKeyCode={null}
-          panOnDrag={interactive}
+          // Inline, a drag pans only a flow the reader has already zoomed.
+          panOnDrag={interactive || moved}
+          // A hand-made move carries its event; the fit's own does not.
+          onMove={(event) => {
+            if (event) setMovedLayout(layout);
+          }}
+          // Inline, a plain wheel belongs to the document: React Flow then
+          // zooms only on a pinch or Ctrl+wheel, and MetaWheelZoom adds Cmd.
           preventScrolling={interactive}
-          zoomOnScroll={interactive}
-          zoomOnPinch={interactive}
+          zoomOnScroll
+          zoomOnPinch
           zoomOnDoubleClick={false}
           proOptions={{ hideAttribution: true }}
         >
-          <FitToLayout layout={layout} frame={frame} />
+          {moved ? (
+            <Panel position="top-right">
+              <button
+                className="diagram-tour-button"
+                onClick={() => setMovedLayout(undefined)}
+              >
+                Reset view
+              </button>
+            </Panel>
+          ) : (
+            <FitToLayout layout={layout} frame={frame} />
+          )}
+          {!interactive && (
+            <MetaWheelZoom
+              frame={frame}
+              onZoom={() => setMovedLayout(layout)}
+            />
+          )}
         </ReactFlow>
       </ReactFlowProvider>
     </div>
@@ -168,6 +231,11 @@ export function FlowGraph({
 }
 
 const PADDING = 24;
+
+// The fit never enlarges past 1:1; a reader zooming by hand may.
+const MIN_ZOOM = 0.1;
+
+const MAX_ZOOM = 2;
 
 const ARROW = {
   type: MarkerType.ArrowClosed,
@@ -180,7 +248,9 @@ const ARROW = {
  * Fits the box to the layout: ELK reports the drawing's size, the frame
  * reports its own, so the viewport is set outright instead of asking React
  * Flow to measure nodes first. Refits on every layout and every resize,
- * animated once the first fit has landed. Never enlarges past 1:1.
+ * animated once the first fit has landed. Never enlarges past 1:1. Mounted
+ * only while the reader has not moved the view, so a zoom made by hand
+ * survives a resize and Reset view brings the fit back.
  */
 function FitToLayout({
   layout,
@@ -229,6 +299,75 @@ function FitToLayout({
   return null;
 }
 
+/**
+ * Cmd+wheel zooms about the pointer, as Ctrl+wheel does. React Flow reads a
+ * wheel as a zoom only when it carries Ctrl, which is also how a pinch
+ * arrives, so Cmd is handled here.
+ */
+function MetaWheelZoom({
+  frame,
+  onZoom,
+}: {
+  frame: RefObject<HTMLDivElement | null>;
+  onZoom(): void;
+}) {
+  const store = useStoreApi();
+  const zoomed = useRef(onZoom);
+  zoomed.current = onZoom;
+
+  useEffect(() => {
+    const element = frame.current;
+
+    if (!element) return;
+
+    const zoom = (event: WheelEvent) => {
+      if (!event.metaKey || event.ctrlKey) return;
+
+      event.preventDefault();
+
+      const {
+        panZoom,
+        transform: [x, y, from],
+        width,
+        height,
+        translateExtent,
+      } = store.getState();
+
+      const box = element.getBoundingClientRect();
+
+      const pointer = {
+        x: event.clientX - box.left,
+        y: event.clientY - box.top,
+      };
+
+      const to = Math.min(
+        MAX_ZOOM,
+        Math.max(MIN_ZOOM, from * 2 ** (-event.deltaY * 0.002)),
+      );
+
+      void panZoom?.setViewportConstrained(
+        {
+          x: pointer.x - ((pointer.x - x) * to) / from,
+          y: pointer.y - ((pointer.y - y) * to) / from,
+          zoom: to,
+        },
+        [
+          [0, 0],
+          [width, height],
+        ],
+        translateExtent,
+      );
+      zoomed.current();
+    };
+
+    element.addEventListener("wheel", zoom, { passive: false });
+
+    return () => element.removeEventListener("wheel", zoom);
+  }, [store, frame]);
+
+  return null;
+}
+
 interface Layout {
   width: number;
   height: number;
@@ -237,10 +376,25 @@ interface Layout {
     index: number;
     section: number;
     points: { x: number; y: number }[];
+    label?: { text: string; x: number; y: number };
   }[];
 }
 
 const SIZE = { width: 210, height: 62 };
+
+// So the tour's fullscreen copy draws on its first render.
+const cachedLayouts = new WeakMap<
+  FlowDiagramBlock,
+  Map<"down" | "right" | undefined, Layout>
+>();
+
+// The label's 9px mono font, so ELK leaves room for it between layers.
+const LABEL = { charWidth: 5.4, height: 12, maxLength: 28 };
+
+const labelText = (label: string) =>
+  label.length > LABEL.maxLength
+    ? `${label.slice(0, LABEL.maxLength - 1)}…`
+    : label;
 
 async function layoutFlow(
   block: FlowDiagramBlock,
@@ -255,11 +409,27 @@ async function layoutFlow(
       "elk.layered.spacing.nodeNodeBetweenLayers": "44",
     },
     children: block.nodes.map((node) => ({ id: node.key, ...SIZE })),
-    edges: block.edges.map((edge, index) => ({
-      id: String(index),
-      sources: [edge.from],
-      targets: [edge.to],
-    })),
+    edges: block.edges.map((edge, index) => {
+      const text = edge.label && labelText(edge.label);
+
+      return {
+        id: String(index),
+        sources: [edge.from],
+        targets: [edge.to],
+        labels: text
+          ? [
+              {
+                text,
+                width: text.length * LABEL.charWidth,
+                height: LABEL.height,
+                // Beside the source, so the label widens its own gap
+                // instead of getting a layer of its own.
+                layoutOptions: { "elk.edgeLabels.placement": "TAIL" },
+              },
+            ]
+          : [],
+      };
+    }),
   });
 
   return {
@@ -272,15 +442,24 @@ async function layoutFlow(
       ]),
     ),
     edges: (result.edges ?? []).flatMap((edge) =>
-      (edge.sections ?? []).map((section, index) => ({
-        index: Number(edge.id),
-        section: index,
-        points: [
-          section.startPoint,
-          ...(section.bendPoints ?? []),
-          section.endPoint,
-        ],
-      })),
+      (edge.sections ?? []).map((section, index) => {
+        const label = index ? undefined : edge.labels?.[0];
+
+        return {
+          index: Number(edge.id),
+          section: index,
+          points: [
+            section.startPoint,
+            ...(section.bendPoints ?? []),
+            section.endPoint,
+          ],
+          label: label && {
+            text: label.text ?? "",
+            x: label.x ?? 0,
+            y: (label.y ?? 0) + LABEL.height - 3,
+          },
+        };
+      }),
     ),
   };
 }
@@ -296,7 +475,7 @@ type FlowNodeType = Node<FlowNodeData, "flowNode">;
 
 interface FlowEdgeData extends Record<string, unknown> {
   unitId: string | undefined;
-  label: string | undefined;
+  label: { text: string; x: number; y: number } | undefined;
   dashed: boolean;
   points: { x: number; y: number }[];
 }
@@ -420,8 +599,6 @@ function FlowEdge({ id, data, markerEnd }: EdgeProps<FlowEdgeType>) {
     .map((point, index) => `${index ? "L" : "M"}${point.x},${point.y}`)
     .join(" ");
 
-  const start = data.points[0]!;
-
   return (
     <>
       <BaseEdge
@@ -441,11 +618,11 @@ function FlowEdge({ id, data, markerEnd }: EdgeProps<FlowEdgeType>) {
       {data.label && (
         <text
           className="lens-flow-edge-label"
-          x={start.x + 7}
-          y={start.y + 20}
+          x={data.label.x}
+          y={data.label.y}
           data-motion={motion}
         >
-          {data.label.length > 28 ? `${data.label.slice(0, 27)}…` : data.label}
+          {data.label.text}
         </text>
       )}
     </>

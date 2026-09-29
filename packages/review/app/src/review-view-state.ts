@@ -24,14 +24,19 @@ import {
 import type { ReviewClientConfig } from "./host/review-client";
 import { useReviewSession } from "./host/review-session";
 import type { GuidedTour } from "./review-panel-model";
-import type { ReviewPanelState, ReviewPanelStore } from "./review-panel-store";
+import type {
+  ReviewLensSelection,
+  ReviewNavigationRestore,
+  ReviewPanelState,
+  ReviewPanelStore,
+} from "./review-panel-store";
 import {
   readReviewUiState,
   removeReviewUiState,
   reviewUiStateKey,
   writeReviewUiState,
 } from "./review-ui-state";
-import type { ReviewView } from "./review-view-route";
+import { type ReviewView, offeredReviewViews } from "./review-view-route";
 
 const REVIEW_VIEW_STATE_NAMESPACE = "view-state";
 
@@ -40,6 +45,8 @@ const SCROLL_RESTORE_DEADLINE_MS = 30_000;
 export interface PersistedReviewViewState {
   scrollTop?: number;
   activeView?: ReviewView;
+  /** The lens applied to the diff; restored only on its own version. */
+  lens?: ReviewLensSelection;
   panel?: PersistedReviewPanel;
   /** A fullscreen diagram tour (sequence or database lens) that was open. */
   overlayTour?: { tourId: string; activeAnchor: string };
@@ -63,8 +70,6 @@ interface ReviewTourRestoreClaim {
 }
 
 interface ReviewViewStateSync {
-  initialActiveView: ReviewView | undefined;
-  persistActiveView(view: ReviewView): void;
   tourRestore: ReviewTourRestoreClaim;
   persistOverlayTour(
     open: { tourId: string; activeAnchor: string } | null,
@@ -153,13 +158,6 @@ export function useReviewViewStateSync({
     [key],
   );
 
-  const persistActiveView = useCallback(
-    (view: ReviewView) => {
-      persist({ ...persistedRef.current, activeView: view });
-    },
-    [persist],
-  );
-
   const persistOverlayTour = useCallback(
     (open: { tourId: string; activeAnchor: string } | null) => {
       persist({ ...persistedRef.current, overlayTour: open ?? undefined });
@@ -167,12 +165,25 @@ export function useReviewViewStateSync({
     [persist],
   );
 
-  useEffect(
+  // Layout, so navigation from a host event right after mount still persists.
+  useLayoutEffect(
     () =>
-      panelStore.subscribe((state) => {
+      panelStore.subscribe((state, previous) => {
+        if (
+          state.active === previous.active &&
+          state.view === previous.view &&
+          state.lens === previous.lens
+        ) {
+          return;
+        }
+
         persist({
           ...persistedRef.current,
           panel: persistedPanelState(state),
+          ...(state.view !== previous.view && { activeView: state.view }),
+          ...(state.lens !== previous.lens && {
+            lens: state.lens ?? undefined,
+          }),
         });
       }),
     [panelStore, persist],
@@ -191,8 +202,6 @@ export function useReviewViewStateSync({
   );
 
   return {
-    initialActiveView: initialState.activeView,
-    persistActiveView,
     tourRestore,
     persistOverlayTour,
   };
@@ -236,6 +245,35 @@ export function useTourPersist(
 
     persistOverlayTour?.(open);
   }, [activeAnchor, persistOverlayTour, tour]);
+}
+
+/** The navigation a canvas resumes: its stored view where the canvas still
+ * offers it, and its stored lens when that lens belongs to this version. */
+export function readReviewNavigationRestore(
+  config: ReviewClientConfig,
+  canvas: {
+    softwareMapEnabled: boolean;
+    hasChangeRange: boolean;
+    version: number;
+    lensMode: ReviewLensSelection["mode"];
+  },
+): ReviewNavigationRestore {
+  const stored = readPersistedReviewViewState(config);
+
+  return {
+    view: stored.activeView ?? "review",
+    // Traces are listed after mount; the canvas narrows this once they are.
+    availableViews: offeredReviewViews({
+      hasChangeRange: canvas.hasChangeRange,
+      softwareMapEnabled: canvas.softwareMapEnabled,
+      hasTraceSessions: true,
+    }),
+    lens:
+      stored.lens?.version === canvas.version &&
+      stored.lens.mode === canvas.lensMode
+        ? stored.lens
+        : null,
+  };
 }
 
 export function reviewViewStateKey(config: ReviewClientConfig): string {
@@ -485,6 +523,10 @@ function parsePersistedReviewViewState(
     state.activeView = activeView;
   }
 
+  const lens = parsePersistedLens(jsonObject(jsonProperty(value, "lens")));
+
+  if (lens) state.lens = lens;
+
   const panel = parsePersistedPanel(jsonObject(jsonProperty(value, "panel")));
 
   if (panel) state.panel = panel;
@@ -496,6 +538,21 @@ function parsePersistedReviewViewState(
   if (overlayTour) state.overlayTour = overlayTour;
 
   return state;
+}
+
+function parsePersistedLens(
+  lens: JsonObject | undefined,
+): ReviewLensSelection | undefined {
+  if (!lens) return undefined;
+  const id = jsonString(jsonProperty(lens, "id"));
+  const version = jsonNumber(jsonProperty(lens, "version"));
+  const mode = jsonString(jsonProperty(lens, "mode"));
+
+  return id !== undefined &&
+    version !== undefined &&
+    (mode === "structural" || mode === "textual")
+    ? { id, version, mode }
+    : undefined;
 }
 
 function parsePersistedPanel(

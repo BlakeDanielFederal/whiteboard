@@ -1,8 +1,18 @@
-name: Review Desktop Release
+name: Whiteboard Release
 
 on:
   workflow_dispatch:
     inputs:
+      platforms:
+        description: "Platforms to release"
+        required: true
+        type: choice
+        options:
+          - all
+          - macos
+          - linux
+          - windows
+        default: all
       bump:
         description: "Version bump type"
         required: true
@@ -52,7 +62,7 @@ jobs:
     name: Tag release
     # Approval is handled by approve; this environment supplies credentials.
     environment: review-release
-    runs-on: review_big_boy
+    runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.bump.outputs.version || steps.dryrun.outputs.version }}
       tag: ${{ steps.bump.outputs.tag }}
@@ -68,7 +78,7 @@ jobs:
           ssh-key: ${{ secrets.RELEASE_DEPLOY_KEY }}
 
       - name: Verify Linux release prerequisites
-        if: ${{ !inputs.dry_run }}
+        if: ${{ !inputs.dry_run && (inputs.platforms == 'all' || inputs.platforms == 'linux') }}
         env:
           SIGNING_KEY: ${{ secrets.LINUX_REPOSITORY_SIGNING_KEY }}
           SIGNING_FINGERPRINT: ${{ vars.LINUX_REPOSITORY_SIGNING_FINGERPRINT }}
@@ -78,6 +88,8 @@ jobs:
           test -n "$R2_BUCKET"
           [[ "$SIGNING_FINGERPRINT" =~ ^[A-F0-9]{40}$ ]]
           curl -fsS https://install.dev.fast/repos/health | python3 -c 'import json,sys; assert json.load(sys.stdin) == {"schemaVersion": 1, "format": "rpm"}'
+          curl -fsS https://install.dev.fast/repos/apt/health | python3 -c 'import json,sys; assert json.load(sys.stdin) == {"schemaVersion": 1, "format": "deb"}'
+          curl -fsS https://install.dev.fast/repos/arch/health | python3 -c 'import json,sys; assert json.load(sys.stdin) == {"schemaVersion": 1, "format": "pacman"}'
 
       # Every read-only gate lives here so a dry run rehearses the same checks a
       # real run must pass, and so the write step below re-derives nothing.
@@ -169,9 +181,9 @@ jobs:
               exit 1
             fi
 
-            echo "Promoting ${PREVIEW_TAG} (${PREVIEW_COMMIT}) to Review Desktop ${TAG}."
+            echo "Promoting ${PREVIEW_TAG} (${PREVIEW_COMMIT}) to Whiteboard ${TAG}."
           else
-            echo "Releasing Review Desktop ${TAG} from ${GITHUB_REF_NAME}."
+            echo "Releasing Whiteboard ${TAG} from ${GITHUB_REF_NAME}."
           fi
 
           # Remote write-state, checked only where a push actually follows. Both
@@ -212,7 +224,7 @@ jobs:
 
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add apps/review-desktop/package.json apps/review-desktop/code-oss/product.json
+          git add apps/review-desktop/package.json apps/review-desktop/code-oss/product.json packages/review/package.json
           git commit -m "chore(review-desktop): bump version to ${VERSION} [skip ci]"
 
           # The tag marks what shipped, which for a promotion is the commit the
@@ -258,11 +270,12 @@ jobs:
         run: |
           gh release create "${{ steps.bump.outputs.tag }}" \
             --repo "${{ github.repository }}" \
-            --title "Review Desktop ${{ steps.bump.outputs.version }}" \
+            --title "Whiteboard ${{ steps.bump.outputs.version }}" \
             --draft \
             --generate-notes
 
   compile:
+    if: ${{ inputs.platforms == 'all' || inputs.platforms == 'macos' }}
     name: Compile Darwin payload on Linux
     needs: tag
     runs-on: review_big_boy
@@ -313,6 +326,12 @@ jobs:
           cache: npm
           cache-dependency-path: apps/review-desktop/code-oss/**/package-lock.json
 
+      - name: Compute Code OSS dependency key
+        id: code-oss-inputs
+        run: |
+          DIGEST=$(node apps/review-desktop/scripts/code-oss-bootstrap.mjs digest apps/review-desktop/code-oss)
+          echo "digest=$DIGEST" >> "$GITHUB_OUTPUT"
+
       - name: Restore Code OSS dependencies
         id: code-oss-deps
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
@@ -327,40 +346,32 @@ jobs:
             apps/review-desktop/code-oss/.build/distro/npm/remote/node_modules
             apps/review-desktop/code-oss/.build/distro/npm/remote/web/node_modules
             ~/.cache/node-gyp
-          key: ${{ runner.os }}-code-oss-deps-v2-${{ hashFiles('apps/review-desktop/code-oss/**/package-lock.json') }}
+          key: ${{ runner.os }}-code-oss-deps-v3-${{ steps.code-oss-inputs.outputs.digest }}
           restore-keys: |
-            ${{ runner.os }}-code-oss-deps-v2-
+            ${{ runner.os }}-code-oss-deps-v3-
 
       # Linux owns every platform-independent build output and also downloads
-      # the pinned darwin-arm64 VSIX payloads. The macOS job packages this
-      # archive; it must not silently rebuild or omit anything transferred here.
+      # the pinned VSIX payloads for every Darwin target. Each macOS leg packages
+      # this archive; it must not silently rebuild or omit anything transferred here.
       - name: Compile Darwin payload on Linux
         env:
           # Embeds the PostHog project key into the review runtime build so
           # released apps ship telemetry enabled. Source builds embed nothing.
           REVIEW_POSTHOG_KEY: ${{ vars.REVIEW_POSTHOG_KEY }}
+          POSTHOG_CLI_API_KEY: ${{ secrets.POSTHOG_CLI_API_KEY }}
+          POSTHOG_CLI_PROJECT_ID: ${{ vars.POSTHOG_CLI_PROJECT_ID }}
         run: bash apps/review-desktop/scripts/compile-darwin-payload.sh
 
       - name: Upload darwin payload
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: darwin-payload
           path: apps/review-desktop/dist/darwin-payload.tar.zst
           retention-days: 3
           compression-level: 0
 
-      - name: Check for existing Code OSS dependency cache
-        if: steps.code-oss-deps.outputs.cache-hit != 'true'
-        id: code-oss-deps-lookup
-        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
-        with:
-          path: |
-            apps/review-desktop/code-oss/node_modules
-          key: ${{ runner.os }}-code-oss-deps-v2-${{ hashFiles('apps/review-desktop/code-oss/**/package-lock.json') }}
-          lookup-only: true
-
       - name: Save Code OSS dependencies
-        if: steps.code-oss-deps.outputs.cache-hit != 'true' && steps.code-oss-deps-lookup.outputs.cache-hit != 'true'
+        if: steps.code-oss-deps.outputs.cache-hit != 'true'
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
         with:
           path: |
@@ -373,9 +384,10 @@ jobs:
             apps/review-desktop/code-oss/.build/distro/npm/remote/node_modules
             apps/review-desktop/code-oss/.build/distro/npm/remote/web/node_modules
             ~/.cache/node-gyp
-          key: ${{ runner.os }}-code-oss-deps-v2-${{ hashFiles('apps/review-desktop/code-oss/**/package-lock.json') }}
+          key: ${{ steps.code-oss-deps.outputs.cache-primary-key }}
 
   linux:
+    if: ${{ inputs.platforms == 'all' || inputs.platforms == 'linux' }}
     needs: tag
     uses: ./.github/workflows/review-linux-build.yml
     with:
@@ -384,15 +396,40 @@ jobs:
       release_signing: ${{ !inputs.dry_run }}
     secrets: inherit
 
+  # Signs even on a dry run, so the run validates exactly what would ship.
+  windows:
+    if: ${{ inputs.platforms == 'all' || inputs.platforms == 'windows' }}
+    needs: tag
+    permissions:
+      contents: read
+      id-token: write
+    uses: ./.github/workflows/review-windows-build.yml
+    with:
+      commit: ${{ needs.tag.outputs.commit }}
+      version: ${{ needs.tag.outputs.version }}
+      sign: true
+
   build:
-    name: Build, sign, publish
-    needs: [tag, compile, linux]
-    runs-on: macos-15-xlarge
-    timeout-minutes: 90
+    name: Build and sign macOS (${{ matrix.target }})
+    needs: [tag, compile]
+    if: ${{ !cancelled() && needs.tag.result == 'success' && needs.compile.result == 'success' }}
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - target: darwin-arm64
+            runner: macos-15-xlarge
+            timeout: 90
+          - target: darwin-x64
+            runner: macos-15-large
+            timeout: 150
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: ${{ matrix.timeout }}
     env:
       RELEASE_VERSION: ${{ needs.tag.outputs.version }}
       RELEASE_COMMIT: ${{ needs.tag.outputs.commit }}
       RELEASE_TAG: ${{ needs.tag.outputs.tag }}
+      DARWIN_TARGET: ${{ matrix.target }}
     steps:
       - name: Checkout resolved release commit
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
@@ -432,6 +469,12 @@ jobs:
           cache: npm
           cache-dependency-path: apps/review-desktop/code-oss/**/package-lock.json
 
+      - name: Compute Code OSS dependency key
+        id: code-oss-inputs
+        run: |
+          DIGEST=$(node apps/review-desktop/scripts/code-oss-bootstrap.mjs digest apps/review-desktop/code-oss)
+          echo "digest=$DIGEST" >> "$GITHUB_OUTPUT"
+
       - name: Restore Code OSS dependencies
         id: code-oss-deps
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
@@ -447,15 +490,16 @@ jobs:
             apps/review-desktop/code-oss/.build/distro/npm/remote/web/node_modules
             apps/review-desktop/code-oss/.build/electron
             ~/.cache/node-gyp
-          key: ${{ runner.os }}-code-oss-deps-v2-${{ hashFiles('apps/review-desktop/code-oss/**/package-lock.json') }}
+          key: ${{ runner.os }}-${{ matrix.target }}-code-oss-deps-v3-${{ steps.code-oss-inputs.outputs.digest }}
           restore-keys: |
-            ${{ runner.os }}-code-oss-deps-v2-
+            ${{ runner.os }}-${{ matrix.target }}-code-oss-deps-v3-
 
       - name: Download darwin payload
-        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: darwin-payload
           path: ${{ runner.temp }}/darwin-payload
+          digest-mismatch: warn
 
       - name: Extract darwin payload
         run: |
@@ -517,18 +561,8 @@ jobs:
             "$RUNNER_TEMP/buildagent.keychain"
           pnpm --filter @dev.fast/review-desktop app:package:macos
 
-      - name: Check for existing Code OSS dependency cache
-        if: steps.code-oss-deps.outputs.cache-hit != 'true'
-        id: code-oss-deps-lookup
-        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
-        with:
-          path: |
-            apps/review-desktop/code-oss/node_modules
-          key: ${{ runner.os }}-code-oss-deps-v2-${{ hashFiles('apps/review-desktop/code-oss/**/package-lock.json') }}
-          lookup-only: true
-
       - name: Save Code OSS dependencies
-        if: steps.code-oss-deps.outputs.cache-hit != 'true' && steps.code-oss-deps-lookup.outputs.cache-hit != 'true'
+        if: steps.code-oss-deps.outputs.cache-hit != 'true'
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
         with:
           path: |
@@ -542,7 +576,7 @@ jobs:
             apps/review-desktop/code-oss/.build/distro/npm/remote/web/node_modules
             apps/review-desktop/code-oss/.build/electron
             ~/.cache/node-gyp
-          key: ${{ runner.os }}-code-oss-deps-v2-${{ hashFiles('apps/review-desktop/code-oss/**/package-lock.json') }}
+          key: ${{ steps.code-oss-deps.outputs.cache-primary-key }}
 
       - name: Validate release artifacts
         run: |
@@ -561,14 +595,49 @@ jobs:
       # and deliver them; the launch above only proves it starts.
       - name: Smoke telemetry delivery and error reporting
         run: |
-          APP="apps/review-desktop/VSCode-darwin-arm64/$(node -p "require('./apps/review-desktop/code-oss/product.json').nameShort").app"
+          APP="apps/review-desktop/VSCode-${DARWIN_TARGET}/$(node -p "require('./apps/review-desktop/code-oss/product.json').nameShort").app"
           node apps/review-desktop/scripts/smoke-telemetry-delivery.mjs --app "$APP"
           node apps/review-desktop/scripts/smoke-error-telemetry.mjs --app "$APP"
 
-      # Payloads first, manifest last: a client must never see a latest.json
-      # whose zip is not yet downloadable.
+      # publish-macos uploads both arches together once every leg has passed.
+      - name: Upload macOS release artifacts
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: macos-${{ matrix.target }}
+          path: |
+            apps/review-desktop/dist/*-${{ matrix.target }}-${{ env.RELEASE_VERSION }}.zip
+            apps/review-desktop/dist/Whiteboard-${{ matrix.target }}-${{ env.RELEASE_VERSION }}.dmg
+            apps/review-desktop/dist/latest.json
+          if-no-files-found: error
+          retention-days: 3
+          compression-level: 0
+
+      - name: Remove signing credentials
+        if: always()
+        run: |
+          security delete-keychain "$RUNNER_TEMP/buildagent.keychain" || true
+          rm -f "$RUNNER_TEMP/notary-key.p8"
+
+  publish-macos:
+    name: Publish macOS
+    # Nothing publishes until every selected platform has built and validated.
+    needs: [tag, build, linux, windows]
+    if: ${{ !cancelled() && !inputs.dry_run && needs.tag.result == 'success' && needs.build.result == 'success' && (inputs.platforms == 'macos' || (needs.linux.result == 'success' && needs.windows.result == 'success')) }}
+    runs-on: ubuntu-latest
+    env:
+      RELEASE_VERSION: ${{ needs.tag.outputs.version }}
+      RELEASE_COMMIT: ${{ needs.tag.outputs.commit }}
+      RELEASE_TAG: ${{ needs.tag.outputs.tag }}
+    steps:
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          digest-mismatch: warn
+          pattern: macos-*
+          path: dist
+
+      # Payloads first, manifests last: a client must never see a latest.json
+      # whose zip is not yet downloadable, on either arch.
       - name: Upload release to R2
-        if: ${{ !inputs.dry_run }}
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
@@ -576,31 +645,35 @@ jobs:
           AWS_REGION: auto
           R2_BUCKET: ${{ vars.R2_RELEASE_BUCKET }}
         run: |
-          DIST=apps/review-desktop/dist
-          RELEASE_PREFIX="s3://${R2_BUCKET}/releases/${RELEASE_VERSION}/darwin-arm64"
           # The releases/latest/ key is version-free by design, so the version
-          # rides along in the filename a client saves the download as.
-          DMG_DISPOSITION="attachment; filename=\"df-whiteboard-${RELEASE_VERSION}.dmg\""
-
-          for zip in "$DIST"/*-darwin-arm64-"${RELEASE_VERSION}".zip; do
-            aws s3 cp "$zip" "${RELEASE_PREFIX}/$(basename "$zip")" \
-              --content-type application/zip
+          # rides along in the filename a client saves the download as, with the
+          # arch so Apple silicon and Intel downloads are told apart.
+          for dir in dist/macos-*; do
+            target="${dir#dist/macos-}"
+            DMG_DISPOSITION="attachment; filename=\"df-whiteboard-${RELEASE_VERSION}-${target#darwin-}.dmg\""
+            RELEASE_PREFIX="s3://${R2_BUCKET}/releases/${RELEASE_VERSION}/${target}"
+            for zip in "$dir"/*-"${target}"-"${RELEASE_VERSION}".zip; do
+              aws s3 cp "$zip" "${RELEASE_PREFIX}/$(basename "$zip")" \
+                --content-type application/zip
+            done
+            aws s3 cp "$dir/Whiteboard-${target}-${RELEASE_VERSION}.dmg" \
+              "${RELEASE_PREFIX}/Whiteboard-${target}-${RELEASE_VERSION}.dmg" \
+              --content-type application/x-apple-diskimage \
+              --content-disposition "$DMG_DISPOSITION"
+            aws s3 cp "$dir/Whiteboard-${target}-${RELEASE_VERSION}.dmg" \
+              "s3://${R2_BUCKET}/releases/latest/${target}/Whiteboard.dmg" \
+              --content-type application/x-apple-diskimage \
+              --content-disposition "$DMG_DISPOSITION"
           done
-          aws s3 cp "$DIST/Whiteboard-darwin-arm64-${RELEASE_VERSION}.dmg" \
-            "${RELEASE_PREFIX}/Whiteboard-darwin-arm64-${RELEASE_VERSION}.dmg" \
-            --content-type application/x-apple-diskimage \
-            --content-disposition "$DMG_DISPOSITION"
-          aws s3 cp "$DIST/Whiteboard-darwin-arm64-${RELEASE_VERSION}.dmg" \
-            "s3://${R2_BUCKET}/releases/latest/darwin-arm64/Whiteboard.dmg" \
-            --content-type application/x-apple-diskimage \
-            --content-disposition "$DMG_DISPOSITION"
 
-          aws s3 cp "$DIST/latest.json" \
-            "s3://${R2_BUCKET}/update/stable/darwin-arm64/latest.json" \
-            --content-type application/json
+          for dir in dist/macos-*; do
+            target="${dir#dist/macos-}"
+            aws s3 cp "$dir/latest.json" \
+              "s3://${R2_BUCKET}/update/stable/${target}/latest.json" \
+              --content-type application/json
+          done
 
       - name: Verify update feed
-        if: ${{ !inputs.dry_run }}
         run: |
           echo "Feed for an outdated client (expect 200 with ${RELEASE_VERSION}):"
           RESPONSE=$(curl -sf "https://update.dev.fast/api/update/darwin-arm64/stable/0000000000000000000000000000000000000000")
@@ -618,8 +691,12 @@ jobs:
           echo "$STATUS"
           test "$STATUS" = "204"
 
+          echo "Intel feed (clients send plain darwin):"
+          curl -sf "https://update.dev.fast/api/update/darwin/stable/0000000000000000000000000000000000000000?bundle=Whiteboard" \
+            | grep -F "/Whiteboard-darwin-x64-${RELEASE_VERSION}.zip"
+          test "$(curl -s -o /dev/null -w '%{http_code}' "https://update.dev.fast/api/update/darwin/stable/${RELEASE_COMMIT}")" = 204
+
       - name: Verify install landing
-        if: ${{ !inputs.dry_run }}
         run: |
           echo "install.dev.fast (expect 302 to the disk image):"
           LOCATION=$(curl -s -o /dev/null -w "%{redirect_url}" https://install.dev.fast/)
@@ -630,36 +707,50 @@ jobs:
           curl -sfL -o /dev/null -w "%{http_code} %{content_type}\n" https://install.dev.fast/ \
             | grep -F "200 application/x-apple-diskimage"
 
-      - name: Attach DMG to GitHub Release
-        if: ${{ !inputs.dry_run }}
+          echo "Intel disk image (expect a disk image):"
+          curl -sfI https://install.dev.fast/releases/latest/darwin-x64/Whiteboard.dmg | grep -i "content-type: application/x-apple-diskimage"
+
+      - name: Attach DMGs to GitHub Release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           gh release upload "$RELEASE_TAG" \
             --repo "${{ github.repository }}" \
-            "apps/review-desktop/dist/Whiteboard-darwin-arm64-${RELEASE_VERSION}.dmg"
-
-      - name: Remove signing credentials
-        if: always()
-        run: |
-          security delete-keychain "$RUNNER_TEMP/buildagent.keychain" || true
-          rm -f "$RUNNER_TEMP/notary-key.p8"
+            dist/macos-*/Whiteboard-*-"${RELEASE_VERSION}".dmg
 
   publish-linux:
     name: Publish Linux repositories
+    needs: [tag, build, linux, windows]
+    if: ${{ !cancelled() && !inputs.dry_run && needs.tag.result == 'success' && needs.linux.result == 'success' && (inputs.platforms == 'linux' || (needs.build.result == 'success' && needs.windows.result == 'success')) }}
+    uses: ./.github/workflows/review-linux-publish.yml
+    with:
+      channel: stable
+      release_tag: ${{ needs.tag.outputs.tag }}
+    secrets: inherit
+
+  publish-windows:
+    name: Publish Windows installers
     environment: review-release
-    needs: [tag, build, linux]
-    if: ${{ !inputs.dry_run }}
-    runs-on: review_big_boy
+    needs: [tag, build, linux, windows]
+    if: ${{ !cancelled() && !inputs.dry_run && needs.tag.result == 'success' && needs.windows.result == 'success' && (inputs.platforms == 'windows' || (needs.build.result == 'success' && needs.linux.result == 'success')) }}
+    runs-on: ubuntu-latest
+    env:
+      RELEASE_VERSION: ${{ needs.tag.outputs.version }}
+      RELEASE_TAG: ${{ needs.tag.outputs.tag }}
     steps:
-      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
-          ref: ${{ needs.tag.outputs.commit }}
-      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
-        with:
-          name: linux-packages
-          path: linux-packages
-      - name: Publish verified snapshot
+          name: windows-packages
+          path: windows-packages
+          digest-mismatch: warn
+      - name: Name the installers for this release
+        run: |
+          mkdir windows-release
+          cp windows-packages/Whiteboard-win32-x64-user.exe "windows-release/Whiteboard-${RELEASE_VERSION}-Setup.exe"
+          cp windows-packages/Whiteboard-win32-x64-system.exe "windows-release/Whiteboard-${RELEASE_VERSION}-System-Setup.exe"
+          cp windows-packages/Whiteboard-win32-x64.zip "windows-release/Whiteboard-win32-x64-${RELEASE_VERSION}.zip"
+      # Versioned payloads first, then the alias install.dev.fast/windows serves.
+      - name: Upload release to R2
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
@@ -667,20 +758,39 @@ jobs:
           AWS_REGION: auto
           R2_BUCKET: ${{ vars.R2_RELEASE_BUCKET }}
         run: |
-          mkdir linux-repository
-          tar --zstd -xf linux-packages/linux-publication.tar.zst -C linux-repository
-          python3 apps/review-desktop/scripts/publish-linux-repository.py --directory linux-repository --bucket "$R2_BUCKET" --channel stable
-      - name: Attach Linux packages
+          RELEASE_PREFIX="s3://${R2_BUCKET}/releases/${RELEASE_VERSION}/win32-x64"
+          for file in windows-release/*.exe; do
+            aws s3 cp "$file" "${RELEASE_PREFIX}/$(basename "$file")" \
+              --content-type application/vnd.microsoft.portable-executable \
+              --content-disposition "attachment; filename=\"$(basename "$file")\""
+          done
+          aws s3 cp "windows-release/Whiteboard-win32-x64-${RELEASE_VERSION}.zip" \
+            "${RELEASE_PREFIX}/Whiteboard-win32-x64-${RELEASE_VERSION}.zip" \
+            --content-type application/zip
+          aws s3 cp "windows-release/Whiteboard-${RELEASE_VERSION}-Setup.exe" \
+            "s3://${R2_BUCKET}/releases/latest/win32-x64/Whiteboard-Setup.exe" \
+            --content-type application/vnd.microsoft.portable-executable \
+            --content-disposition "attachment; filename=\"Whiteboard-${RELEASE_VERSION}-Setup.exe\""
+      - name: Verify install landing
+        run: |
+          echo "install.dev.fast/windows (expect 302 to the installer):"
+          LOCATION=$(curl -s -o /dev/null -w "%{redirect_url}" https://install.dev.fast/windows)
+          echo "$LOCATION"
+          test "$LOCATION" = "https://install.dev.fast/releases/latest/win32-x64/Whiteboard-Setup.exe"
+
+          echo "Following it (expect 200 and a Windows executable):"
+          curl -sfL -o /dev/null -w "%{http_code} %{content_type}\n" https://install.dev.fast/windows \
+            | grep -F "200 application/vnd.microsoft.portable-executable"
+      - name: Attach installers to GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
-          RELEASE_TAG: ${{ needs.tag.outputs.tag }}
-        run: gh release upload "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" linux-packages/*.rpm
+        run: gh release upload "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" windows-release/*
 
   finalize-release:
     name: Publish release
-    needs: [tag, build, publish-linux]
-    if: ${{ !inputs.dry_run }}
-    runs-on: review_big_boy
+    needs: [tag, publish-macos, publish-linux, publish-windows]
+    if: ${{ !cancelled() && !inputs.dry_run && needs.tag.result == 'success' && (inputs.platforms != 'all' && inputs.platforms != 'macos' || needs.publish-macos.result == 'success') && (inputs.platforms != 'all' && inputs.platforms != 'linux' || needs.publish-linux.result == 'success') && (inputs.platforms != 'all' && inputs.platforms != 'windows' || needs.publish-windows.result == 'success') }}
+    runs-on: ubuntu-latest
     steps:
       - name: Publish GitHub Release
         env:

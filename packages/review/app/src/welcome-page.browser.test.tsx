@@ -41,6 +41,8 @@ const fresh: ReviewCliInstallStatus = {
       cursor: "cursor prompt",
       opencode: "opencode prompt",
       pi: "pi prompt",
+      omp: "omp prompt",
+      copilot: "copilot prompt",
     },
     plugins: {
       claude: { label: "claude plugin", command: "claude command" },
@@ -48,6 +50,8 @@ const fresh: ReviewCliInstallStatus = {
       cursor: { label: "cursor plugin", url: "cursor://install" },
       opencode: { label: "opencode plugin", command: "opencode command" },
       pi: { label: "pi plugin", command: "pi command" },
+      omp: { label: "omp plugin", command: "omp command" },
+      copilot: { label: "copilot plugin", command: "copilot command" },
     },
   },
   legacySkills: [],
@@ -264,6 +268,22 @@ describe("WelcomePage", () => {
     expect(
       (step(1)?.querySelector("button") as HTMLButtonElement).disabled,
     ).toBe(false);
+  });
+
+  it("tells a Windows reader to open a terminal rather than edit a POSIX PATH", async () => {
+    const shimPath = "C:\\Users\\tester\\.local\\bin\\whiteboard.cmd";
+    await act(async () =>
+      root.render(
+        <WelcomePage
+          install={content({
+            ...fresh,
+            shim: { ...fresh.shim, path: shimPath, installed: true },
+          })}
+        />,
+      ),
+    );
+    expect(container.textContent).not.toContain("~/.local/bin");
+    expect(container.textContent).toContain("new terminal");
   });
 
   it("finishes the connect step once a prompt is copied", async () => {

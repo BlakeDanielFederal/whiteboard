@@ -1,18 +1,18 @@
 import type { ReviewCommitSummary } from "@dev.fast/review-protocol";
-import { memo, useContext, useEffect, useMemo, useRef, useState } from "react";
-
-import { type DiffSelection } from "../../src/lens-selection";
-import type { ReviewApiClient } from "../../src/review-api/client";
+import { type DiffSelection } from "@review/lens-selection";
+import type { ReviewApiClient } from "@review/review-api/client";
 import {
   type Block,
   elements,
   resourceReferences,
   selectionReferences,
-} from "../../src/review-api/document";
-import type { LocalReviewData } from "../../src/review-api/local-data";
-import type { Snapshot } from "../../src/review-api/store";
-import type { DocumentPeekableAnchor } from "../../src/review-document-data";
-import type { NormalizedSoftwareModel } from "../../src/software-map-model";
+} from "@review/review-api/document";
+import type { LocalReviewData } from "@review/review-api/local-data";
+import type { Snapshot } from "@review/review-api/store";
+import type { DocumentPeekableAnchor } from "@review/review-document-data";
+import type { NormalizedSoftwareModel } from "@review/software-map-model";
+import { memo, useContext, useEffect, useMemo, useRef, useState } from "react";
+
 import { markdownHasTitle } from "./agent-markdown";
 import { type ApiHeadingIds, apiHeadingIds } from "./api-document-headings";
 import { AuthoringActivityContext } from "./authoring-activity";
@@ -32,8 +32,6 @@ import { ReviewDocumentTitle } from "./review-document-surface";
 import { cssIdentifier, scrollToReviewHeading } from "./review-heading-scroll";
 import { useReviewRoots } from "./review-root-context";
 import type { SoftwareMapResolvedDataPayload } from "./software-map/software-map-snapshot";
-
-import "./api-document.css";
 
 interface Trace {
   label: string;
@@ -224,12 +222,9 @@ export function ApiDocument({
       {!hasTitle && !scratchpad && (
         <ReviewDocumentTitle>{data.snapshot.title}</ReviewDocumentTitle>
       )}
-      {(data.snapshot.target?.kind === "worktree" ||
-        data.snapshot.sourceUnavailable) && (
+      {data.snapshot.sourceUnavailable && (
         <p className="review-source-context">
-          {data.snapshot.sourceUnavailable
-            ? "Local checkout unavailable. Showing retained source."
-            : "Working tree"}
+          Local checkout unavailable. Showing retained source.
         </p>
       )}
       <DocumentBlocks
@@ -395,18 +390,22 @@ export const DocumentNode = memo(function DocumentNode({
       data.snapshot.staleSources?.includes(reference.id),
     );
 
+  const prose = node.type === "markdown" || node.type === "trace_quote";
+
   return (
     <div
-      className="api-document-node"
+      className={
+        prose
+          ? "api-document-node api-document-node--prose"
+          : "api-document-node"
+      }
       data-review-node-id={node.id}
       data-motion={motion}
       data-region={region}
-      data-review-copy-prose={
-        node.type === "markdown" || node.type === "trace_quote" || undefined
-      }
+      data-review-copy-prose={prose || undefined}
     >
       <BlockErrorBoundary
-        type={block.type}
+        block={block}
         onError={(error) => reportReviewDocumentRenderError(session, error)}
       >
         {stale ? (

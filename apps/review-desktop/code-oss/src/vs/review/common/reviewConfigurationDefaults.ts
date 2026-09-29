@@ -28,6 +28,8 @@ export const REVIEW_STRUCTURAL_DIFF_SETTING = 'review.experimental.structuralDif
 export const REVIEW_SOFTWARE_MAP_SETTING = 'review.experimental.softwareMap.enabled';
 export const REVIEW_KEYMAPS = ['none', 'vim', 'emacs'] as const;
 export type ReviewKeymap = typeof REVIEW_KEYMAPS[number];
+export const REVIEW_CTRL_TAB_SETTING = 'review.tabs.ctrlTab';
+export const REVIEW_CTRL_TAB_CHOICES = ['recent', 'next'] as const;
 
 export const reviewConfigurationDefaults = {
 	[REVIEW_SOFTWARE_MAP_SETTING]: false,
@@ -75,6 +77,10 @@ export const reviewConfigurationDefaults = {
 	// tail is Monaco's own macOS default stack.
 	'editor.fontFamily': '"Geist Mono", Menlo, Monaco, "Courier New", monospace',
 	'editor.minimap.enabled': false,
+	// A 10px lane on both axes, as in the canvas; review.css insets the slider
+	// to the same 6px pill.
+	'editor.scrollbar.verticalScrollbarSize': 10,
+	'editor.scrollbar.horizontalScrollbarSize': 10,
 	'diffEditor.renderIndicators': false,
 	'breadcrumbs.enabled': false,
 	'git.enabled': false,

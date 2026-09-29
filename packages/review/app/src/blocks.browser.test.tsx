@@ -3,31 +3,35 @@ import {
   type ReviewCanvasTutorialBridge,
   parseJsonText,
 } from "@dev.fast/review-protocol";
-import { act } from "react";
-import { createRoot } from "react-dom/client";
-import { afterEach, describe, expect, it, vi } from "vitest";
-
 import {
   FIXTURE_IMAGE_ID,
   FIXTURE_MAP_ID,
   FIXTURE_TRACE_EVENT_ID,
   FIXTURE_TRACE_ID,
-} from "../../src/fixtures/blocks/ids";
-import { selectionKey } from "../../src/lens-selection";
+} from "@review/fixtures/blocks/ids";
+import { selectionKey } from "@review/lens-selection";
 import {
   assignFreshIds,
   documentSchema,
   elements,
   isUnit,
-} from "../../src/review-api/document";
-import { mapInputSchema } from "../../src/review-api/map-input";
-import type { ReviewProgress } from "../../src/review-api/review-progress";
-import type { Snapshot } from "../../src/review-api/store";
-import { defineSoftwareMap } from "../../src/software-map-model";
+} from "@review/review-api/document";
+import { mapInputSchema } from "@review/review-api/map-input";
+import type { ReviewProgress } from "@review/review-api/review-progress";
+import type { Snapshot } from "@review/review-api/store";
+import { defineSoftwareMap } from "@review/software-map-model";
+import { type ReactNode, act } from "react";
+import { createRoot } from "react-dom/client";
+import { afterEach, describe, expect, it, vi } from "vitest";
+
 import tutorialDocument from "../../tutorial/document.json";
 import tutorialModel from "../../tutorial/software-map.json";
 import tutorialTrace from "../../tutorial/trace.json";
-import { BlockErrorBoundary, blockComponents } from "./blocks";
+import {
+  BlockErrorBoundary,
+  type StoredBlock,
+  blockComponents,
+} from "./blocks";
 import { mountReviewCanvas as mount } from "./desktop-entry";
 import { fixtureReviewBridge, settled } from "./fixture-review-bridge";
 
@@ -529,13 +533,12 @@ describe("block components", () => {
 });
 
 describe("BlockErrorBoundary", () => {
+  const Broken = () => {
+    throw new Error("bad props reached render");
+  };
+
   it("contains one throwing block, reports it, and leaves its siblings rendered", async () => {
     const onError = vi.fn<(error: Error) => void>();
-
-    const Broken = () => {
-      throw new Error("bad props reached render");
-    };
-
     const container = document.createElement("div");
     document.body.append(container);
     const root = createRoot(container);
@@ -544,10 +547,22 @@ describe("BlockErrorBoundary", () => {
     await act(async () => {
       root.render(
         <>
-          <BlockErrorBoundary type="markdown" onError={onError}>
+          <BlockErrorBoundary
+            block={{ id: "a", type: "markdown", markdown: "" }}
+            onError={onError}
+          >
             <p>Healthy sibling</p>
           </BlockErrorBoundary>
-          <BlockErrorBoundary type="database_lens" onError={onError}>
+          <BlockErrorBoundary
+            block={{
+              id: "b",
+              type: "flow_diagram",
+              title: "",
+              nodes: [],
+              edges: [],
+            }}
+            onError={onError}
+          >
             <Broken />
           </BlockErrorBoundary>
         </>,
@@ -556,12 +571,38 @@ describe("BlockErrorBoundary", () => {
 
     expect(text(container)).toContain("Healthy sibling");
     expect(
-      container.querySelector(
-        "[role='alert'][data-block-error='database_lens']",
-      )?.textContent,
+      container.querySelector("[role='alert'][data-block-error='flow_diagram']")
+        ?.textContent,
     ).toContain("bad props reached render");
     expect(onError).toHaveBeenCalledTimes(1);
     expect(onError.mock.calls[0]![0].message).toBe("bad props reached render");
+    await act(async () => root.unmount());
+    vi.restoreAllMocks();
+  });
+
+  it("renders the replacement once the failing block is edited", async () => {
+    const container = document.createElement("div");
+    document.body.append(container);
+    const root = createRoot(container);
+    vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const render = (block: StoredBlock, children: ReactNode) =>
+      act(async () => {
+        root.render(
+          <BlockErrorBoundary block={block} onError={() => {}}>
+            {children}
+          </BlockErrorBoundary>,
+        );
+      });
+
+    const broken: StoredBlock = { id: "a", type: "markdown", markdown: "" };
+    await render(broken, <Broken />);
+    await render(broken, <p>Unrelated rerender</p>);
+    expect(container.querySelector("[data-block-error]")).toBeTruthy();
+
+    await render({ ...broken, markdown: "fixed" }, <p>Fixed block</p>);
+    expect(container.querySelector("[data-block-error]")).toBeNull();
+    expect(text(container)).toContain("Fixed block");
     await act(async () => root.unmount());
     vi.restoreAllMocks();
   });
@@ -653,4 +694,43 @@ it("opens a flow node in a full-screen tour with all its code attachments", asyn
   );
   expect(container.querySelector('[role="dialog"]')).toBeNull();
   expect(container.querySelector(".flow-node")).not.toBeNull();
+});
+
+it("grows a tall, wide sequence diagram to its height instead of scrolling it vertically", async () => {
+  const actors = ["a", "b", "c", "d", "e", "f", "g", "h"];
+
+  const { container } = await mountFixture(
+    "sequence",
+    {
+      document: documentSchema.parse([
+        {
+          id: "diagram-1",
+          type: "sequence",
+          title: "Ten steps across eight actors",
+          actors: Object.fromEntries(actors.map((key) => [key, key])),
+          steps: Array.from({ length: 10 }, (_, index) => ({
+            id: `step-${index}`,
+            from: actors[index % 8]!,
+            to: actors[(index + 1) % 8]!,
+            label: `step ${index}`,
+            explanation: "One step.",
+          })),
+        },
+      ]),
+    },
+    undefined,
+    false,
+    "position: relative; height: 700px; overflow: hidden",
+  );
+
+  const body = await settled(() =>
+    container.querySelector<HTMLElement>(".sequence-diagram-body"),
+  );
+
+  await settled(() => body!.querySelector(".react-flow__node"));
+
+  // Eight lanes overflow sideways; ten steps stand 914px tall.
+  expect(body!.scrollWidth).toBeGreaterThan(body!.clientWidth);
+  expect(body!.clientHeight).toBeGreaterThanOrEqual(914);
+  expect(body!.scrollHeight).toBe(body!.clientHeight);
 });

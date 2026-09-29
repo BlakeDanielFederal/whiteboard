@@ -392,8 +392,8 @@ export interface ReviewCanvasOnboarding {
 }
 
 // The workbench owns the theme and the keymap; the canvas only names a choice.
-// Both lists mirror the workbench side (`reviewThemeChoice.ts` and
-// `REVIEW_KEYMAPS` in `reviewConfigurationDefaults.ts`).
+// These lists mirror the workbench side (`reviewThemeChoice.ts`, and
+// `REVIEW_KEYMAPS` and `REVIEW_CTRL_TAB_CHOICES` in `reviewConfigurationDefaults.ts`).
 export const REVIEW_THEME_CHOICES = ["dark", "light", "system"] as const;
 
 export type ReviewThemeChoice = (typeof REVIEW_THEME_CHOICES)[number];
@@ -401,6 +401,8 @@ export type ReviewThemeChoice = (typeof REVIEW_THEME_CHOICES)[number];
 export const REVIEW_KEYMAP_CHOICES = ["none", "vim", "emacs"] as const;
 
 export type ReviewKeymapChoice = (typeof REVIEW_KEYMAP_CHOICES)[number];
+
+export type ReviewCtrlTabChoice = "recent" | "next";
 
 export const REVIEW_TUTORIAL_STEP_IDS = [
   "openPeek",
@@ -442,13 +444,6 @@ export interface ReviewCanvasTutorialBridge {
   // Closes the managed tutorial tab without dismissing it from a user catalog.
   close(): void;
 }
-
-/**
- * How long a dismissed review waits before the reaper deletes it. The server
- * owns the stored value, but the workbench needs the same default so the
- * Settings page can still show a truthful row when the read fails.
- */
-export const DEFAULT_DISMISSED_RETENTION_DAYS = 30;
 
 /**
  * Settings state and actions the workbench hands to the Settings canvas. Every
@@ -507,6 +502,8 @@ export interface ReviewCanvasSettingsContent {
   // A keymap only takes effect after the extension host restarts, so the
   // workbench offers the window reload. The page never forces one.
   setKeymap(choice: ReviewKeymapChoice): Promise<ReviewKeymapChoice>;
+  ctrlTab: ReviewCtrlTabChoice;
+  setCtrlTab(choice: ReviewCtrlTabChoice): Promise<ReviewCtrlTabChoice>;
   softwareMapEnabled: boolean;
   setSoftwareMapEnabled(enabled: boolean): Promise<boolean>;
   structuralDiffEnabled: boolean;
@@ -659,8 +656,8 @@ export type ReviewCanvasContent =
       // Deletes the review and closes its canvas. Absent when the host does
       // not support deletion.
       deleteReview?(uuid: string): Promise<void>;
-      // Dismissal is reversible: it stamps the review and starts the reap
-      // clock. Deletion is immediate and permanent. Absent when the host does
+      // Dismissal is reversible: it stamps the review and frees its pinned
+      // checkouts. Deletion is immediate and permanent. Absent when the host does
       // not support them.
       dismissReview?(uuid: string): Promise<void>;
       restoreReview?(uuid: string): Promise<void>;
@@ -701,6 +698,9 @@ export interface ReviewCanvasRange {
   headRef: string;
   baseCommit: string;
   headCommit: string;
+  /** Set for a live worktree comparison, whose working files can differ
+   * from the head commit; it changes on every save. */
+  worktreeRevision?: string;
 }
 
 export interface ReviewCanvasHandle extends ReviewDisposable {
@@ -711,10 +711,30 @@ export interface ReviewCanvasHandle extends ReviewDisposable {
 
 export const REVIEW_CANVAS_RESUME_EVENT = "dev-fast-review-canvas-resume";
 
+export interface ReviewMenuItem {
+  id: string;
+  label: string;
+  checked?: boolean;
+  enabled?: boolean;
+}
+
+export interface ReviewMenuRequest {
+  anchor: HTMLElement;
+  items: readonly ReviewMenuItem[];
+  onSelect(id: string): void | Promise<void>;
+  onHide(): void;
+}
+
+export interface ReviewCanvasUi {
+  confirmDelete?(title: string): Promise<boolean>;
+  showMenu(request: ReviewMenuRequest): ReviewDisposable;
+}
+
 export interface ReviewCanvasModule {
   mountReviewCanvas(
     container: HTMLElement,
     content: ReviewCanvasContent,
+    ui?: ReviewCanvasUi,
   ): ReviewCanvasHandle;
 }
 
@@ -819,18 +839,6 @@ export const ReviewCommitSummarySchema = z.strictObject({
 
 export type ReviewCommitSummary = z.infer<typeof ReviewCommitSummarySchema>;
 
-export const ReviewDocumentVersionSchema = z.strictObject({
-  // The native snapshot version displayed by the canvas.
-  revision: z.string().min(1),
-  /** Unix milliseconds when the version was sealed. */
-  sealedAt: positiveInteger,
-  isCurrent: z.boolean(),
-});
-
-export type ReviewDocumentVersionWire = z.infer<
-  typeof ReviewDocumentVersionSchema
->;
-
 /** The native agent session that authored the review. */
 export const AuthoringAgentSessionSchema = z.strictObject({
   harness: z.enum(["claude-code", "codex", "opencode", "pi"]),
@@ -879,8 +887,8 @@ export const ReviewStackResponseSchema = z.strictObject({
 export type ReviewStackResponse = z.infer<typeof ReviewStackResponseSchema>;
 
 export const ReviewCliInstallTargetSchema = z.enum(
-  ["claude", "codex", "cursor", "opencode", "pi"],
-  { error: "must be claude, codex, cursor, opencode, or pi" },
+  ["claude", "codex", "cursor", "opencode", "pi", "omp", "copilot"],
+  { error: "must be claude, codex, cursor, opencode, pi, omp, or copilot" },
 );
 
 export type ReviewCliInstallTarget = z.infer<
@@ -896,6 +904,10 @@ export const ReviewCliInstallStampSchema = z.object({
   /** The user removed the review command; the shim resync must not reinstall it. */
   commandDisabled: z.literal(true).optional(),
   traceManaged: z.boolean().optional(),
+  /** Windows: the directory the install put on the saved user PATH. A running
+   * process keeps its startup PATH, so this is what says new terminals will
+   * find the command. */
+  userPath: requiredString.optional(),
   updatedAt: requiredString,
 });
 // z.object (not strictObject) so stamps from earlier versions parse; their
@@ -916,6 +928,8 @@ export const ReviewCliInstallStatusSchema = z.strictObject({
     installed: z.boolean(),
     profileConfigured: z.boolean(),
     onPath: z.boolean(),
+    /** The Windows installer put this command on PATH; uninstalling Whiteboard removes it. */
+    installer: z.literal(true).optional(),
   }),
   trace: z.strictObject({
     enabled: z.boolean(),
@@ -942,9 +956,9 @@ export const ReviewCliInstallStatusSchema = z.strictObject({
     .strictObject({ path: requiredString, version: requiredString })
     .nullable(),
   connect: z.strictObject({
-    // "sh", or "review" when Desktop has no built CLI.
+    // "sh", or "whiteboard" when Desktop has no built CLI.
     command: requiredString,
-    // ["-c", "exec \"$HOME/.local/bin/review\" mcp"], or ["mcp"].
+    // ["-c", "exec \"$HOME/.local/bin/whiteboard\" mcp"], or ["mcp"].
     args: z.array(z.string()),
     prompts: z.record(ReviewCliInstallTargetSchema, requiredString),
     // The published plugin per harness: an install command, or Cursor's link.
@@ -1003,6 +1017,8 @@ export const ReviewDiffFileSchema = z.strictObject({
   status: z.enum(["added", "modified", "deleted", "renamed", "unchanged"]),
   additions: nonNegativeInteger,
   deletions: nonNegativeInteger,
+  /** Git reports no line counts: the file's contents are binary. */
+  binary: z.literal(true).optional(),
   patch: requiredString.optional(),
 });
 

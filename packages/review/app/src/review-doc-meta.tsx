@@ -3,6 +3,7 @@ import {
   type ReviewStackLayer,
   summarizeReviewDiffFiles,
 } from "@dev.fast/review-protocol";
+import { useQuery } from "@tanstack/react-query";
 import {
   Fragment,
   type MouseEvent,
@@ -14,10 +15,11 @@ import {
   useState,
 } from "react";
 
+import { canvasQueryKeys } from "./canvas-query";
 import { DiffCount } from "./diff-count";
 import { DisplayedReviewVersionContext } from "./displayed-review-version-context";
 import { useReviewSession } from "./host/review-session";
-import { ReviewBranchRange } from "./review-branch-range";
+import { ReviewBranchRange, WORKING_TREE } from "./review-branch-range";
 import { useReviewDiffFiles } from "./review-diff-files-context";
 
 interface ReviewDocumentMetaState {
@@ -37,7 +39,6 @@ export function ReviewDocumentMetaLine({
   children?: ReactNode;
 }): ReactElement {
   const session = useReviewSession();
-  const reviewFetch = session.fetch;
   const displayedVersion = useContext(DisplayedReviewVersionContext);
   const diffFiles = useReviewDiffFiles();
 
@@ -48,37 +49,22 @@ export function ReviewDocumentMetaLine({
     null,
   );
 
-  const [stackLayers, setStackLayers] = useState<ReviewStackLayer[]>([]);
-
   useEffect(() => {
     setRelativeTimeNowMs(Date.now());
   }, [displayedVersion]);
 
-  useEffect(() => {
-    const controller = new AbortController();
-
-    if (!meta?.pullRequestNumber) {
-      setStackLayers([]);
-
-      return () => controller.abort();
-    }
-
-    const layers = review.stack(controller.signal);
-
-    layers
-      .then((next) => {
-        if (!controller.signal.aborted) setStackLayers(next);
-      })
-      .catch(() => {});
-
-    return () => controller.abort();
-  }, [
-    meta?.pullRequestNumber,
-    meta?.pullRequestUrl,
-    reviewFetch,
-    review,
-    displayedVersion,
-  ]);
+  // The pull request stack is optional context; a failed read is not shown.
+  const stackLayers =
+    useQuery({
+      queryKey: canvasQueryKeys.reviewStack(
+        displayedVersion,
+        meta.pullRequestNumber,
+        meta.pullRequestUrl,
+      ),
+      queryFn: ({ signal }) => review.stack(signal),
+      enabled: Boolean(meta.pullRequestNumber),
+      staleTime: 0,
+    }).data ?? [];
 
   const diff =
     diffFiles.status === "loaded" ? reviewDiffStats(diffFiles) : null;
@@ -89,7 +75,7 @@ export function ReviewDocumentMetaLine({
       : null;
 
   const repository = meta.pullRequestUrl?.match(
-    /^https:\/\/github\.com\/([^/]+)\/([^/]+)\/pull\//,
+    /^https:\/\/[^/]+\/([^/]+)\/([^/]+)\/pull\//,
   );
 
   const branch = review.headBranch?.trim() ? review.headBranch : null;
@@ -154,7 +140,9 @@ export function ReviewDocumentMetaLine({
       node: (
         <ReviewBranchRange
           baseRef={review.pins.base}
-          headRef={review.pins.head}
+          headRef={
+            review.targetKind === "worktree" ? WORKING_TREE : review.pins.head
+          }
         />
       ),
     });

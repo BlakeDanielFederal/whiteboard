@@ -1,3 +1,4 @@
+import type { AnchorRef } from "@review/authoring";
 import {
   type ReactNode,
   type RefObject,
@@ -8,7 +9,6 @@ import {
 import { createRoot } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { AnchorRef } from "../../src/authoring";
 import { ReviewSessionProvider } from "./host/review-session";
 import type { GuidedTour } from "./review-panel-model";
 import { createReviewPanelStore } from "./review-panel-store";
@@ -295,6 +295,25 @@ describe("review view state", () => {
       kind: "tour",
       tourId: "flow",
       activeAnchor: "second",
+    });
+  });
+
+  it("persists navigation without discarding a stored view the canvas could not offer", () => {
+    const session = testReviewSession();
+    storeState(session, { activeView: "map" });
+    // The canvas opened without a map, so it started on the whiteboard.
+    const store = createReviewPanelStore({ view: "review" });
+    renderViewState({ session, store });
+
+    act(() => store.getState().openTour(tour, "second"));
+    expect(readPersistedReviewViewState(session.config)).toMatchObject({
+      activeView: "map",
+      panel: { kind: "tour", tourId: "flow", activeAnchor: "second" },
+    });
+
+    act(() => store.getState().showView("diff"));
+    expect(readPersistedReviewViewState(session.config)).toEqual({
+      activeView: "diff",
     });
   });
 

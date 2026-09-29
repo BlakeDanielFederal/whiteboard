@@ -1,6 +1,6 @@
+import type { ActivitySnapshot } from "@review/review-api/activity";
 import { createContext, useContext, useState } from "react";
 
-import type { ActivitySnapshot } from "../../src/review-api/activity";
 import { scopeLive } from "./authoring-cursor";
 import {
   AuthoringCursorContext,
@@ -12,8 +12,6 @@ import { cursorElement } from "./cursor-element";
 import { DisplayedReviewVersionContext } from "./displayed-review-version-context";
 import { useReviewRoots } from "./review-root-context";
 import { useTooltip } from "./use-tooltip";
-
-import "./authoring-activity.css";
 
 export const AuthoringActivityContext = createContext<
   ActivitySnapshot | "unknown" | undefined

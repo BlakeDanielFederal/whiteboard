@@ -4,8 +4,15 @@ import type {
   ReviewDiffProgress,
   ReviewDiffViewHandle,
 } from "@dev.fast/review-protocol";
+import type { Lens } from "@review/review-api/diff-lenses";
+import {
+  type CoverageProgress,
+  coverageProgress,
+  coverageSources,
+} from "@review/viewed-coverage";
 import {
   type CSSProperties,
+  useCallback,
   useContext,
   useEffect,
   useLayoutEffect,
@@ -14,12 +21,6 @@ import {
   useState,
 } from "react";
 
-import type { Lens } from "../../src/review-api/diff-lenses";
-import {
-  type CoverageProgress,
-  coverageProgress,
-  coverageSources,
-} from "../../src/viewed-coverage";
 import { AuthoringActivityContext } from "./authoring-activity";
 import { scopeLive } from "./authoring-cursor";
 import { Courier, LensCursorContext, lensRowElement } from "./courier";
@@ -27,6 +28,7 @@ import { compactDiffCount } from "./diff-count";
 import { withErasedBlocks } from "./draw-queue";
 import { useMotionPhases } from "./draw-queue-provider";
 import { useReviewSession } from "./host/review-session";
+import { useReviewDiffFiles } from "./review-diff-files-context";
 import { useReviewLenses } from "./review-lenses";
 import {
   useBottomSheetResize,
@@ -34,6 +36,40 @@ import {
 } from "./side-panel-resizer";
 import { useTooltip } from "./use-tooltip";
 import { ViewedButton } from "./viewed-button";
+
+// An empty label shows no tooltip, so only a truncated name gets one.
+function LensName({ title }: { title: string }) {
+  const [truncated, setTruncated] = useState(false);
+
+  const tooltip = useTooltip<HTMLSpanElement>(truncated ? title : "", {
+    instant: true,
+  });
+
+  const ref = useCallback(
+    (name: HTMLSpanElement | null) => {
+      if (!name || typeof ResizeObserver === "undefined") return tooltip(name);
+
+      const observer = new ResizeObserver(() =>
+          setTruncated(name.scrollWidth > name.clientWidth),
+        ),
+        disposeTooltip = tooltip(name);
+
+      observer.observe(name);
+
+      return () => {
+        observer.disconnect();
+        disposeTooltip?.();
+      };
+    },
+    [tooltip],
+  );
+
+  return (
+    <span ref={ref} className="diff-lens-name">
+      {title}
+    </span>
+  );
+}
 
 export function DiffCounts({ progress }: { progress: CoverageProgress }) {
   const { remaining, total, folded } = progress;
@@ -270,11 +306,11 @@ export function ReviewDiffView({
                         className="diff-lens-chip"
                         title={
                           item.unavailable ??
-                          (selected ? "Clear lens filter" : item.title)
+                          (selected ? "Clear lens filter" : undefined)
                         }
                       >
                         <FilterIcon />
-                        <span className="diff-lens-name">{item.title}</span>
+                        <LensName title={item.title} />
                         {selected && (
                           <span className="diff-lens-clear" aria-hidden="true">
                             <svg width="10" height="10" viewBox="0 0 10 10">
@@ -409,6 +445,9 @@ function NativeDiffView({
   const [container, setContainer] = useState<HTMLDivElement | null>(null);
   const [error, setError] = useState<string | null>(null);
   const handle = useRef<ReviewDiffViewHandle | null>(null);
+  // A save in a live checkout changes the comparison; a commit's never does.
+  const revision = useReviewDiffFiles().revision;
+  const liveRevision = scope ? undefined : revision;
 
   const current = useRef({ progress, onToggleViewed });
 
@@ -447,6 +486,7 @@ function NativeDiffView({
     scope?.commit,
     lens,
     treeContainer,
+    liveRevision,
   ]);
   useLayoutEffect(() => {
     if (progress) handle.current?.setProgress?.(progress);

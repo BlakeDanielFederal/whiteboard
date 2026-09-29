@@ -17,7 +17,11 @@ import { valid as validSemver } from "semver";
 
 import { resolveAuthoringSessionRef } from "./agent-session-ref";
 import { EMBEDDED_PROGRESSIVE_REVIEW_POSTHOG_KEY } from "./embedded-posthog-key";
-import { exceptionProperties } from "./exception-telemetry";
+import {
+  type ChunkIds,
+  exceptionProperties,
+  readChunkIds,
+} from "./exception-telemetry";
 import { readReviewPackageVersion as readReviewPackageVersionSync } from "./package-paths";
 import {
   PROGRESSIVE_REVIEW_POSTHOG_HOST_ENV,
@@ -58,6 +62,8 @@ import {
 export const REVIEW_APP_VERSION_ENV = "DEV_FAST_REVIEW_APP_VERSION";
 
 export const REVIEW_APP_SESSION_ID_ENV = "DEV_FAST_REVIEW_APP_SESSION_ID";
+
+const REVIEW_SERVER_ENTRY_ENV = "DEV_FAST_REVIEW_SERVER_ENTRY";
 
 /** Install config fields announceOnce guards. */
 type AnnouncedField =
@@ -106,11 +112,6 @@ export type ReviewCliCommandPath =
   | "instances.use"
   | "instances.clear"
   | "migrate.apply"
-  | "map.open"
-  | "map.check"
-  | "map.prune"
-  | "map.push"
-  | "map.fetch"
   | "login"
   | "logout"
   | "whoami"
@@ -282,6 +283,7 @@ export class ReviewTelemetry {
   private surface: ReviewTelemetrySurface;
   private readonly packageVersion: string;
   private installConfig: ReviewTelemetryInstallConfig | undefined;
+  private chunkIds: ChunkIds | undefined;
 
   constructor(options: ReviewTelemetryOptions = {}) {
     this.env = options.env ?? process.env;
@@ -479,16 +481,6 @@ export class ReviewTelemetry {
   }
 
   /**
-   * The reaper deleted a dismissed review. No reader is present, so this is a
-   * server event rather than a UI one.
-   */
-  async captureReviewReaped(input: { retentionDays: number }): Promise<void> {
-    await this.captureEvent("review_review_reaped", {
-      retention_days: input.retentionDays,
-    });
-  }
-
-  /**
    * A tab dwell period ended. Time on the files tab is also the diff dwell,
    * so it doubles as `review_diff_viewed` without a second client beacon.
    */
@@ -584,7 +576,11 @@ export class ReviewTelemetry {
     // PostHog error tracking groups on $exception; the custom event stays for
     // one release so the existing error insights keep working.
     if (event !== "review_client_error") return;
-    const exception = exceptionProperties(properties);
+
+    const exception = exceptionProperties(
+      properties,
+      (this.chunkIds ??= readChunkIds(this.env[REVIEW_SERVER_ENTRY_ENV])),
+    );
 
     if (!exception) return;
     await this.captureEvent(

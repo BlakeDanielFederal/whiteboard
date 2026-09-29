@@ -6,7 +6,7 @@ import { ITextModelService } from "../../editor/common/services/resolverService.
 import { IDiffProviderFactoryService } from "../../editor/browser/widget/diffEditor/diffProviderFactoryService.js";
 import { alignmentRows } from "../common/reviewLens.js";
 import type { ReviewInlineEditorSpec, ReviewInlineEditorHandle, ReviewFindQuery } from "../common/reviewProtocol.js";
-import { structuralChangeCounts } from "../common/reviewProtocol.js";
+import { reviewFileCounts } from "../common/reviewStructuralDiff.js";
 import type { ReviewDiffProgress, ReviewDiffViewport } from "../common/reviewProtocol.js";
 import { lensRanges, withLens } from "./reviewLens.js";
 /*---------------------------------------------------------------------------------------------
@@ -55,7 +55,7 @@ export class ReviewDiffViewService extends Disposable {
 	private overflowWidgetsDomNode: HTMLElement | undefined;
 	private readonly handles = new Set<DiffViewController>();
 	comparisonGeneration = 0;
-	private readonly sessions = new Map<string, StructuralDiffSession>();
+	private readonly sessions = new Map<string, { session: StructuralDiffSession; revision?: string }>();
 	readonly diffLayout: ReviewDiffLayoutSetting;
 	/**
 	 * Scroll and expansion state per session document. The Diff view is a
@@ -78,14 +78,14 @@ export class ReviewDiffViewService extends Disposable {
 	}
 
 	/** Shared by every view of this comparison; reset/dispose follows the canvas lifetime. */
-	openComparison(key: string, client: StructuralDiffStream, generation: number): StructuralDiffSession | undefined {
+	openComparison(key: string, client: StructuralDiffStream, generation: number, revision?: string): StructuralDiffSession | undefined {
 		if (generation !== this.comparisonGeneration || !this.structuralRenderingEnabled) return undefined;
-		let session = this.sessions.get(key);
-		if (!session) {
-			session = new StructuralDiffSession(client);
-			this.sessions.set(key, session);
-			void session.start();
-		}
+		const current = this.sessions.get(key);
+		if (current && current.revision === revision) return current.session;
+		current?.session.dispose();
+		const session = new StructuralDiffSession(client);
+		this.sessions.set(key, { session, revision });
+		void session.start();
 		return session;
 	}
 
@@ -197,7 +197,7 @@ export class ReviewDiffViewService extends Disposable {
 		for (const handle of [...this.handles]) handle.dispose();
 		this.handles.clear();
 		this.viewStates.clear();
-		for (const session of this.sessions.values()) session.dispose();
+		for (const { session } of this.sessions.values()) session.dispose();
 		this.sessions.clear();
 	}
 
@@ -332,7 +332,7 @@ class DiffViewController extends Disposable implements ReviewDiffViewHandle {
 			view.setCollapsed(this.collapsed);
 			if (this.pendingSource) view.revealSource(this.pendingSource, this.pendingSectionId);
 			else if (this.pendingFile) view.revealFile(this.pendingFile);
-			if (!session) for (const entry of selected) view.fileCounts(entry.file.path, { added: entry.file.additions, removed: entry.file.deletions });
+			if (!session) for (const entry of selected) view.fileCounts(entry.file.path, entry.file.binary ? { binary: true } : { added: entry.file.additions, removed: entry.file.deletions });
 			if (session) this.observeSession(session, selected, view, store, structuralEnabled);
 
 		} catch (error) {
@@ -357,7 +357,7 @@ class DiffViewController extends Disposable implements ReviewDiffViewHandle {
 				if (!result || rendered.has(path)) continue;
 				rendered.add(path);
 				if (structuralEnabled && result.hidden !== undefined) view.hideFile(path, result.hidden);
-				if (result.diff) view.fileCounts(path, result.diff.type === "text" ? structuralChangeCounts(result.diff.structural_changes) : { added: 0, removed: 0 });
+				if (result.diff) view.fileCounts(path, reviewFileCounts(result.diff));
 				if (structuralEnabled) view.fileLoaded(path, result.error);
 			}
 			if (session.error) view.loadingFailed(session.error);

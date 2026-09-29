@@ -1,6 +1,6 @@
 # JSON review API
 
-Desktop and `review server start` share `review-api.db` under `DEV_REVIEW_HOME`.
+Desktop and `whiteboard server start` share `review-api.db` under `DEV_REVIEW_HOME`.
 A headless `--state-dir` or `DEV_REVIEW_SERVER_DIR` selects an isolated profile;
 Desktop can view it by using the same directory as `DEV_REVIEW_HOME`.
 Both hosts mount the same routes behind token authentication and a bounded JSON request reader.
@@ -76,7 +76,7 @@ All paths below are relative to `/reviews-api`.
 Example request:
 
 `review_get` uses `/inspect`. MCP returns its text directly, and
-`review api review_get '{"reviewId":"…","full":true}'` prints it without JSON
+`whiteboard api review_get '{"reviewId":"…","full":true}'` prints it without JSON
 escaping. Use `format:"json"` (or CLI `--json`) when raw objects are needed.
 The canvas continues to use the JSON snapshot routes above.
 
@@ -84,7 +84,7 @@ The canvas continues to use the JSON snapshot routes above.
 pathspec (files or directories, matching either side of a rename; omitted means
 every changed file) and `format` chooses the reply. `format:"files"` (the
 default) returns `[{path, previousPath?, status, additions, deletions}]`.
-`format:"patch"` returns `text/plain`, which MCP and `review api` pass through
+`format:"patch"` returns `text/plain`, which MCP and `whiteboard api` pass through
 unescaped: each file keeps its `diff --git`, mode, rename and `@@` lines, drops
 `index`/`---`/`+++`, and prefixes every hunk line with its base and head line
 numbers:
@@ -217,8 +217,8 @@ The Map tab uses the retained head/base maps and updates as they arrive.
 The Trace tab and quote side panels read retained trace resources; imported
 labels are preserved without claiming a harness, commit association, or timestamps.
 
-The thin agent clients use `review api <tool-name> '<json>'` (or `-` for stdin)
-and `review mcp` (stdio). `review api tools` lists the host's tool schemas.
+The thin agent clients use `whiteboard api <tool-name> '<json>'` (or `-` for stdin)
+and `whiteboard mcp` (stdio). `whiteboard api tools` lists the host's tool schemas.
 Both adapters use existing desktop discovery/authentication and the same HTTP
 routes as the canvas. Neither imports the store or validates document content.
 Command/resource schemas come from the server's existing Zod definitions and
@@ -320,10 +320,12 @@ Omitted commit base means source at head with no diff, exactly as base=head;
 supply its parent to review the changes introduced by a single commit.
 
 A worktree target follows saved files in that registered checkout, including
-staged, unstaged and nonignored untracked files. Without base, Working changes
-compares with current HEAD (empty for unborn repositories). No checkout is created.
+staged, unstaged and nonignored untracked files. `base` names the branch to
+compare against, by default the default branch (`origin/HEAD`, `origin/main`,
+`origin/master`, `main`, then `master`); an unborn repository compares with
+empty source. The comparison starts at the merge base of `base` and HEAD,
+resolved again whenever the checkout or its refs change, so it follows a rebase;
+if `base` stops resolving, the last merge base stays. No checkout is created.
 Source ranges default to the head side. File saves refresh source without changing
 authored history. All versions of a live target read the current checkout; authors
 maintain their source references. Use a commit target for fixed source.
-
-See [review targets](../../../../docs/cli-reference.md#review-targets) for the supported source and comparison options.

@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  CLAUDE_WINDOWS_MCP_ADD,
+  COPILOT_WINDOWS_MCP_ADD,
   REVIEW_MCP_LAUNCH,
+  WINDOWS_MCP_LAUNCH,
   connectPrompt,
   connectPrompts,
   reviewMcpLaunch,
@@ -24,6 +27,11 @@ describe("reviewMcpLaunch", () => {
       args: ["mcp"],
     });
   });
+
+  it("launches through cmd on Windows, which has no sh", () => {
+    for (const hasShim of [true, false])
+      expect(reviewMcpLaunch(hasShim, "win32")).toEqual(WINDOWS_MCP_LAUNCH);
+  });
 });
 
 describe("connectPrompt", () => {
@@ -41,7 +49,33 @@ describe("connectPrompt", () => {
       expect(enabled.includes("pi install npm:@ff-labs/pi-fff")).toBe(
         target === "pi",
       );
+      expect(enabled.includes("omp install npm:@ff-labs/pi-fff")).toBe(
+        target === "omp",
+      );
     }
+  });
+
+  it("registers the Claude plugin's MCP server directly on Windows instead of the plugin", () => {
+    for (const [target, add] of [
+      ["claude", CLAUDE_WINDOWS_MCP_ADD],
+      ["copilot", COPILOT_WINDOWS_MCP_ADD],
+    ] as const) {
+      const prompt = connectPrompt(target, { ...input, platform: "win32" });
+
+      expect(prompt).toContain(add);
+      expect(prompt).not.toContain(`${target} plugin install`);
+      expect(connectPrompt(target, { ...input, platform: "darwin" })).toContain(
+        `${target} plugin install whiteboard@devfast`,
+      );
+    }
+  });
+
+  it("installs the Pi package in oh-my-pi and reloads its plugins", () => {
+    const prompt = connectPrompt("omp", input);
+
+    expect(prompt).toContain("omp install npm:@dev.fast/pi-whiteboard");
+    expect(prompt).toContain("/reload-plugins");
+    expect(prompt).toContain("whiteboard api session_get_instructions '{}'");
   });
 });
 

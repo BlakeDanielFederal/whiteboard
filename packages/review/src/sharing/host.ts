@@ -9,13 +9,13 @@ import {
   readStoreAuth,
   runStoreLogin,
 } from "@dev.fast/trace-core";
+import { ReviewInputError } from "@review/review-api/document.js";
+import type { LocalReviewData } from "@review/review-api/local-data.js";
+import type { ReviewStore } from "@review/review-api/store.js";
+import { readBoundedRequestJson } from "@review/server/hono-http.js";
 import type { Hono } from "hono";
 import { z } from "zod";
 
-import { ReviewInputError } from "../review-api/document.js";
-import type { LocalReviewData } from "../review-api/local-data.js";
-import type { ReviewStore } from "../review-api/store.js";
-import { readBoundedRequestJson } from "../server/hono-http.js";
 import { readSharingAuth } from "./auth.js";
 import { ShareAuthError, ShareClient, SharePreflightError } from "./client.js";
 import { exportShare } from "./export.js";
@@ -174,7 +174,7 @@ export function mountSharingHost(
             "error",
             error instanceof ReviewInputError
               ? error.message
-              : "This share is unavailable, revoked, or needs a newer Review version.",
+              : "This share is unavailable, revoked, or needs a newer Whiteboard version.",
           );
         })
         .finally(() => imports.delete(id));
@@ -228,7 +228,7 @@ export function mountSharingPublisher(
 
     if (!account)
       throw new ReviewInputError(
-        "Set DEV_REVIEW_SHARE_TOKEN for CI, or run review login before sharing.",
+        "Set DEV_REVIEW_SHARE_TOKEN for CI, or run whiteboard login before sharing.",
         409,
       );
 
@@ -309,7 +309,7 @@ export function mountSharingPublisher(
 
     if (!account)
       throw new ReviewInputError(
-        "Set DEV_REVIEW_SHARE_TOKEN for CI, or run review login first.",
+        "Set DEV_REVIEW_SHARE_TOKEN for CI, or run whiteboard login first.",
         409,
       );
     await new ShareClient(account.origin, account.token).revoke(shareId);

@@ -1,3 +1,4 @@
+import { MinusIcon, PlusIcon } from "@canvas/icons";
 import {
   type CSSProperties,
   type KeyboardEvent,
@@ -7,8 +8,6 @@ import {
   useRef,
   useState,
 } from "react";
-
-import { MinusIcon, PlusIcon } from "../icons";
 
 export interface SoftwareMapHotkeyItem {
   keys: readonly string[];
@@ -179,6 +178,9 @@ export function SoftwareMapHotkeysTab({
   );
 }
 
+// Keeps the map's own keys off the panel's buttons. Modifier chords such as
+// Ctrl+Tab still reach the workbench keybindings on window.
 function stopSoftwareMapHotkeysKeyDown(event: KeyboardEvent<HTMLElement>) {
+  if (event.ctrlKey || event.metaKey || event.altKey) return;
   event.stopPropagation();
 }

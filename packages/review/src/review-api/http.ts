@@ -1,19 +1,25 @@
 import type { JsonObject } from "@dev.fast/json";
 import type { ReviewStructuralDiffEvent } from "@dev.fast/review-protocol";
 import { errorMessage } from "@dev.fast/trace-core";
+import {
+  AgentSelectionSchema,
+  selectionMarkdown,
+} from "@review/agent-selection.js";
+import { resolveReviewBranchLinks } from "@review/review-branch-links.js";
+import { resolveReviewStackLayers } from "@review/review-stack.js";
+import { readBoundedRequestJson } from "@review/server/hono-http.js";
+import { HttpJsonError } from "@review/server/http-json.js";
+import {
+  type SharingHostEvents,
+  mountSharingHost,
+} from "@review/sharing/host.js";
+import type { SharedReviewStore } from "@review/sharing/import.js";
+import { SharedReviewData } from "@review/sharing/routes.js";
+import type { ReviewSessionAgent } from "@review/ui-telemetry-events.js";
+import { scopedCoverage } from "@review/viewed-coverage.js";
 import { Hono, type MiddlewareHandler } from "hono";
 import { z } from "zod";
 
-import { AgentSelectionSchema, selectionMarkdown } from "../agent-selection.js";
-import { resolveReviewBranchLinks } from "../review-branch-links.js";
-import { resolveReviewStackLayers } from "../review-stack.js";
-import { readBoundedRequestJson } from "../server/hono-http.js";
-import { HttpJsonError } from "../server/http-json.js";
-import { type SharingHostEvents, mountSharingHost } from "../sharing/host.js";
-import type { SharedReviewStore } from "../sharing/import.js";
-import { SharedReviewData } from "../sharing/routes.js";
-import type { ReviewSessionAgent } from "../ui-telemetry-events.js";
-import { scopedCoverage } from "../viewed-coverage.js";
 import { authoringTools } from "./authoring-tools.js";
 import { documentText } from "./document-text.js";
 import { ReviewInputError, fileLineRangeSchema } from "./document.js";
@@ -57,7 +63,7 @@ export interface AuthoringCapabilities {
 }
 
 const SCRATCHPAD_DISABLED =
-  "The scratchpad is off. Turn it on in Review Desktop Settings.";
+  "The scratchpad is off. Turn it on in Whiteboard Desktop Settings.";
 
 /**
  * What the host reports about reviews, for telemetry. `onReviewCreated` fires
@@ -123,7 +129,7 @@ export function createReviewApi(
 
     return context.json(
       {
-        error: `Review operation failed (${failureKind(error)}). The server logged the cause; Whiteboard Desktop writes it to main.log in its logs folder.`,
+        error: `Whiteboard operation failed (${failureKind(error)}). The server logged the cause; Whiteboard Desktop writes it to main.log in its logs folder.`,
       },
       500,
     );
@@ -819,7 +825,11 @@ export function createReviewApi(
       );
     });
     app.get("/:id/file", async (context) => {
-      const input = readQuerySchemas.file.parse(context.req.query());
+      // Browsing can describe binaries; authoring reads still require text.
+      const input = readQuerySchemas.file
+        .extend({ binary: z.literal("describe").optional() })
+        .parse(context.req.query());
+
       const id = context.req.param("id");
 
       const anchor = queryAnchor(input);
@@ -830,7 +840,21 @@ export function createReviewApi(
         anchor,
       );
 
-      const file = await data.file(pins, input.side, input.file);
+      const file = await data.file(
+        pins,
+        input.side,
+        input.file,
+        input.binary === "describe",
+      );
+
+      if (file.text.includes("\0")) {
+        return context.json({
+          binary: true,
+          file: file.file,
+          side: file.side,
+          commit: file.commit,
+        });
+      }
 
       const local =
         !input.commit &&

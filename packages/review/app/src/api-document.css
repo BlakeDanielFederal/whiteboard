@@ -29,3 +29,14 @@
   max-width: 100%;
   height: auto;
 }
+
+/* Read as document paragraphs. */
+.review-document .review-source-context,
+.review-document .api-document-node > p {
+  margin: 14px 0;
+  color: var(--ink);
+  font-family: var(--font-serif);
+  font-size: 15px;
+  line-height: 1.72;
+  text-align: left;
+}

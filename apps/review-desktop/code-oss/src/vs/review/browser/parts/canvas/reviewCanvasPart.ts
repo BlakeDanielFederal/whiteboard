@@ -3,18 +3,21 @@
  *  Licensed under the MIT License. See LICENSE in the repository root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { reviewBottomScrollPadding } from "../../reviewScrollPadding.js";
 import { $, addDisposableListener, getWindow, type Dimension } from "../../../../base/browser/dom.js";
 import type { IHoverOptions, IHoverWidget } from "../../../../base/browser/ui/hover/hover.js";
 import { HoverPosition } from "../../../../base/browser/ui/hover/hoverWidget.js";
 import { createTrustedTypesPolicy } from "../../../../base/browser/trustedTypes.js";
 import type { CancellationToken } from "../../../../base/common/cancellation.js";
 import { Emitter } from "../../../../base/common/event.js";
-import { Disposable, DisposableStore, MutableDisposable, toDisposable } from "../../../../base/common/lifecycle.js";
+import { Disposable, DisposableStore, MutableDisposable, toDisposable, type IDisposable } from "../../../../base/common/lifecycle.js";
 import { FileAccess } from "../../../../base/common/network.js";
 import type { ICursorPositionChangedEvent } from "../../../../editor/common/cursorEvents.js";
 import { ICommandService } from "../../../../platform/commands/common/commands.js";
 import { ConfigurationTarget, IConfigurationService } from "../../../../platform/configuration/common/configuration.js";
 import { TextEditorSelectionSource, type IEditorOptions } from "../../../../platform/editor/common/editor.js";
+import { IDialogService } from "../../../../platform/dialogs/common/dialogs.js";
+import { IContextMenuService, IContextViewService } from "../../../../platform/contextview/browser/contextView.js";
 import { IHoverService } from "../../../../platform/hover/browser/hover.js";
 import { createDecorator, IInstantiationService } from "../../../../platform/instantiation/common/instantiation.js";
 import { ILogService } from "../../../../platform/log/common/log.js";
@@ -40,6 +43,7 @@ import { IHostService } from "../../../../workbench/services/host/browser/host.j
 import { ILifecycleService } from "../../../../workbench/services/lifecycle/common/lifecycle.js";
 import { IWorkbenchLayoutService, Parts } from "../../../../workbench/services/layout/browser/layoutService.js";
 import {
+	REVIEW_CTRL_TAB_SETTING,
 	REVIEW_KEYMAP_SETTING,
 	REVIEW_SOFTWARE_MAP_SETTING,
 	REVIEW_STRUCTURAL_DIFF_SETTING,
@@ -58,6 +62,7 @@ import type {
 	ReviewCanvasSetupActions,
 	ReviewCanvasTutorialBridge,
 	ReviewCliInstallStatus,
+	ReviewCtrlTabChoice,
 	ReviewKeymapChoice,
 	ReviewRuntimeConfig,
 	ReviewSurfaceEvent,
@@ -72,6 +77,8 @@ import {
 	REVIEW_TUTORIAL_STEP_IDS
 } from "../../../common/reviewProtocol.js";
 import { IReviewVerbsService } from "../../../contrib/verbs/reviewVerbs.js";
+import { confirmReviewDeletion } from "../../reviewDeleteConfirmation.js";
+import { showReviewCanvasMenu } from "../../reviewCanvasMenu.js";
 import { ReviewTooltip } from "../../reviewTooltip.js";
 import { IReviewApiCatalogService } from "../../../services/reviewApiCatalogService.js";
 import { IReviewApiSourceService } from "../../../services/reviewApiSourceService.js";
@@ -135,6 +142,7 @@ export class ReviewCanvasEditorPane extends EditorPane {
 	static readonly ID = ReviewCanvasEditorInput.EDITOR_ID;
 
 	private readonly canvas = this._register(new MutableDisposable<ReviewCanvasHandle>());
+	private readonly canvasMenu = this._register(new MutableDisposable<IDisposable>());
 	private readonly surfaceEvents = this._register(new Emitter<ReviewSurfaceEvent>());
 	private readonly _onDidChangeSelection = this._register(new Emitter<IEditorPaneSelectionChangeEvent>());
 	readonly onDidChangeSelection = this._onDidChangeSelection.event;
@@ -180,6 +188,9 @@ export class ReviewCanvasEditorPane extends EditorPane {
 		private readonly reviewTelemetryService: IReviewTelemetryService,
 		@ILogService private readonly logService: ILogService,
 		@IHoverService private readonly hoverService: IHoverService,
+		@IContextMenuService private readonly contextMenuService: IContextMenuService,
+		@IContextViewService private readonly contextViewService: IContextViewService,
+		@IDialogService private readonly dialogService: IDialogService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@IEditorProgressService editorProgressService: IEditorProgressService,
 		@ILifecycleService lifecycleService: ILifecycleService,
@@ -261,6 +272,7 @@ export class ReviewCanvasEditorPane extends EditorPane {
 		this.container = $(".review-canvas-host");
 		this.container.tabIndex = -1;
 		this.canvasMount = $(".review-canvas-surface");
+		this.canvasMount.style.setProperty("--review-bottom-scroll-padding", `${reviewBottomScrollPadding}px`);
 		this.container.appendChild(this.canvasMount);
 		outer.append(this.container);
 		parent.appendChild(outer);
@@ -299,6 +311,7 @@ export class ReviewCanvasEditorPane extends EditorPane {
 		token: CancellationToken,
 	): Promise<void> {
 		const generation = ++this.loadGeneration;
+		this.canvasMenu.clear();
 		this.refreshProgress.stop();
 		this.openingGeneration = generation;
 		try {
@@ -566,6 +579,7 @@ export class ReviewCanvasEditorPane extends EditorPane {
 	}
 
 	override async clearInput(): Promise<void> {
+		this.canvasMenu.clear();
 		// Keep apiContent with the mounted canvas so resuming it preserves its review identity.
 		// render() replaces both when another input is shown.
 		this.refreshProgress.stop();
@@ -575,7 +589,10 @@ export class ReviewCanvasEditorPane extends EditorPane {
 
 	protected override setEditorVisible(visible: boolean): void {
 		super.setEditorVisible(visible);
-		if (!visible) this.refreshProgress.stop();
+		if (!visible) {
+			this.canvasMenu.clear();
+			this.refreshProgress.stop();
+		}
 	}
 
 	override focus(): void {
@@ -725,8 +742,8 @@ export class ReviewCanvasEditorPane extends EditorPane {
 
 	/**
 	 * Settings state and actions for the Settings page. Every value lives in
-	 * workbench configuration, apart from the retention window, which the review
-	 * server owns. Extensions reuse the existing quick pick.
+	 * workbench configuration, apart from the scratchpad, which the review server
+	 * owns. Extensions reuse the existing quick pick.
 	 */
 	private async resolveSettingsContent(): Promise<ReviewCanvasSettingsContent> {
 		// Settings must render even when the server preference cannot be read;
@@ -762,6 +779,15 @@ export class ReviewCanvasEditorPane extends EditorPane {
 				});
 				await this.commandService.executeCommand("review.setKeymap", choice);
 				return this.currentKeymap();
+			},
+			ctrlTab: this.currentCtrlTab(),
+			setCtrlTab: async (choice) => {
+				this.reviewTelemetryService.capture("setting_changed", {
+					setting: "ctrl_tab",
+					enabled: true,
+				});
+				await this.configurationService.updateValue(REVIEW_CTRL_TAB_SETTING, choice, ConfigurationTarget.USER);
+				return this.currentCtrlTab();
 			},
 			softwareMapEnabled: this.currentSoftwareMapEnabled(),
 			setSoftwareMapEnabled: async (enabled) => {
@@ -812,6 +838,10 @@ export class ReviewCanvasEditorPane extends EditorPane {
 
 	private currentKeymap(): ReviewKeymapChoice {
 		return this.configurationService.getValue<ReviewKeymapChoice>(REVIEW_KEYMAP_SETTING) ?? "none";
+	}
+
+	private currentCtrlTab(): ReviewCtrlTabChoice {
+		return this.configurationService.getValue<ReviewCtrlTabChoice>(REVIEW_CTRL_TAB_SETTING) === "next" ? "next" : "recent";
 	}
 
 	private currentStructuralDiffEnabled(): boolean {
@@ -976,7 +1006,20 @@ export class ReviewCanvasEditorPane extends EditorPane {
 		if (this.canvas.value) {
 			this.canvas.value.update(content);
 		} else {
-			this.canvas.value = assets.mountReviewCanvas(this.canvasMount, content);
+			this.canvas.value = assets.mountReviewCanvas(this.canvasMount, content, {
+				confirmDelete: title => {
+					const openedGeneration = this.loadGeneration;
+					return confirmReviewDeletion(this.dialogService, title,
+						() => openedGeneration === this.loadGeneration && this.isVisible());
+				},
+				showMenu: request => {
+					const openedGeneration = this.loadGeneration;
+					const menu = showReviewCanvasMenu(this.contextMenuService, request,
+						() => openedGeneration === this.loadGeneration && this.isVisible(), this.contextViewService);
+					this.canvasMenu.value = menu;
+					return menu;
+				},
+			});
 		}
 	}
 

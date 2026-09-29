@@ -3,6 +3,10 @@ import {
   type ReviewCommitSummary,
 } from "@dev.fast/review-protocol";
 import {
+  type SoftwareMapTopologyDiff,
+  diffSoftwareMaps,
+} from "@review/software-map-topology-diff";
+import {
   type CSSProperties,
   type ComponentType,
   type ReactElement,
@@ -14,10 +18,6 @@ import {
   useState,
 } from "react";
 
-import {
-  type SoftwareMapTopologyDiff,
-  diffSoftwareMaps,
-} from "../../src/software-map-topology-diff";
 import { AgentSelectionProvider, useAgentSelection } from "./agent-selection";
 import { observeAgentTextSelection } from "./agent-text-selection";
 import {
@@ -32,6 +32,7 @@ import {
 } from "./debug-settings";
 import { DiffLayoutControl } from "./diff-layout-control";
 import { ReviewDiffView } from "./DiffView";
+import { useDocumentEmbedScroll } from "./document-embed-scroll";
 import { useReviewSession } from "./host/review-session";
 import { DiscordIcon, MarkerUnderline, SettingsSlidersIcon } from "./icons";
 import { ReviewPanelHost } from "./review-components";
@@ -53,25 +54,20 @@ import {
 } from "./review-find";
 import { useReviewLenses } from "./review-lenses";
 import {
-  ReviewPanelProvider,
   useReviewPanel,
   useReviewPanelStore,
   useSuppressPanelMotionOnCanvasResume,
 } from "./review-panel";
+import type { ReviewDiffScope } from "./review-panel-store";
 import { ReviewRootsProvider } from "./review-root-context";
 import { ReviewToc } from "./review-toc";
-import {
-  type ReviewView,
-  normalizeReviewView,
-  reviewViewLabel,
-  shouldCloseSidePeekForReviewView,
-} from "./review-view-route";
+import { offeredReviewViews, reviewViewLabel } from "./review-view-route";
 import {
   ReviewViewStateProvider,
   useReviewViewStateSync,
 } from "./review-view-state";
 import { ReviewCommitsView } from "./ReviewCommitsView";
-import { ReviewTraceView, type TraceSelection } from "./ReviewTraceView";
+import { ReviewTraceView } from "./ReviewTraceView";
 import { ShareControl } from "./share-control";
 import { useRightPanelResize } from "./side-panel-resizer";
 import { selectActiveSoftwareMapModel } from "./software-map-selection";
@@ -114,7 +110,10 @@ export function App({
   const resolved = useResolvedReviewDocument(documentState);
 
   return (
-    <ReviewDiffFilesProvider documentKey={resolved.diffDocumentKey}>
+    <ReviewDiffFilesProvider
+      documentKey={resolved.diffDocumentKey}
+      revision={range.worktreeRevision}
+    >
       <ReviewLayout
         resolved={resolved}
         documentState={documentState}
@@ -140,7 +139,7 @@ export interface RenderedReviewDocument {
   filePath: string;
   anchors: ReadonlyMap<
     string,
-    import("../../src/review-document-data").DocumentAnchor
+    import("@review/review-document-data").DocumentAnchor
   >;
   documentSoftwareModels: NormalizedSoftwareModel[];
   tocEntries?: import("./review-document-headings").ReviewTocEntry[];
@@ -207,7 +206,7 @@ function useResolvedReviewDocument(
 /** A commit-scoped diff stays "commit"; otherwise it follows the reader's
  * structural-diff setting. */
 function diffOpenedKind(
-  diffScope: { commit: ReviewCommitSummary } | null,
+  diffScope: ReviewDiffScope | null,
   structuralDiffEnabled: boolean,
 ): "commit" | "file" | "structural" {
   if (diffScope) return "commit";
@@ -238,6 +237,8 @@ function ReviewLayout({
     revision: documentRevision,
   } = resolved;
 
+  const panelStore = useReviewPanelStore();
+
   const softwareMap =
     softwareMapState.state === "ready" ? softwareMapState.softwareMap : null;
 
@@ -245,10 +246,6 @@ function ReviewLayout({
   const appRef = useRef<HTMLDivElement | null>(null);
   const shellRef = useRef<HTMLElement | null>(null);
   const scrollRegionRef = useRef<HTMLElement | null>(null);
-
-  const [traceSelection, setTraceSelection] = useState<
-    TraceSelection | undefined
-  >(undefined);
 
   const roots = useMemo(
     () => ({ appRef, shellRef, scrollRegionRef, articleRef }),
@@ -259,7 +256,6 @@ function ReviewLayout({
     <ReviewRootsProvider roots={roots}>
       <ReviewFindProvider
         articleRef={articleRef}
-        scrollRegionRef={scrollRegionRef}
         documentKey={documentRevision}
         host={findHost}
       >
@@ -268,35 +264,32 @@ function ReviewLayout({
             key={documentRoute}
             documentRoute={documentRoute}
             softwareMapEnabled={softwareMapEnabled}
-            openTraceSession={setTraceSelection}
+            openTraceSession={panelStore.getState().openTrace}
           >
             <AgentSelectionProvider revision={documentRevision}>
-              <ReviewPanelProvider detailRevision={documentRevision}>
-                <ReviewLayoutContent
-                  appRef={appRef}
-                  shellRef={shellRef}
-                  scrollRegionRef={scrollRegionRef}
-                  articleRef={articleRef}
-                  documentState={documentState}
-                  documentRevision={documentRevision}
-                  softwareModels={[
-                    ...(softwareMap?.head ? [softwareMap.head] : []),
-                    ...(document?.documentSoftwareModels ?? []),
-                  ]}
-                  softwareMapState={softwareMapState}
-                  repoSoftwareMap={softwareMap?.head ?? null}
-                  baseSoftwareMap={softwareMap?.base ?? null}
-                  softwareMapTopologyDiff={
-                    softwareMap
-                      ? diffSoftwareMaps(softwareMap.base, softwareMap.head)
-                      : null
-                  }
-                  softwareMapEnabled={softwareMapEnabled}
-                  range={range}
-                  commits={commits}
-                  traceSelection={traceSelection}
-                />
-              </ReviewPanelProvider>
+              <ReviewLayoutContent
+                appRef={appRef}
+                shellRef={shellRef}
+                scrollRegionRef={scrollRegionRef}
+                articleRef={articleRef}
+                documentState={documentState}
+                documentRevision={documentRevision}
+                softwareModels={[
+                  ...(softwareMap?.head ? [softwareMap.head] : []),
+                  ...(document?.documentSoftwareModels ?? []),
+                ]}
+                softwareMapState={softwareMapState}
+                repoSoftwareMap={softwareMap?.head ?? null}
+                baseSoftwareMap={softwareMap?.base ?? null}
+                softwareMapTopologyDiff={
+                  softwareMap
+                    ? diffSoftwareMaps(softwareMap.base, softwareMap.head)
+                    : null
+                }
+                softwareMapEnabled={softwareMapEnabled}
+                range={range}
+                commits={commits}
+              />
             </AgentSelectionProvider>
           </ReviewProvider>
         </ReviewDebugSettingsProvider>
@@ -320,7 +313,6 @@ function ReviewLayoutContent({
   softwareMapEnabled,
   range,
   commits,
-  traceSelection,
 }: {
   appRef: RefObject<HTMLDivElement | null>;
   shellRef: RefObject<HTMLElement | null>;
@@ -336,7 +328,6 @@ function ReviewLayoutContent({
   softwareMapEnabled: boolean;
   range: ReviewCanvasRange;
   commits: readonly ReviewCommitSummary[];
-  traceSelection?: TraceSelection;
 }): ReactElement {
   const session = useReviewSession();
   const review = useReview();
@@ -352,10 +343,10 @@ function ReviewLayoutContent({
   useSuppressPanelMotionOnCanvasResume(appRef);
   const activePanel = useReviewPanel((state) => state.active);
   const panelMotion = useReviewPanel((state) => state.motion);
-
-  const closeForDocumentChange = useReviewPanel(
-    (state) => state.closeForDocumentChange,
-  );
+  const activeView = useReviewPanel((state) => state.view);
+  const diffScope = useReviewPanel((state) => state.diffScope);
+  const traceSelection = useReviewPanel((state) => state.traceSelection);
+  const showView = useReviewPanel((state) => state.showView);
 
   const debugSettings = useReviewDebugSettings();
 
@@ -370,21 +361,11 @@ function ReviewLayoutContent({
     containerRef: appRef,
   });
 
+  useDocumentEmbedScroll(scrollRegionRef);
   const viewStateSync = useReviewViewStateSync({ scrollRegionRef, panelStore });
-  const hasChangeRange = range.baseCommit !== range.headCommit;
 
-  const [activeView, setActiveView] = useState<ReviewView>(() =>
-    normalizeReviewView(
-      viewStateSync.initialActiveView ?? "review",
-      softwareMapEnabled,
-      hasChangeRange,
-    ),
-  );
-
-  const [diffScope, setDiffScope] = useState<{
-    commit: ReviewCommitSummary;
-    file?: string;
-  } | null>(null);
+  const hasChangeRange =
+    !!range.worktreeRevision || range.baseCommit !== range.headCommit;
 
   const selectForAgent = useAgentSelection();
   useEffect(() => {
@@ -419,71 +400,28 @@ function ReviewLayoutContent({
       ? diffFiles.files.length
       : null;
 
-  const reviewViews: readonly ReviewView[] = [
-    "review",
-    ...(hasChangeRange ? (["commits", "diff"] as const) : []),
-    ...(softwareMapEnabled ? (["map"] as const) : []),
-    ...(hasTraceSessions ? (["trace"] as const) : []),
-  ];
+  const reviewViews = useMemo(
+    () =>
+      offeredReviewViews({
+        hasChangeRange,
+        softwareMapEnabled,
+        hasTraceSessions,
+      }),
+    [hasChangeRange, hasTraceSessions, softwareMapEnabled],
+  );
+
+  useLayoutEffect(() => {
+    panelStore.getState().setAvailableViews(reviewViews);
+  }, [panelStore, reviewViews]);
 
   const lenses = useReviewLenses();
-  useEffect(() => {
-    if (lenses?.active) {
-      setDiffScope(null);
-      captureUiEvent(session, "diff_opened", {
-        kind: diffOpenedKind(null, Boolean(lenses.structuralDiffEnabled)),
-        via: "lens",
-      });
-      setActiveView("diff");
-    }
-  }, [lenses?.active, lenses?.structuralDiffEnabled, session]);
 
-  const reviewViewsRef = useRef(reviewViews);
-  reviewViewsRef.current = reviewViews;
-
-  const applyReviewView = (view: ReviewView) => {
-    const normalizedView = normalizeReviewView(
-      view,
-      softwareMapEnabled,
-      hasChangeRange,
-      hasTraceSessions !== false,
-    );
-
-    if (normalizedView !== "diff") setDiffScope(null);
-
-    if (shouldCloseSidePeekForReviewView(normalizedView)) {
-      closeForDocumentChange();
-    }
-
-    setActiveView(normalizedView);
-    viewStateSync.persistActiveView(normalizedView);
-  };
-
-  useEffect(() => {
-    if (
-      normalizeReviewView(
-        activeView,
-        softwareMapEnabled,
-        hasChangeRange,
-        hasTraceSessions !== false,
-      ) !== activeView
-    ) {
-      applyReviewView("review");
-    }
-  }, [activeView, hasChangeRange, hasTraceSessions, softwareMapEnabled]);
   useReviewTabTelemetry(activeView);
-  useEffect(() => {
-    if (traceSelection) {
-      applyReviewView("trace");
-    }
-  }, [traceSelection]);
 
   useEffect(() => {
     if (!softwareMapEnabled || !review.softwareMapFocusRequest) return;
-    applyReviewView("map");
-  }, [review.softwareMapFocusRequest, softwareMapEnabled]);
-  const applyReviewViewRef = useRef(applyReviewView);
-  applyReviewViewRef.current = applyReviewView;
+    panelStore.getState().showView("map");
+  }, [panelStore, review.softwareMapFocusRequest, softwareMapEnabled]);
 
   const tutorial = useTutorial() !== null;
 
@@ -496,14 +434,12 @@ function ReviewLayoutContent({
   // mounting cannot outrun the listener.
   useLayoutEffect(() => {
     return session.surface.subscribe((event) => {
-      if (
-        event.event === "showReviewView" &&
-        reviewViewsRef.current.includes(event.view)
-      ) {
-        applyReviewViewRef.current(event.view);
-      }
+      if (event.event !== "showReviewView") return;
+      const { availableViews, showView } = panelStore.getState();
+
+      if (availableViews.includes(event.view)) showView(event.view);
     });
-  }, [session.surface]);
+  }, [panelStore, session.surface]);
 
   const activeSoftwareMapSource = useMemo(
     () =>
@@ -590,7 +526,7 @@ function ReviewLayoutContent({
                           ),
                           via: "topbar",
                         });
-                      applyReviewView(view);
+                      showView(view);
                     }}
                   >
                     {view === "review" ? (
@@ -626,6 +562,7 @@ function ReviewLayoutContent({
                   <button
                     type="button"
                     className="review-open-source-tree"
+                    aria-label="Source tree ↗"
                     ref={sourceTreeTooltip}
                     onClick={() => {
                       captureUiEvent(session, "source_tree_opened", {
@@ -637,7 +574,10 @@ function ReviewLayoutContent({
                       });
                     }}
                   >
-                    Source tree ↗
+                    <span className="review-open-source-tree-label">
+                      Source tree
+                    </span>
+                    <span aria-hidden="true">↗</span>
                   </button>
                 )}
                 <AuthoringActivityBadge
@@ -650,7 +590,7 @@ function ReviewLayoutContent({
                         ),
                         via: "locate",
                       });
-                    applyReviewView(view);
+                    showView(view);
                   }}
                 />
               </div>
@@ -776,9 +716,8 @@ function ReviewLayoutContent({
                 commits={commits}
                 range={range}
                 onOpenDiff={(commit, via, file) => {
-                  setDiffScope({ commit, file });
                   captureUiEvent(session, "commit_diff_opened", { via });
-                  applyReviewView("diff");
+                  panelStore.getState().openCommitDiff({ commit, file });
                 }}
               />
             )}
@@ -796,10 +735,7 @@ function ReviewLayoutContent({
               <div className="review-diff-view review-diff-view--scoped">
                 <CommitDiffScopeBar
                   commit={diffScope.commit}
-                  onBack={() => {
-                    setDiffScope(null);
-                    applyReviewView("commits");
-                  }}
+                  onBack={() => showView("commits")}
                 />
                 <ReviewDiffView
                   scope={{ commit: diffScope.commit.commit }}
@@ -944,52 +880,26 @@ function ReviewBatonChip({
 }: {
   outcome: ReviewSubmissionOutcome | null;
 }): ReactElement | null {
-  const tooltip = useTooltip<HTMLSpanElement>(
-    outcome === "changes-requested"
-      ? "Changes requested"
-      : outcome === "approved"
-        ? "Approved"
-        : "Dismissed",
-  );
+  const tooltip = useTooltip<HTMLSpanElement>("Dismissed");
 
   if (!outcome) return null;
-
-  const label =
-    outcome === "changes-requested"
-      ? "changes requested"
-      : outcome === "approved"
-        ? "approved"
-        : "dismissed";
 
   return (
     <span
       ref={tooltip}
       className={`review-baton-chip review-baton-chip--${outcome}`}
     >
-      {outcome === "approved" && (
-        <svg
-          className="review-baton-glyph"
-          viewBox="0 0 12 12"
-          width="12"
-          height="12"
-          aria-hidden="true"
-        >
-          <path d="m2 6.2 2.5 2.5L10 3.3" />
-        </svg>
-      )}
-      {outcome === "dismissed" && (
-        <svg
-          className="review-baton-glyph"
-          viewBox="0 0 16 16"
-          width="12"
-          height="12"
-          aria-hidden="true"
-        >
-          <rect x="1.6" y="2.6" width="12.8" height="3.4" rx="1" />
-          <path d="M3 6v6.2a1.2 1.2 0 0 0 1.2 1.2h7.6A1.2 1.2 0 0 0 13 12.2V6" />
-        </svg>
-      )}
-      <span>{label}</span>
+      <svg
+        className="review-baton-glyph"
+        viewBox="0 0 16 16"
+        width="12"
+        height="12"
+        aria-hidden="true"
+      >
+        <rect x="1.6" y="2.6" width="12.8" height="3.4" rx="1" />
+        <path d="M3 6v6.2a1.2 1.2 0 0 0 1.2 1.2h7.6A1.2 1.2 0 0 0 13 12.2V6" />
+      </svg>
+      <span>dismissed</span>
     </span>
   );
 }

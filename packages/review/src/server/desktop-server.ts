@@ -23,11 +23,6 @@ import {
   traceMachineEnabled,
   writePrivateJsonAtomic,
 } from "@dev.fast/trace-core";
-import { type Context, Hono } from "hono";
-import { streamSSE } from "hono/streaming";
-import type { ContentfulStatusCode } from "hono/utils/http-status";
-import { z } from "zod";
-
 import {
   applyCliInstall,
   declineCliInstall,
@@ -37,27 +32,32 @@ import {
   resetCliInstall,
   resolveCliInstallStatus,
   skipCliInstall,
-} from "../cli-install";
-import type { ReviewInstanceIdentity } from "../desktop-discovery";
-import { readReviewPackageVersion } from "../package-paths";
-import { ReviewInputError } from "../review-api/document.js";
-import { createReviewApi } from "../review-api/http.js";
-import type { LocalReviewData } from "../review-api/local-data.js";
-import type { ReviewStore } from "../review-api/store.js";
+} from "@review/cli-install";
+import type { ReviewInstanceIdentity } from "@review/desktop-discovery";
+import { readReviewPackageVersion } from "@review/package-paths";
+import { ReviewInputError } from "@review/review-api/document.js";
+import { createReviewApi } from "@review/review-api/http.js";
+import type { LocalReviewData } from "@review/review-api/local-data.js";
+import type { ReviewStore } from "@review/review-api/store.js";
 import {
   devReviewHome,
   reviewInstanceDiscoveryPath,
   reviewLegacyDiscoveryPath,
-} from "../review-home-paths";
+} from "@review/review-home-paths";
 import {
   readScratchpadEnabled,
   writeScratchpadEnabled,
-} from "../review-preferences";
+} from "@review/review-preferences";
 import {
   ReviewTelemetry,
   type ReviewTelemetryContext,
-} from "../review-telemetry";
-import type { SharedReviewStore } from "../sharing/import.js";
+} from "@review/review-telemetry";
+import type { SharedReviewStore } from "@review/sharing/import.js";
+import { type Context, Hono } from "hono";
+import { streamSSE } from "hono/streaming";
+import type { ContentfulStatusCode } from "hono/utils/http-status";
+import { z } from "zod";
+
 import { aliasInstallationToAccount } from "./account-alias";
 import { CrashReportRequestSchema, reportCrashDump } from "./crash-report";
 import {
@@ -623,7 +623,7 @@ export function createGlobalReviewServer(
 
       return globalJson(409, {
         ok: false,
-        error: "A Review Desktop control client is already attached.",
+        error: "A Whiteboard Desktop control client is already attached.",
       });
     }
 
@@ -765,7 +765,7 @@ function listen(server: Server, port: number): Promise<number> {
       const address = server.address();
 
       if (!isTcpAddress(address)) {
-        reject(new Error("The Review server did not bind a TCP port."));
+        reject(new Error("The Whiteboard server did not bind a TCP port."));
 
         return;
       }

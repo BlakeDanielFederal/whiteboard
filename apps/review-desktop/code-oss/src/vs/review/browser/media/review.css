@@ -30,6 +30,22 @@
   background-image: url("./review-letterpress-hc-dark.svg");
 }
 
+/* Monaco's scrollbars take the canvas pill (packages/review/app/src/styles.css).
+   The slider fills its 10px lane (the scrollable element's default, and the
+   editor.scrollbar.* sizes in reviewConfigurationDefaults.ts), and a transparent
+   border insets the paint to a 6px rounded pill, the same construction as the
+   canvas's ::-webkit-scrollbar-thumb. The stock hover and active rules reset
+   `background-clip` through their shorthand, which this rule outranks. */
+.monaco-workbench.review-workbench
+  .monaco-scrollable-element
+  > .scrollbar
+  > .slider {
+  box-sizing: border-box;
+  border: 2px solid transparent;
+  border-radius: 999px;
+  background-clip: padding-box;
+}
+
 /* KEEP IN SYNC WITH REVIEW_CHROME_HEIGHT in review/common/reviewChrome.ts. The
    overlay must be as tall as the editor tab strip below it, or the window
    controls and the navigation arrows stop aligning with the tab pills. */
@@ -60,7 +76,10 @@
   pointer-events: auto;
 }
 
-.monaco-workbench.linux
+/* Windows and Linux draw their window controls on the right. Without this the
+   right section packs against the left one, and the invisible Windows controls
+   placeholder sits over the first editor tabs and swallows their clicks. */
+.monaco-workbench:is(.linux, .windows)
   .part.titlebar.review-chrome-overlay
   > .review-titlebar-container
   > .titlebar-right {
@@ -597,8 +616,11 @@ body
 .monaco-workbench
   .part.titlebar.review-chrome-overlay
   .review-titlebar-container
-  .review-traffic-light-inset {
+  .window-controls-container.review-traffic-light-inset {
   flex-shrink: 0;
+  /* macOS moves the traffic lights right as the zoom makes the row taller.
+     The doubled class outranks upstream's fixed 70px. */
+  width: calc(50px + 20px * var(--zoom-factor, 1));
   -webkit-app-region: drag;
 }
 

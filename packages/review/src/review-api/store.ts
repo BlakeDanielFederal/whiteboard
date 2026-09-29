@@ -8,19 +8,19 @@ import {
   type ReviewApiSummary,
   SCRATCHPAD_REVIEW_ID,
 } from "@dev.fast/review-protocol";
-import { z } from "zod";
-
-import { sourceAnchors } from "../lens-selection.js";
+import { sourceAnchors } from "@review/lens-selection.js";
 import {
   liftFileLenses,
   migrateStoredDocument,
-} from "../stored-document-migration.js";
+} from "@review/stored-document-migration.js";
 import {
   type Coverage,
   coverageSchema,
   emptyCoverage,
   updateCoverage,
-} from "../viewed-coverage.js";
+} from "@review/viewed-coverage.js";
+import { z } from "zod";
+
 import { type LeaseScope, ReviewActivity } from "./activity.js";
 import {
   type Lens,
@@ -232,6 +232,7 @@ export interface ReviewProviders {
   ): Promise<ResolvedPullRequest>;
   resolveTarget?(
     target: ReviewTarget,
+    pinned?: Pins,
   ): Promise<{ target: ReviewTarget; pins: Pins }>;
   /** Rejects with a 404 ReviewInputError when the snapshot's checkout is gone.
    * Resolves undefined for a document without default pins. */
@@ -308,7 +309,10 @@ export class ReviewStore {
       return projected;
     }
 
-    const { pins } = await this.providers.resolveTarget!(snapshot.target);
+    const { pins } = await this.providers.resolveTarget!(
+      snapshot.target,
+      current.pins,
+    );
 
     if (
       JSON.stringify(current.pins) === JSON.stringify(pins) &&
@@ -1542,6 +1546,15 @@ export class ReviewStore {
       } catch {
         // The saved command must remain successful if a viewer disconnects.
       }
+  }
+  /** Dismissed reviews, as Home lists them; only a restore clears it, not a view. */
+  dismissedIds(): string[] {
+    return this.db
+      .prepare(
+        "SELECT review_id FROM review_attention WHERE dismissed_at IS NOT NULL",
+      )
+      .all()
+      .map((row) => String(row.review_id));
   }
   has(reviewId: string): boolean {
     return (
