@@ -121,11 +121,28 @@ function pluginSteps(
         "Run:\n\n```sh\ncopilot plugin marketplace add devdotfast/whiteboard\ncopilot plugin install whiteboard@devfast\ncopilot mcp remove whiteboard # old manual registration, if any\n```",
       ];
     case "pi":
-    case "omp":
       return [
-        `Run:\n\n\`\`\`sh\n${target} install ${PI_WHITEBOARD_PACKAGE}\n\`\`\``,
+        `On Pi 0.99.0 or later, run:\n\n\`\`\`sh\npi mcp add whiteboard -- ${launchCommand(reviewMcpLaunch(true, platform))}\npi remove ${PI_WHITEBOARD_PACKAGE} # if installed\n\`\`\`\n\nOn older Pi, run \`pi install ${PI_WHITEBOARD_PACKAGE}\`.`,
       ];
+    case "omp": {
+      const entry = JSON.stringify(
+        { whiteboard: reviewMcpLaunch(true, platform) },
+        null,
+        2,
+      );
+
+      return [
+        `Add this entry to mcpServers in ~/.omp/agent/mcp.json, keeping the rest of the file:\n\n\`\`\`json\n${entry}\n\`\`\``,
+        `Run \`omp plugin uninstall @dev.fast/pi-whiteboard\` if installed.`,
+      ];
+    }
   }
+}
+
+export function launchCommand(launch: McpLaunch): string {
+  return [launch.command, ...launch.args]
+    .map((arg) => (/^[\w./-]+$/.test(arg) ? arg : shellQuote(arg)))
+    .join(" ");
 }
 
 function cursorSteps(): string[] {
@@ -156,11 +173,13 @@ export function connectPrompt(
       : [];
 
   const verify =
-    target === "pi" || target === "omp"
-      ? `Ask me to run ${target === "pi" ? "/reload in Pi" : "/reload-plugins in oh-my-pi"}, then run \`whiteboard api session_get_instructions '{}'\` and confirm it answered. Do not author anything yet.`
-      : target === "opencode"
-        ? "Stop and tell me to quit and reopen OpenCode: it loads plugins and MCP servers only at startup. After I reopen it, call `session_get_instructions` on the Whiteboard server to confirm the connection. Do not author anything yet."
-        : "Reload your MCP tools and call `session_get_instructions` on the Whiteboard server. If a restart is needed, tell me and verify after it. Do not author anything yet.";
+    target === "pi"
+      ? "Ask me to run /reload, then call `session_get_instructions` on the Whiteboard server (older Pi: `whiteboard api session_get_instructions '{}'`). Do not author anything yet."
+      : target === "omp"
+        ? "Ask me to run /mcp reload, then call `session_get_instructions` on the Whiteboard server. Do not author anything yet."
+        : target === "opencode"
+          ? "Stop and tell me to quit and reopen OpenCode: it loads plugins and MCP servers only at startup. After I reopen it, call `session_get_instructions` on the Whiteboard server to confirm the connection. Do not author anything yet."
+          : "Reload your MCP tools and call `session_get_instructions` on the Whiteboard server. If a restart is needed, tell me and verify after it. Do not author anything yet.";
 
   return [
     "Connect this agent to dev.fast Whiteboard.",
