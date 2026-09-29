@@ -131,6 +131,7 @@ describe("review view state", () => {
 
     expect(readPersistedReviewViewState(session.config)).toEqual({
       scrollTop: 180,
+      scrollView: "review",
     });
     expect(frames.size).toBe(0);
   });
@@ -150,6 +151,42 @@ describe("review view state", () => {
 
     expect(harness.element.scrollTop).toBe(320);
     expect(frames.size).toBe(0);
+  });
+
+  it("restores the scroll only on the view it was taken on", () => {
+    const session = testReviewSession();
+    // Older records carry no view: their scroll belongs to the whiteboard.
+    storeState(session, { scrollTop: 320 });
+
+    const diff = renderViewState({
+      session,
+      store: createReviewPanelStore({ view: "diff" }),
+    });
+
+    expect(diff.element.scrollTop).toBe(0);
+    unmount();
+
+    storeState(session, { scrollTop: 320, scrollView: "diff" });
+
+    const resumed = renderViewState({
+      session,
+      store: createReviewPanelStore({ view: "diff" }),
+    });
+
+    expect(resumed.element.scrollTop).toBe(320);
+  });
+
+  it("stops restoring the scroll once the reader switches view", () => {
+    const session = testReviewSession();
+    const metrics = { scrollHeight: 200, clientHeight: 200 };
+    storeState(session, { scrollTop: 320 });
+    const harness = renderViewState({ session, metrics });
+
+    act(() => harness.store.getState().showView("commits"));
+    metrics.scrollHeight = 700;
+    triggerResize();
+
+    expect(harness.element.scrollTop).toBe(0);
   });
 
   it("keeps restoring after the old animation-frame retry window", () => {
@@ -369,7 +406,7 @@ describe("review view state", () => {
   it("restores every view the switcher offers, and nothing else", () => {
     const session = testReviewSession();
 
-    for (const view of ["review", "map", "diff"] as const) {
+    for (const view of ["review", "commits", "map", "diff", "trace"] as const) {
       storeState(session, { activeView: view });
       expect(readPersistedReviewViewState(session.config).activeView).toBe(
         view,
@@ -400,6 +437,7 @@ const canvas = {
   hasChangeRange: true,
   version: 1,
   lensMode: "structural",
+  commits: [],
 } as const;
 
 function renderViewState({
