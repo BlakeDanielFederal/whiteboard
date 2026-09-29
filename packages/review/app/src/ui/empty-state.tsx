@@ -63,9 +63,6 @@ export function EmptyState({
   );
 }
 
-// A boxed notice in a document reads as the document's heading and prose.
-const inDocument = ":is(.review-document *)";
-
 const styles = stylex.create({
   inline: {
     display: "flex",
@@ -101,16 +98,12 @@ const styles = stylex.create({
   },
   boxedTitle: {
     marginBottom: "8px",
-    fontFamily: { default: null, [inDocument]: tokens.fontSerif },
-    fontSize: { default: fontSize.reading, [inDocument]: fontSize.heading },
+    fontSize: fontSize.reading,
     lineHeight: 1.3,
   },
   boxedMessage: {
     maxWidth: "540px",
-    color: { default: null, [inDocument]: tokens.ink },
-    fontFamily: { default: null, [inDocument]: tokens.fontSerif },
-    fontSize: { default: fontSize.ui, [inDocument]: fontSize.reading },
-    lineHeight: { default: 1.55, [inDocument]: 1.72 },
-    textAlign: { default: null, [inDocument]: "left" },
+    fontSize: fontSize.ui,
+    lineHeight: 1.55,
   },
 });

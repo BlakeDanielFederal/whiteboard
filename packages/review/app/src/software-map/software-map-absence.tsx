@@ -88,19 +88,17 @@ function softwareMapSideLabel(
   return ref ? `${side} ${ref}` : side;
 }
 
-const inDocument = ":is(.review-document *)";
-
 const styles = stylex.create({
   unavailable: {
     minHeight: "var(--software-map-empty-height, 520px)",
   },
   code: {
-    padding: { default: null, [inDocument]: "2px 5px" },
-    borderRadius: { default: null, [inDocument]: radius.small },
-    backgroundColor: { default: null, [inDocument]: tokens.well },
+    padding: "2px 5px",
+    borderRadius: radius.small,
+    backgroundColor: tokens.well,
     color: tokens.ink,
-    fontFamily: { default: null, [inDocument]: tokens.fontMono },
-    fontSize: { default: null, [inDocument]: "0.85em" },
+    fontFamily: tokens.fontMono,
+    fontSize: "0.85em",
     fontWeight: fontWeight.bold,
   },
   topologyUnavailable: {
