@@ -139,6 +139,7 @@ export const SETTING_NAME = [
   "structural_diff",
   "theme",
   "ctrl_tab",
+  "open_files_in",
 ] as const;
 
 export const REVIEW_OPENED_VIA = ["home", "cli", "other"] as const;

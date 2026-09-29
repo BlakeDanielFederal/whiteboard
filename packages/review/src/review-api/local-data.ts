@@ -307,7 +307,11 @@ export class LocalReviewData {
     return { snapshot, pins };
   }
 
-  /** Resolve a native workspace without replacing the selected source with today's HEAD. */
+  /**
+   * Resolve a native workspace without replacing the selected source with
+   * today's HEAD. `live` is true when the workspace is the registered checkout
+   * itself rather than a pinned checkout Whiteboard manages.
+   */
   async navigatorWorkspace(
     snapshot: Snapshot,
     source: {
@@ -317,7 +321,7 @@ export class LocalReviewData {
       commit?: string;
       anchor?: SourcePins;
     } = {},
-  ): Promise<{ workspacePath: string; filePath?: string }> {
+  ): Promise<{ workspacePath: string; filePath?: string; live: boolean }> {
     const { pins } = await this.resolveSource(
       snapshot,
       source.commit,
@@ -329,7 +333,7 @@ export class LocalReviewData {
 
     const live =
       !!pins.worktreeRevision &&
-      (side === "head" || (source.empty && pins[side] === EMPTY_SOURCE));
+      (side === "head" || (!!source.empty && pins[side] === EMPTY_SOURCE));
 
     const checkoutSide =
       pins[side] === EMPTY_SOURCE && source.empty ? "head" : side;
@@ -450,7 +454,7 @@ export class LocalReviewData {
       }
     }
 
-    return { workspacePath, filePath };
+    return { workspacePath, filePath, live };
   }
 
   /** A document read that needs default pins; 409 when the document has none. */

@@ -3,6 +3,7 @@ import type {
   ReviewCliInstallStatus,
   ReviewCtrlTabChoice,
   ReviewKeymapChoice,
+  ReviewOpenFilesInChoice,
   ReviewThemeChoice,
 } from "@dev.fast/review-protocol";
 import * as stylex from "@stylexjs/stylex";
@@ -34,6 +35,13 @@ const CTRL_TAB_LABELS: Record<ReviewCtrlTabChoice, string> = {
   next: "Next tab",
 };
 
+const OPEN_FILES_IN_LABELS: Record<ReviewOpenFilesInChoice, string> = {
+  whiteboard: "Whiteboard",
+  vscode: "VS Code",
+  cursor: "Cursor",
+  zed: "Zed",
+};
+
 /**
  * The Settings page. It opens from the application menu (Preferences →
  * Settings...), the command palette, or ⌘,. Reuses the Home page shell so the
@@ -54,6 +62,7 @@ export function SettingsPage({
   const [theme, setTheme] = useState(settings.theme);
   const [keymap, setKeymap] = useState(settings.keymap);
   const [ctrlTab, setCtrlTab] = useState(settings.ctrlTab);
+  const [openFilesIn, setOpenFilesIn] = useState(settings.openFilesIn);
 
   const [softwareMapEnabled, setSoftwareMapEnabled] = useState(
     settings.softwareMapEnabled,
@@ -226,6 +235,24 @@ export function SettingsPage({
                     "ctrl-tab",
                     () => settings.setCtrlTab(choice),
                     setCtrlTab,
+                  )
+                }
+              />
+            </Row>
+            <Row
+              label="Open files in"
+              description="Where Open file shows a file from your checkout. Diffs and other revisions stay in Whiteboard."
+            >
+              <Choice
+                label="Open files in"
+                value={openFilesIn}
+                labels={OPEN_FILES_IN_LABELS}
+                disabled={busy !== null}
+                onChange={(choice) =>
+                  void run(
+                    "open-files-in",
+                    () => settings.setOpenFilesIn(choice),
+                    setOpenFilesIn,
                   )
                 }
               />
