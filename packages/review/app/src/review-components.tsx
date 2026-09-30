@@ -2,6 +2,7 @@ import { documentType } from "@canvas/document-type.stylex";
 import { fontSize, fontWeight } from "@canvas/scale.stylex";
 import { IconButton } from "@canvas/ui/button";
 import { textStyles } from "@canvas/ui/text";
+import { extractTraceEventText } from "@dev.fast/trace-protocol";
 import type { ReviewComponentProps } from "@review/review-document-data";
 import * as stylex from "@stylexjs/stylex";
 import type {
@@ -46,7 +47,7 @@ import { useBottomSheetResize } from "./side-panel-resizer";
 import { panelStyles, tourStyles } from "./side-panel-styles";
 import { withClass } from "./stylex-props";
 import { tokens } from "./tokens.stylex";
-import { TraceDocument, extractEventText } from "./trace-document";
+import { TraceDocument } from "./trace-document";
 import { traceStyles } from "./trace-styles";
 import { useTutorialSection } from "./tutorial-section-context";
 import { captureUiEvent } from "./ui-telemetry";
@@ -467,7 +468,7 @@ function TraceQuotePeekPanel({
 
     if (event !== undefined && event >= 0 && event < traceEvents.length) {
       const e = traceEvents[event];
-      const text = extractEventText(e);
+      const text = extractTraceEventText(e);
 
       if (findWhitespaceNormalizedSpan(text, quote)) {
         return event;
@@ -475,7 +476,7 @@ function TraceQuotePeekPanel({
     }
 
     for (let i = 0; i < traceEvents.length; i++) {
-      const text = extractEventText(traceEvents[i]);
+      const text = extractTraceEventText(traceEvents[i]);
 
       if (findWhitespaceNormalizedSpan(text, quote)) {
         return i;
