@@ -88,6 +88,14 @@ describe("agent markdown", () => {
     expect(html).toContain("run this");
   });
 
+  it("keeps dollar amounts as prose", () => {
+    const html = renderToStaticMarkup(
+      createElement(AgentMarkdown, { source: "It costs $5 and $10." }),
+    );
+
+    expect(html).toContain("It costs $5 and $10.");
+  });
+
   it("renders local filesystem links as non-clickable code references", () => {
     const html = renderToStaticMarkup(
       createElement(AgentMarkdown, {

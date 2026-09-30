@@ -1,3 +1,4 @@
+import { fontSize, fontWeight, motion } from "@canvas/scale.stylex";
 import type {
   FlowDiagramBlock,
   FlowDiagramNode,
@@ -31,7 +32,7 @@ import { diagramStyles } from "./diagram-styles";
 import { useMotionPhase } from "./draw-queue-provider";
 import { drawStyles } from "./draw-styles";
 import { ElementCountsText } from "./lens-counts";
-import { flowNodeMarker } from "./markers.stylex";
+import { documentMarker, flowNodeMarker } from "./markers.stylex";
 import { useReviewLenses } from "./review-lenses";
 import { withClass } from "./stylex-props";
 import { tokens } from "./tokens.stylex";
@@ -681,27 +682,27 @@ const nodeTypes = { flowNode: FlowNode };
 
 const edgeTypes = { flowEdge: FlowEdge };
 
-const inDocument = ":is(.review-document *)";
+const inDocument = () => stylex.when.ancestor(":is(*)", documentMarker);
 
 const styles = stylex.create({
   // Read as document paragraphs inside a document.
   paragraph: {
-    margin: { default: null, [inDocument]: "14px 0" },
-    color: { default: null, [inDocument]: tokens.ink },
-    fontFamily: { default: null, [inDocument]: tokens.fontSerif },
-    fontSize: { default: null, [inDocument]: "15px" },
-    lineHeight: { default: null, [inDocument]: 1.72 },
-    textAlign: { default: null, [inDocument]: "left" },
+    margin: { default: null, [inDocument()]: "14px 0" },
+    color: { default: null, [inDocument()]: tokens.ink },
+    fontFamily: { default: null, [inDocument()]: tokens.fontSerif },
+    fontSize: { default: null, [inDocument()]: fontSize.reading },
+    lineHeight: { default: null, [inDocument()]: 1.72 },
+    textAlign: { default: null, [inDocument()]: "left" },
   },
   note: {
     padding: "8px 12px",
-    color: { default: tokens.inkFaint, [inDocument]: tokens.ink },
+    color: { default: tokens.inkFaint, [inDocument()]: tokens.ink },
   },
   flow: {
     width: "100%",
     minHeight: "120px",
     display: "block",
-    font: `12px ${tokens.fontMono}`,
+    font: `${fontSize.body} ${tokens.fontMono}`,
   },
   canvas: {
     backgroundColor: tokens.transparent,
@@ -713,7 +714,7 @@ const styles = stylex.create({
     position: "relative",
     boxSizing: "border-box",
     color: tokens.ink,
-    font: `12px/1.4 ${tokens.fontMono}`,
+    font: `${fontSize.body}/1.4 ${tokens.fontMono}`,
     cursor: "pointer",
     outline: { default: null, ":focus-visible": "none" },
   },
@@ -751,7 +752,7 @@ const styles = stylex.create({
       [stylex.when.ancestor(":focus-visible", flowNodeMarker)]: 1.5,
     },
     vectorEffect: "non-scaling-stroke",
-    transition: "fill 200ms ease, stroke 200ms ease",
+    transition: `fill ${motion.medium} ${motion.ease}, stroke ${motion.medium} ${motion.ease}`,
   },
   outlineSelected: {
     fill: tokens.markerTint,
@@ -792,13 +793,13 @@ const styles = stylex.create({
   },
   label: {
     overflow: "hidden",
-    fontWeight: 500,
+    fontWeight: fontWeight.medium,
     textOverflow: "ellipsis",
     whiteSpace: "nowrap",
   },
   caption: {
     color: tokens.inkFaint,
-    fontSize: "10px",
+    fontSize: fontSize.micro,
   },
   edge: {
     fill: "none",
@@ -809,7 +810,7 @@ const styles = stylex.create({
     strokeWidth: 1.6,
   },
   edgeLabel: {
-    font: `9px ${tokens.fontMono}`,
+    font: `${fontSize.micro} ${tokens.fontMono}`,
     fill: tokens.inkMuted,
     paintOrder: "stroke",
     stroke: tokens.tray,

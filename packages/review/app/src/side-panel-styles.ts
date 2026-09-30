@@ -1,5 +1,14 @@
 import * as stylex from "@stylexjs/stylex";
 
+import { detailHostMarker } from "./markers.stylex";
+import {
+  elevation,
+  fontSize,
+  fontWeight,
+  layer,
+  motion,
+  radius,
+} from "./scale.stylex";
 import { tokens } from "./tokens.stylex";
 
 const narrowCanvas = "@container review-canvas (max-width: 929px)";
@@ -11,7 +20,7 @@ const short = "@media (max-height: 560px)";
 const reducedMotion = "@media (prefers-reduced-motion: reduce)";
 
 // The panel's own grid cell in App's detail host.
-const inDetailHost = ":is(.review-detail-host > *)";
+const inDetailHost = () => stylex.when.ancestor(":is(*)", detailHostMarker);
 
 // Narrow layouts dock the panel to the bottom of the canvas as a sheet; a
 // short canvas gives the sheet its whole height.
@@ -38,7 +47,11 @@ export const panelStyles = stylex.create({
       [narrow]: { default: "auto 0 0 0", [short]: 0 },
       [short]: 0,
     },
-    zIndex: { default: null, [narrowCanvas]: 50, [narrow]: 50 },
+    zIndex: {
+      default: null,
+      [narrowCanvas]: layer.sheet,
+      [narrow]: layer.sheet,
+    },
     height: {
       default: "100%",
       [narrowCanvas]: { default: sheetHeight, [short]: "100%" },
@@ -50,16 +63,19 @@ export const panelStyles = stylex.create({
       [narrow]: { default: "100%", [short]: "none" },
       [short]: "none",
     },
-    gridArea: { default: null, [inDetailHost]: "1 / 1" },
+    gridArea: { default: null, [inDetailHost()]: "1 / 1" },
     overflow: "hidden",
     backgroundColor: tokens.bg,
     animationName: { default: slideIn, [reducedMotion]: "none" },
-    animationDuration: { default: "200ms", [reducedMotion]: "0s" },
+    animationDuration: {
+      default: motion.medium,
+      [reducedMotion]: motion.instant,
+    },
     animationTimingFunction: { default: "ease-out", [reducedMotion]: "ease" },
   },
   restored: {
     animationName: "none",
-    animationDuration: "0s",
+    animationDuration: motion.instant,
     animationTimingFunction: "ease",
   },
   tour: {
@@ -98,20 +114,15 @@ export const panelStyles = stylex.create({
   },
   kicker: {
     flex: "0 0 auto",
-    color: tokens.inkFaint,
     fontFamily: tokens.fontMono,
-    fontSize: "10px",
-    fontWeight: 700,
-    letterSpacing: "0.08em",
-    textTransform: "uppercase",
   },
   heading: {
     overflow: "hidden",
     margin: 0,
     color: tokens.ink,
     fontFamily: tokens.fontMono,
-    fontSize: "13px",
-    fontWeight: 600,
+    fontSize: fontSize.ui,
+    fontWeight: fontWeight.semibold,
     lineHeight: 1.3,
     whiteSpace: "nowrap",
     textOverflow: "ellipsis",
@@ -178,12 +189,12 @@ export const tourStyles = stylex.create({
     borderWidth: 0,
     borderStyle: "none",
     borderColor: "currentcolor",
-    borderRadius: "999px",
+    borderRadius: radius.pill,
     backgroundColor: tokens.accent,
-    boxShadow: `0 2px 10px ${tokens.shadowColorStrong}`,
+    boxShadow: elevation.popover,
     color: tokens.onAccent,
-    fontSize: "11px",
-    fontWeight: 700,
+    fontSize: fontSize.small,
+    fontWeight: fontWeight.bold,
     pointerEvents: "auto",
   },
   pillIntro: {
@@ -194,25 +205,17 @@ export const tourStyles = stylex.create({
   pillChevron: {
     color: tokens.onAccent,
   },
+  // An IconButton on the accent pill.
   pillButton: {
-    display: "grid",
-    placeItems: "center",
-    width: "24px",
-    height: "24px",
-    padding: 0,
-    borderWidth: 0,
-    borderStyle: "none",
-    borderColor: "currentcolor",
-    borderRadius: "50%",
+    borderRadius: radius.round,
     backgroundColor: {
       default: tokens.transparent,
       ":hover:not(:disabled)": `color-mix(in srgb, ${tokens.onAccent} 16%, ${tokens.transparent})`,
       ":focus-visible": `color-mix(in srgb, ${tokens.onAccent} 16%, ${tokens.transparent})`,
     },
-    boxShadow: "none",
-    color: { default: tokens.onAccent, ":disabled": tokens.onAccentWash },
-    font: "inherit",
-    cursor: { default: "pointer", ":disabled": "default" },
+    color: tokens.onAccent,
+    fontSize: "inherit",
+    fontWeight: "inherit",
   },
   endCap: {
     display: "flex",
@@ -224,10 +227,10 @@ export const tourStyles = stylex.create({
     borderWidth: "1px",
     borderStyle: "dashed",
     borderColor: tokens.ruleSoft,
-    borderRadius: "8px",
+    borderRadius: radius.surface,
     color: tokens.inkMuted,
-    fontSize: "11px",
-    fontWeight: 700,
+    fontSize: fontSize.small,
+    fontWeight: fontWeight.bold,
   },
   endCapButton: {
     padding: 0,
@@ -276,12 +279,12 @@ export const tourStyles = stylex.create({
     borderWidth: "2px",
     borderStyle: "solid",
     borderColor: tokens.ruleSoft,
-    borderRadius: "50%",
+    borderRadius: radius.round,
     backgroundColor: tokens.bg,
     boxShadow: `0 0 0 4px ${tokens.bg}`,
     color: tokens.inkFaint,
-    fontSize: "12px",
-    fontWeight: 700,
+    fontSize: fontSize.body,
+    fontWeight: fontWeight.bold,
   },
   railNumberActive: {
     borderColor: tokens.accent,
@@ -296,7 +299,7 @@ export const tourStyles = stylex.create({
     paddingLeft: { default: "4px", [narrow]: 0 },
   },
   mainActive: {
-    borderRadius: "9px",
+    borderRadius: radius.surface,
   },
   // The stop's content breaks out over the rail to the panel's inner edge.
   content: {
@@ -316,13 +319,6 @@ export const tourStyles = stylex.create({
     gap: "14px",
     marginBottom: "12px",
   },
-  count: {
-    color: tokens.inkFaint,
-    fontSize: "11px",
-    fontWeight: 700,
-    letterSpacing: "0.08em",
-    textTransform: "uppercase",
-  },
   titleRow: {
     display: "flex",
     alignItems: "center",
@@ -331,7 +327,7 @@ export const tourStyles = stylex.create({
   title: {
     margin: "3px 0 0",
     color: tokens.ink,
-    fontSize: "19px",
+    fontSize: fontSize.heading,
     lineHeight: "24px",
   },
   titleActive: {
@@ -341,7 +337,7 @@ export const tourStyles = stylex.create({
     margin: "6px 0 0",
     color: tokens.inkMuted,
     fontFamily: tokens.fontMono,
-    fontSize: "11px",
+    fontSize: fontSize.small,
     lineHeight: "15px",
   },
 });

@@ -1,3 +1,4 @@
+import { fontSize, fontWeight, radius } from "@canvas/scale.stylex";
 import { isNumberValue, isStringValue } from "@dev.fast/review-protocol";
 import { type MarkdownNode, parseMarkdown } from "@review/markdown";
 import * as stylex from "@stylexjs/stylex";
@@ -22,6 +23,7 @@ import { documentStyles as doc } from "./document-styles";
 import { drawStyles } from "./draw-styles";
 import { HighlightedText } from "./highlighted-text";
 import { newTabLinkProps } from "./link-props";
+import { MarkdownMath } from "./markdown-math";
 import { withClass } from "./stylex-props";
 import { tokens } from "./tokens.stylex";
 
@@ -302,6 +304,13 @@ function renderMarkdownNode(
           compact={inChat}
         />
       );
+    case "math":
+      return <MarkdownMath key={key} tex={node.value ?? ""} display />;
+    case "inlineMath":
+      // Like Pandoc: "$5 and $10" stays prose.
+      if (/^\s|\s$/.test(node.value ?? "")) return `$${node.value}$`;
+
+      return <MarkdownMath key={key} tex={node.value ?? ""} display={false} />;
     case "break":
       return <br key={key} />;
     case "thematicBreak":
@@ -679,8 +688,8 @@ const chat = stylex.create({
   },
   heading: {
     color: tokens.ink,
-    fontSize: "13px",
-    fontWeight: 820,
+    fontSize: fontSize.ui,
+    fontWeight: fontWeight.bold,
     lineHeight: 1.35,
   },
   list: {
@@ -699,7 +708,7 @@ const chat = stylex.create({
   },
   code: {
     padding: "1px 4px",
-    borderRadius: "4px",
+    borderRadius: radius.small,
     backgroundColor: tokens.tray,
     color: tokens.ink,
     fontFamily: tokens.fontMono,
@@ -718,7 +727,7 @@ const chat = stylex.create({
     borderCollapse: "collapse",
     color: tokens.inkMuted,
     fontFamily: tokens.fontMono,
-    fontSize: "12px",
+    fontSize: fontSize.body,
     tableLayout: "fixed",
   },
   cell: {
@@ -730,7 +739,7 @@ const chat = stylex.create({
   },
   headerCell: {
     color: tokens.ink,
-    fontWeight: 780,
+    fontWeight: fontWeight.bold,
     textAlign: "left",
   },
   rule: {

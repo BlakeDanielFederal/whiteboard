@@ -1,3 +1,5 @@
+import { documentType } from "@canvas/document-type.stylex";
+import { Button, IconButton } from "@canvas/ui/button";
 import * as stylex from "@stylexjs/stylex";
 import {
   type ReactElement,
@@ -19,6 +21,14 @@ import {
   reviewInteractionDetail,
 } from "./review-interaction-event";
 import { useOptionalReviewPanel } from "./review-panel";
+import {
+  elevation,
+  fontSize,
+  fontWeight,
+  motion,
+  radius,
+  tracking,
+} from "./scale.stylex";
 import { tokens } from "./tokens.stylex";
 import { useTutorial } from "./tutorial-context";
 import {
@@ -406,14 +416,13 @@ function TutorialGuide({
         <span {...stylex.props(styles.guideChapter)}>
           Chapter {chapterLabel} of {TUTORIAL_CHAPTERS.length}
         </span>
-        <button
-          type="button"
+        <IconButton
+          xstyle={styles.guideClose}
           onClick={experience.onDismiss}
           aria-label="Hide tutorial"
-          {...stylex.props(styles.guideClose)}
         >
           ×
-        </button>
+        </IconButton>
       </header>
       <div {...stylex.props(styles.progress)} aria-hidden="true">
         <span
@@ -434,38 +443,25 @@ function TutorialGuide({
         </p>
       </div>
       <footer {...stylex.props(styles.guideFooter)}>
-        <button
-          type="button"
+        <Button
+          variant="ghost"
           onClick={experience.onBack}
           disabled={activeIndex <= 0}
-          {...stylex.props(styles.footerButton)}
         >
           Back
-        </button>
+        </Button>
         {activeStep?.completion === "finish" ? (
-          <button
-            type="button"
-            onClick={experience.onFinish}
-            {...stylex.props(styles.footerButton)}
-          >
+          <Button variant="ghost" onClick={experience.onFinish}>
             Finish tour
-          </button>
+          </Button>
         ) : activeStep ? (
-          <button
-            type="button"
-            onClick={experience.onNext}
-            {...stylex.props(styles.footerButton)}
-          >
+          <Button variant="ghost" onClick={experience.onNext}>
             Next
-          </button>
+          </Button>
         ) : (
-          <button
-            type="button"
-            onClick={experience.onClose}
-            {...stylex.props(styles.footerButton)}
-          >
+          <Button variant="ghost" onClick={experience.onClose}>
             Close tutorial
-          </button>
+          </Button>
         )}
       </footer>
     </aside>
@@ -664,10 +660,10 @@ const styles = stylex.create({
     borderWidth: "1px",
     borderStyle: "solid",
     borderColor: tokens.tutorialGuideBorder,
-    borderRadius: "10px",
+    borderRadius: radius.surface,
     backgroundColor: tokens.tutorialGuideBg,
     color: tokens.ink,
-    boxShadow: `0 10px 32px ${tokens.shadowColorStrong}`,
+    boxShadow: elevation.popover,
     pointerEvents: "auto",
     backdropFilter: "blur(16px)",
   },
@@ -679,34 +675,20 @@ const styles = stylex.create({
   },
   guideChapter: {
     color: tokens.inkMuted,
-    font: `11px ${tokens.fontMono}`,
-    letterSpacing: "0.04em",
+    fontFamily: tokens.fontMono,
+    fontSize: fontSize.small,
+    letterSpacing: tracking.chrome,
     textTransform: "uppercase",
   },
   guideClose: {
-    display: "grid",
-    placeItems: "center",
-    width: "24px",
-    height: "24px",
-    padding: 0,
-    borderWidth: 0,
-    borderStyle: "none",
-    borderColor: "currentcolor",
-    borderRadius: "5px",
-    backgroundColor: {
-      default: tokens.transparent,
-      ":hover": tokens.controlBg,
-    },
-    color: { default: tokens.inkMuted, ":hover": tokens.ink },
-    fontFamily: tokens.fontMono,
-    fontSize: "17px",
-    fontWeight: 500,
+    fontSize: fontSize.heading,
+    fontWeight: fontWeight.medium,
   },
   progress: {
     height: "2px",
     marginInline: "12px",
     overflow: "hidden",
-    borderRadius: "999px",
+    borderRadius: radius.pill,
     backgroundColor: tokens.ruleSoft,
   },
   progressBar: {
@@ -714,7 +696,10 @@ const styles = stylex.create({
     height: "100%",
     borderRadius: "inherit",
     backgroundColor: tokens.tutorialRing,
-    transition: { default: "width 220ms ease", [reducedMotion]: "none" },
+    transition: {
+      default: `width ${motion.medium} ${motion.ease}`,
+      [reducedMotion]: "none",
+    },
   },
   copy: {
     display: "flex",
@@ -725,19 +710,19 @@ const styles = stylex.create({
   chapter: {
     margin: 0,
     color: tokens.tutorialRing,
-    font: `11px/16px ${tokens.fontMono}`,
+    font: `${fontSize.small}/16px ${tokens.fontMono}`,
     textAlign: "left",
   },
   step: {
     margin: 0,
     color: tokens.ink,
-    font: `500 17px/22px ${tokens.fontSerif}`,
+    font: `${fontWeight.medium} ${documentType.body}/22px ${tokens.fontSerif}`,
     textAlign: "left",
   },
   instruction: {
     margin: 0,
     color: tokens.inkMuted,
-    font: `12px/18px ${tokens.fontMono}`,
+    font: `${fontSize.body}/18px ${tokens.fontMono}`,
     textAlign: "left",
   },
   guideFooter: {
@@ -748,21 +733,6 @@ const styles = stylex.create({
     borderTopWidth: "1px",
     borderTopStyle: "solid",
     borderTopColor: tokens.ruleSoft,
-  },
-  footerButton: {
-    padding: "4px 7px",
-    borderWidth: 0,
-    borderStyle: "none",
-    borderColor: "currentcolor",
-    borderRadius: "5px",
-    backgroundColor: {
-      default: tokens.transparent,
-      ":hover:not(:disabled)": tokens.controlBg,
-    },
-    color: { default: tokens.inkMuted, ":hover:not(:disabled)": tokens.ink },
-    cursor: { default: null, ":disabled": "default" },
-    font: `11px ${tokens.fontMono}`,
-    opacity: { default: null, ":disabled": 0.42 },
   },
   // The hidden tutorial: a small floating button in the same corner.
   pill: {
@@ -777,10 +747,10 @@ const styles = stylex.create({
     borderWidth: "1px",
     borderStyle: "solid",
     borderColor: tokens.tutorialGuideBorder,
-    borderRadius: "50%",
+    borderRadius: radius.round,
     backgroundColor: tokens.tutorialGuideBg,
     color: { default: tokens.tutorialRing, ":hover": tokens.ink },
-    boxShadow: `0 6px 20px ${tokens.shadowColorStrong}`,
+    boxShadow: elevation.popover,
     cursor: "pointer",
     pointerEvents: "auto",
     backdropFilter: "blur(16px)",
@@ -812,7 +782,10 @@ const styles = stylex.create({
     boxShadow: `0 0 0 4px ${tokens.tutorialRingGlow}`,
     pointerEvents: "none",
     animationName: { default: targetPulse, [reducedMotion]: "none" },
-    animationDuration: { default: "1.6s", [reducedMotion]: "0s" },
+    animationDuration: {
+      default: motion.pulse,
+      [reducedMotion]: motion.instant,
+    },
     animationTimingFunction: {
       default: "ease-in-out",
       [reducedMotion]: "ease",
@@ -824,7 +797,7 @@ const styles = stylex.create({
     borderWidth: 0,
     borderStyle: "none",
     borderColor: "currentcolor",
-    borderRadius: "5px",
+    borderRadius: radius.small,
     backgroundColor: tokens.tutorialRingGlow,
     boxShadow: "none",
     animationName: { default: linkPulse, [reducedMotion]: "none" },

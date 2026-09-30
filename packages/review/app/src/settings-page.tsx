@@ -1,9 +1,12 @@
+import { Button } from "@canvas/ui/button";
+import { textStyles } from "@canvas/ui/text";
 import type {
   ReviewCanvasSettingsContent,
   ReviewCliInstallStatus,
   ReviewCtrlTabChoice,
   ReviewKeymapChoice,
   ReviewOpenFilesInChoice,
+  ReviewReadyNotificationChoice,
   ReviewThemeChoice,
 } from "@dev.fast/review-protocol";
 import * as stylex from "@stylexjs/stylex";
@@ -42,6 +45,13 @@ const OPEN_FILES_IN_LABELS: Record<ReviewOpenFilesInChoice, string> = {
   zed: "Zed",
 };
 
+const READY_NOTIFICATION_LABELS: Record<ReviewReadyNotificationChoice, string> =
+  {
+    notificationAndBadge: "Notification and badge",
+    notification: "Notification only",
+    off: "Off",
+  };
+
 /**
  * The Settings page. It opens from the application menu (Preferences →
  * Settings...), the command palette, or ⌘,. Reuses the Home page shell so the
@@ -63,6 +73,10 @@ export function SettingsPage({
   const [keymap, setKeymap] = useState(settings.keymap);
   const [ctrlTab, setCtrlTab] = useState(settings.ctrlTab);
   const [openFilesIn, setOpenFilesIn] = useState(settings.openFilesIn);
+
+  const [readyNotification, setReadyNotification] = useState(
+    settings.readyNotification,
+  );
 
   const [softwareMapEnabled, setSoftwareMapEnabled] = useState(
     settings.softwareMapEnabled,
@@ -142,9 +156,7 @@ export function SettingsPage({
                 }
               >
                 {install.status.shim.installer ? null : (
-                  <button
-                    type="button"
-                    {...stylex.props(styles.button)}
+                  <Button
                     disabled={busy !== null}
                     onClick={() =>
                       void run(
@@ -158,7 +170,7 @@ export function SettingsPage({
                     }
                   >
                     {install.status.shim.installed ? "Remove" : "Install"}
-                  </button>
+                  </Button>
                 )}
               </Row>
             </Section>
@@ -259,18 +271,33 @@ export function SettingsPage({
             </Row>
           </Section>
 
+          <Section label="Notifications">
+            <Row
+              label="Review ready"
+              description="When an agent finishes a review you aren't looking at."
+            >
+              <Choice
+                label="Review ready"
+                value={readyNotification}
+                labels={READY_NOTIFICATION_LABELS}
+                disabled={busy !== null}
+                onChange={(choice) =>
+                  void run(
+                    "ready-notification",
+                    () => settings.setReadyNotification(choice),
+                    setReadyNotification,
+                  )
+                }
+              />
+            </Row>
+          </Section>
+
           <Section label="Tools">
             <Row
               label="Extensions"
               description="Install or turn on language extensions."
             >
-              <button
-                type="button"
-                {...stylex.props(styles.button)}
-                onClick={settings.manageExtensions}
-              >
-                Manage…
-              </button>
+              <Button onClick={settings.manageExtensions}>Manage…</Button>
             </Row>
           </Section>
 
@@ -365,7 +392,9 @@ export function SettingsPage({
 function Section({ label, children }: { label: string; children: ReactNode }) {
   return (
     <section {...stylex.props(styles.section)} aria-label={label}>
-      <h2 {...stylex.props(styles.sectionLabel)}>{label}</h2>
+      <h2 {...stylex.props(textStyles.eyebrow, styles.sectionLabel)}>
+        {label}
+      </h2>
       {children}
     </section>
   );

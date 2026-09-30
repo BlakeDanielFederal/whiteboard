@@ -1,3 +1,6 @@
+import { drawMotion } from "@canvas/draw-motion.stylex";
+import { fontSize, fontWeight, motion, radius } from "@canvas/scale.stylex";
+import { textStyles } from "@canvas/ui/text";
 import type {
   ReviewCommitScope,
   ReviewDiffLens,
@@ -22,7 +25,7 @@ import {
   useState,
 } from "react";
 
-import { AuthoringActivityContext } from "./authoring-activity";
+import { AuthoringActivityContext } from "./authoring-activity-context";
 import { scopeLive } from "./authoring-cursor";
 import { Courier, LensCursorContext, lensRowElement } from "./courier";
 import { compactDiffCount, diffCountStyles } from "./diff-count";
@@ -30,7 +33,11 @@ import { type MotionPhase, withErasedBlocks } from "./draw-queue";
 import { useMotionPhases } from "./draw-queue-provider";
 import { drawStyles } from "./draw-styles";
 import { useReviewSession } from "./host/review-session";
-import { lensToggleMarker } from "./markers.stylex";
+import {
+  diffWorkspaceMarker,
+  lensToggleMarker,
+  scopedDiffMarker,
+} from "./markers.stylex";
 import { useReviewDiffFiles } from "./review-diff-files-context";
 import { useReviewLenses } from "./review-lenses";
 import { shellStyles } from "./shell-styles";
@@ -246,9 +253,12 @@ export function ReviewDiffView({
   const remaining = global.remaining.additions + global.remaining.deletions;
   const percent = total ? Math.round((100 * (total - remaining)) / total) : 0;
 
-  // diff-workspace is a marker: the courier and global.css key on it.
+  // diff-workspace is a marker global.css keys on.
   return (
-    <div {...withClass("diff-workspace", styles.workspace)} ref={workspaceRef}>
+    <div
+      {...withClass("diff-workspace", styles.workspace, diffWorkspaceMarker)}
+      ref={workspaceRef}
+    >
       <aside
         {...stylex.props(styles.sidebar)}
         style={{ width: sidebarResize.width }}
@@ -311,7 +321,13 @@ export function ReviewDiffView({
             ref={setLensList}
             style={{ flexBasis: `${(1 - cabinetsResize.fraction) * 100}%` }}
           >
-            <div {...stylex.props(styles.heading, styles.lensesHeading)}>
+            <div
+              {...stylex.props(
+                textStyles.eyebrow,
+                styles.heading,
+                styles.lensesHeading,
+              )}
+            >
               Lenses
             </div>
             <div {...stylex.props(styles.hint)}>
@@ -450,7 +466,13 @@ export function ReviewDiffView({
             )}
           />
           <div {...stylex.props(styles.files)}>
-            <div {...stylex.props(styles.heading, styles.filesHeading)}>
+            <div
+              {...stylex.props(
+                textStyles.eyebrow,
+                styles.heading,
+                styles.filesHeading,
+              )}
+            >
               Files <span aria-hidden="true">·</span>{" "}
               {lenses.progress
                 ? lens
@@ -695,13 +717,15 @@ const relabel = stylex.keyframes({
   to: { opacity: 1, clipPath: "inset(0 0 0 0)" },
 });
 
+const inScopedDiff = () => stylex.when.ancestor(":is(*)", scopedDiffMarker);
+
 const styles = stylex.create({
   workspace: {
     display: "flex",
     minHeight: 0,
     height: "100%",
     color: tokens.ink,
-    font: `11px/1.5 ${tokens.fontMono}`,
+    font: `${fontSize.small}/1.5 ${tokens.fontMono}`,
   },
   // The sidebar is the tray.
   sidebar: {
@@ -728,7 +752,7 @@ const styles = stylex.create({
     borderBottomStyle: "solid",
     borderBottomColor: tokens.rule,
     color: tokens.inkMuted,
-    fontSize: "11px",
+    fontSize: fontSize.small,
   },
   progressLabel: {
     display: "flex",
@@ -774,11 +798,7 @@ const styles = stylex.create({
     overflow: "hidden",
   },
   heading: {
-    textTransform: "uppercase",
     padding: "10px 14px 6px 16px",
-    color: tokens.inkFaint,
-    fontSize: "11px",
-    letterSpacing: tokens.wbCaps,
   },
   lensesHeading: {
     paddingBottom: "2px",
@@ -791,7 +811,7 @@ const styles = stylex.create({
   hint: {
     padding: "0 14px 6px 16px",
     color: tokens.inkFaint,
-    font: `11px/16px ${tokens.fontMono}`,
+    font: `${fontSize.small}/16px ${tokens.fontMono}`,
   },
   nativeTree: {
     flex: 1,
@@ -839,7 +859,7 @@ const styles = stylex.create({
   },
   toggleActive: {
     color: tokens.ink,
-    fontWeight: 600,
+    fontWeight: fontWeight.semibold,
     backgroundColor: "transparent",
   },
   // The filter outranks the viewed fade; the checkbox beside it says viewed.
@@ -858,7 +878,7 @@ const styles = stylex.create({
     gap: "8px",
     height: "24px",
     padding: "0 8px",
-    borderRadius: "999px",
+    borderRadius: radius.pill,
   },
   chipActive: {
     paddingRight: "4px",
@@ -885,7 +905,10 @@ const styles = stylex.create({
   },
   nameRelabel: {
     animationName: { default: relabel, [REDUCED]: "none" },
-    animationDuration: { default: "420ms", [REDUCED]: "0s" },
+    animationDuration: {
+      default: drawMotion.stroke,
+      [REDUCED]: motion.instant,
+    },
     animationTimingFunction: { default: "steps(14)", [REDUCED]: "ease" },
     animationFillMode: { default: "both", [REDUCED]: "none" },
   },
@@ -896,7 +919,7 @@ const styles = stylex.create({
     justifyContent: "center",
     width: "18px",
     height: "18px",
-    borderRadius: "999px",
+    borderRadius: radius.pill,
     backgroundColor: {
       default: null,
       [stylex.when.ancestor(":hover", lensToggleMarker)]: tokens.markerGlow,
@@ -939,7 +962,7 @@ const styles = stylex.create({
   // The workbench mounts its diff widgets here and sizes them from this box.
   host: {
     position: "relative",
-    gridRow: { default: 1, ":is(.review-diff-view--scoped *)": 2 },
+    gridRow: { default: 1, [inScopedDiff()]: 2 },
     minHeight: 0,
     height: "100%",
   },
@@ -955,7 +978,7 @@ const styles = stylex.create({
     padding: "0 10px",
     backgroundColor: tokens.surface,
     color: tokens.inkFaint,
-    font: `11px/1 ${tokens.fontMono}`,
+    font: `${fontSize.small}/1 ${tokens.fontMono}`,
   },
   error: {
     padding: "8px 12px",
@@ -969,7 +992,10 @@ const sectionMotion = stylex.create({
   },
   landing: {
     animationName: { default: landSlot, [REDUCED]: "none" },
-    animationDuration: { default: "520ms", [REDUCED]: "0s" },
+    animationDuration: {
+      default: drawMotion.lensLand,
+      [REDUCED]: motion.instant,
+    },
     animationTimingFunction: { default: EASE, [REDUCED]: "ease" },
     animationFillMode: { default: "both", [REDUCED]: "none" },
   },
@@ -978,7 +1004,7 @@ const sectionMotion = stylex.create({
     outlineOffset: "-1px",
     backgroundColor: tokens.markerTint,
     animationName: { default: attention, [REDUCED]: "none" },
-    animationDuration: { default: "250ms", [REDUCED]: "0s" },
+    animationDuration: { default: drawMotion.ring, [REDUCED]: motion.instant },
     animationTimingFunction: { default: "ease-out", [REDUCED]: "ease" },
     animationFillMode: { default: "both", [REDUCED]: "none" },
   },
@@ -986,7 +1012,7 @@ const sectionMotion = stylex.create({
     overflow: "clip",
     interpolateSize: "allow-keywords",
     animationName: { default: collapse, [REDUCED]: "none" },
-    animationDuration: { default: "200ms", [REDUCED]: "0s" },
+    animationDuration: { default: drawMotion.beat, [REDUCED]: motion.instant },
     animationTimingFunction: { default: EASE, [REDUCED]: "ease" },
     animationDelay: { default: "320ms", [REDUCED]: "0s" },
     animationFillMode: { default: "both", [REDUCED]: "none" },

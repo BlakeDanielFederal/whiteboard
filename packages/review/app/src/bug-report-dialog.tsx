@@ -1,3 +1,6 @@
+import { Button, IconButton } from "@canvas/ui/button";
+import { surfaceStyles } from "@canvas/ui/surface";
+import { fieldStyles } from "@canvas/ui/text-field";
 import {
   type ReviewBugReportRequest,
   parseReviewBugReportResponse,
@@ -20,6 +23,8 @@ import {
 import { controlStyles } from "./controls-styles";
 import { useReviewSession } from "./host/review-session";
 import { BugIcon } from "./icons";
+import { appMarker } from "./markers.stylex";
+import { fontSize, fontWeight, layer, radius } from "./scale.stylex";
 import { shellStyles } from "./shell-styles";
 import { useToast } from "./toast";
 import { tokens } from "./tokens.stylex";
@@ -200,23 +205,26 @@ export function BugReportControl({
 
   return (
     <>
-      <button
-        type="button"
-        {...stylex.props(shellStyles.topbarItem, styles.topbarButton)}
+      <IconButton
+        xstyle={shellStyles.topbarItem}
         aria-label="Report a bug"
         ref={tooltip}
         disabled={tutorial !== null || capturing}
         onClick={() => void openDialog()}
       >
         <BugIcon xstyle={controlStyles.chromeIcon} />
-      </button>
+      </IconButton>
       {open && (
         <div
           {...stylex.props(shellStyles.topbarItem, styles.backdrop)}
           onMouseDown={cancel}
         >
           <section
-            {...stylex.props(styles.dialog, dropActive && styles.dropTarget)}
+            {...stylex.props(
+              surfaceStyles.dialog,
+              styles.dialog,
+              dropActive && styles.dropTarget,
+            )}
             role="dialog"
             aria-modal="true"
             aria-labelledby="bug-report-title"
@@ -244,7 +252,11 @@ export function BugReportControl({
               <label {...stylex.props(styles.description)}>
                 <span>What happened? (optional)</span>
                 <textarea
-                  {...stylex.props(styles.textarea)}
+                  {...stylex.props(
+                    fieldStyles.box,
+                    fieldStyles.multiline,
+                    styles.textarea,
+                  )}
                   autoFocus
                   rows={7}
                   value={description}
@@ -291,15 +303,14 @@ export function BugReportControl({
                         src={screenshot}
                         alt="Screenshot preview"
                       />
-                      <button
-                        type="button"
-                        {...stylex.props(styles.screenshotRemove)}
+                      <IconButton
+                        xstyle={styles.screenshotRemove}
                         aria-label="Remove screenshot"
                         title="Remove screenshot"
                         onClick={() => setScreenshot(null)}
                       >
                         ×
-                      </button>
+                      </IconButton>
                     </>
                   ) : (
                     <span {...stylex.props(styles.small, styles.faint)}>
@@ -315,21 +326,23 @@ export function BugReportControl({
                 remove it.
               </p>
               <div {...stylex.props(styles.actions)}>
-                <button
-                  type="button"
-                  {...stylex.props(styles.action)}
+                <Button
+                  size="large"
+                  xstyle={styles.action}
                   onClick={cancel}
                   disabled={sending}
                 >
                   Cancel
-                </button>
-                <button
+                </Button>
+                <Button
                   type="submit"
-                  {...stylex.props(styles.action, styles.submit)}
+                  variant="primary"
+                  size="large"
+                  xstyle={styles.action}
                   disabled={!canSend}
                 >
                   {sending ? "Sending..." : "Send"}
-                </button>
+                </Button>
               </div>
             </form>
           </section>
@@ -340,50 +353,21 @@ export function BugReportControl({
   );
 }
 
-// Only .review-app defines the chrome tokens, and the border and font came
+// Only the app root defines the chrome tokens, and the border and font came
 // from shorthands that drop out without them: outside the app there are none.
-// (:scope is the canvas root, so an app portaled out of it does not count.)
-const inApp = ":is(:scope .review-app *)";
+const inApp = () => stylex.when.ancestor(":is(*)", appMarker);
 
-const chromeBorder = {
-  borderWidth: { default: 0, [inApp]: "1px" },
-  borderStyle: { default: "none", [inApp]: "solid" },
-  borderColor: tokens.chromeBorder,
-} as const;
+const chromeBorder = () =>
+  ({
+    borderWidth: { default: 0, [inApp()]: "1px" },
+    borderStyle: { default: "none", [inApp()]: "solid" },
+    borderColor: tokens.chromeBorder,
+  }) as const;
 
 const styles = stylex.create({
-  topbarButton: {
-    display: "grid",
-    alignItems: "center",
-    justifyContent: "center",
-    width: tokens.chromeControlHeight,
-    height: tokens.chromeControlHeight,
-    padding: 0,
-    borderWidth: 0,
-    borderStyle: "none",
-    borderColor: "currentcolor",
-    borderRadius: tokens.chromeControlRadius,
-    backgroundColor: {
-      default: tokens.transparent,
-      ":hover:not(:disabled)": tokens.chromeHoverBg,
-      ":focus-visible:not(:disabled)": tokens.chromeHoverBg,
-    },
-    color: {
-      default: tokens.chromeIconFg,
-      ":hover:not(:disabled)": tokens.chromeFg,
-      ":focus-visible:not(:disabled)": tokens.chromeFg,
-    },
-    cursor: { default: "pointer", ":disabled": "default" },
-    opacity: { default: null, ":disabled": 0.45 },
-    outline: {
-      default: null,
-      ":hover:not(:disabled)": "none",
-      ":focus-visible:not(:disabled)": "none",
-    },
-  },
   backdrop: {
     position: "fixed",
-    zIndex: 10000,
+    zIndex: layer.dialog,
     inset: 0,
     display: "grid",
     placeItems: "center",
@@ -392,11 +376,6 @@ const styles = stylex.create({
   },
   dialog: {
     width: "min(540px, 100%)",
-    ...chromeBorder,
-    borderRadius: "8px",
-    backgroundColor: tokens.bg,
-    boxShadow: `0 18px 60px ${tokens.shadowColorStrong}`,
-    color: tokens.ink,
   },
   dropTarget: {
     outline: `2px dashed ${tokens.accent}`,
@@ -409,29 +388,21 @@ const styles = stylex.create({
   },
   title: {
     margin: 0,
-    fontSize: "18px",
+    fontSize: fontSize.heading,
   },
   description: {
     display: "grid",
     gap: "7px",
-    fontSize: "12px",
-    fontWeight: 600,
+    fontSize: fontSize.body,
+    fontWeight: fontWeight.semibold,
   },
   textarea: {
-    boxSizing: "border-box",
     width: "100%",
-    resize: "vertical",
-    ...chromeBorder,
-    borderRadius: "5px",
-    padding: "9px",
-    backgroundColor: tokens.tray,
-    color: tokens.ink,
-    font: `12px/1.5 ${tokens.fontMono}`,
   },
   byteCount: {
     marginTop: "-10px",
     color: tokens.inkFaint,
-    font: `10px/1.3 ${tokens.fontMono}`,
+    font: `${fontSize.micro}/1.3 ${tokens.fontMono}`,
     textAlign: "right",
   },
   byteCountError: {
@@ -444,11 +415,11 @@ const styles = stylex.create({
     borderWidth: "1px",
     borderStyle: "solid",
     borderColor: tokens.ruleSoft,
-    borderRadius: "5px",
+    borderRadius: radius.small,
     padding: "10px 12px 12px",
   },
   small: {
-    font: `11px/1.45 ${tokens.fontMono}`,
+    font: `${fontSize.small}/1.45 ${tokens.fontMono}`,
   },
   option: {
     display: "flex",
@@ -463,38 +434,23 @@ const styles = stylex.create({
     borderWidth: "1px",
     borderStyle: "dashed",
     borderColor: tokens.ruleSoft,
-    borderRadius: "5px",
+    borderRadius: radius.small,
     padding: "8px",
   },
   screenshotImage: {
     display: "block",
     maxWidth: "calc(100% - 34px)",
     maxHeight: "72px",
-    ...chromeBorder,
-    borderRadius: "4px",
+    ...chromeBorder(),
+    borderRadius: radius.small,
   },
   screenshotRemove: {
-    display: "grid",
-    width: "26px",
-    height: "26px",
-    placeItems: "center",
-    ...chromeBorder,
-    borderColor: {
-      default: tokens.chromeBorder,
-      ":hover": tokens.chromeActiveBorder,
-      ":focus-visible": tokens.chromeActiveBorder,
-    },
-    borderRadius: "4px",
-    padding: 0,
+    borderWidth: "1px",
+    borderStyle: "solid",
+    borderColor: tokens.chromeBorder,
     backgroundColor: tokens.tray,
-    color: {
-      default: tokens.inkFaint,
-      ":hover": tokens.ink,
-      ":focus-visible": tokens.ink,
-    },
-    font: { default: "inherit", [inApp]: `18px/1 ${tokens.chromeFont}` },
-    cursor: "pointer",
-    outline: { default: null, ":hover": "none", ":focus-visible": "none" },
+    fontSize: fontSize.heading,
+    fontWeight: fontWeight.regular,
   },
   faint: {
     color: tokens.inkFaint,
@@ -510,15 +466,5 @@ const styles = stylex.create({
   },
   action: {
     minWidth: "76px",
-    ...chromeBorder,
-    borderRadius: "4px",
-    padding: "7px 12px",
-    backgroundColor: tokens.tray,
-    color: tokens.ink,
-    cursor: { default: "pointer", ":disabled": "default" },
-    opacity: { default: null, ":disabled": 0.45 },
-  },
-  submit: {
-    borderColor: tokens.rpc,
   },
 });

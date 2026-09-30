@@ -1,5 +1,6 @@
 import * as stylex from "@stylexjs/stylex";
 
+import { fontSize, fontWeight, radius } from "./scale.stylex";
 import { tokens } from "./tokens.stylex";
 
 // Controls shared across the canvas.
@@ -17,7 +18,7 @@ export const controlStyles = stylex.create({
     borderWidth: "1px",
     borderStyle: "solid",
     borderColor: tokens.rule,
-    borderRadius: "6px",
+    borderRadius: radius.control,
     backgroundColor: tokens.tray,
   },
   segmentedTopbar: {
@@ -42,27 +43,33 @@ export const controlStyles = stylex.create({
     gap: "6px",
     height: "20px",
     padding: "0 10px",
-    borderRadius: "4px",
+    borderRadius: radius.small,
     color: { default: tokens.inkMuted, ":hover": tokens.ink },
-    fontSize: "11px",
-    fontWeight: 500,
+    fontSize: fontSize.small,
+    fontWeight: fontWeight.medium,
     opacity: { default: null, ":disabled": 0.5 },
     cursor: { default: null, ":disabled": "default" },
     outline: { default: null, ":focus-visible": `1px solid ${tokens.accent}` },
     outlineOffset: { default: null, ":focus-visible": "-1px" },
   },
+  // Segments set in prose (the welcome and tutorial pages) grow a step.
+  segmentLarge: {
+    height: "26px",
+    padding: "0 12px",
+    fontSize: fontSize.ui,
+  },
   segmentTopbar: {
     height: tokens.reviewHeaderHeight,
     padding: 0,
-    borderRadius: { default: 0, ":focus-visible": "4px" },
-    fontSize: "12px",
-    fontWeight: 400,
+    borderRadius: { default: 0, ":focus-visible": radius.small },
+    fontSize: fontSize.body,
+    fontWeight: fontWeight.regular,
   },
   segmentActive: {
     backgroundColor: tokens.raised,
     boxShadow: `0 0 0 1px ${tokens.ruleSoft}`,
     color: tokens.ink,
-    fontWeight: 600,
+    fontWeight: fontWeight.semibold,
   },
   segmentTopbarActive: {
     backgroundColor: tokens.transparent,
@@ -72,43 +79,13 @@ export const controlStyles = stylex.create({
     flex: "0 0 auto",
     fontVariantNumeric: "tabular-nums",
     color: tokens.inkFaint,
-    fontSize: "12px",
-    fontWeight: 400,
+    fontSize: fontSize.body,
+    fontWeight: fontWeight.regular,
   },
   segmentCountActive: {
     color: tokens.accent,
   },
 
-  iconButton: {
-    display: "inline-grid",
-    placeItems: "center",
-    minHeight: "30px",
-    height: "30px",
-    width: "30px",
-    padding: 0,
-    borderWidth: 0,
-    borderStyle: "none",
-    borderColor: "currentcolor",
-    borderRadius: "3px",
-    backgroundColor: tokens.transparent,
-    boxShadow: "none",
-    color: {
-      default: tokens.inkFaint,
-      ":hover": tokens.inkMuted,
-      ":focus-visible": tokens.inkMuted,
-    },
-    outline: {
-      default: null,
-      ":focus-visible": `1px solid ${tokens.ruleSoft}`,
-    },
-    outlineOffset: { default: null, ":focus-visible": "2px" },
-  },
-  // In the side peek's action row the button keeps the row's rounder corner
-  // and its faint ink on hover.
-  iconButtonPeek: {
-    borderRadius: "6px",
-    color: tokens.inkFaint,
-  },
   // The icon never takes the pointer from its button.
   inertIcon: {
     pointerEvents: "none",

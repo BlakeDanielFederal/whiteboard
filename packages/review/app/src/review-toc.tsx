@@ -1,7 +1,13 @@
+import { tocLayer } from "@canvas/review-toc.stylex";
+import { fontSize, fontWeight, motion } from "@canvas/scale.stylex";
+import { IconButton } from "@canvas/ui/button";
+import { surfaceStyles } from "@canvas/ui/surface";
+import { textStyles } from "@canvas/ui/text";
 import * as stylex from "@stylexjs/stylex";
 import { type ReactElement, useEffect, useState } from "react";
 
 import { ContentsIcon } from "./icons";
+import { appMarker } from "./markers.stylex";
 import type { ReviewTocEntry } from "./review-document-headings";
 import {
   cssIdentifier,
@@ -271,6 +277,7 @@ export function ReviewToc({
       key={showRail ? "rail" : "pill"}
       id="review-toc"
       {...stylex.props(
+        surfaceStyles.popover,
         styles.toc,
         showList && styles.tocOpen,
         showRail && styles.tocRail,
@@ -283,9 +290,9 @@ export function ReviewToc({
         }
       }}
     >
-      <button
-        type="button"
-        {...stylex.props(styles.toggle, showList && styles.toggleOpen)}
+      <IconButton
+        size="large"
+        xstyle={[styles.toggle, showList && styles.toggleOpen]}
         aria-label={isDrawerOpen ? "Close contents" : "Open contents"}
         aria-expanded={isDrawerOpen}
         aria-controls="review-toc-body"
@@ -293,7 +300,7 @@ export function ReviewToc({
         onClick={() => setIsDrawerOpen((open) => !open)}
       >
         <ContentsIcon xstyle={styles.toggleIcon} />
-      </button>
+      </IconButton>
       <div
         id="review-toc-body"
         {...stylex.props(
@@ -302,7 +309,13 @@ export function ReviewToc({
           showRail && styles.bodyRail,
         )}
       >
-        <div {...stylex.props(styles.head, showRail && styles.headRail)}>
+        <div
+          {...stylex.props(
+            textStyles.eyebrow,
+            styles.head,
+            showRail && styles.headRail,
+          )}
+        >
           Contents
         </div>
         <ul {...stylex.props(styles.list, showRail && styles.listRail)}>
@@ -379,7 +392,8 @@ const reducedMotion = "@media (prefers-reduced-motion: reduce)";
 
 // Beside a review header the rail lines up with the left edge of a 1320px
 // page and gives each entry a taller row and larger type.
-const besideDocumentHeader = ":is(.review-app:has(.review-document-header) *)";
+const besideDocumentHeader = () =>
+  stylex.when.ancestor(":has([data-review-document-header])", appMarker);
 
 // On a narrow shell the nav is the pill and the card in one: a 32px square at
 // the pill's anchor that grows in place, top-left corner pinned, into the
@@ -393,35 +407,26 @@ const styles = stylex.create({
     // Sits 16px above the content top so it clears the page title.
     top: `calc(32px + ${tokens.reviewPageTop})`,
     left: { default: "24px", [narrow]: "8px" },
-    zIndex: 32,
+    zIndex: tocLayer.card,
     display: "block",
     flex: "none",
     width: "32px",
     height: "32px",
     overflow: "hidden",
     padding: 0,
-    borderWidth: "1px",
-    borderStyle: "solid",
-    borderColor: tokens.rule,
-    borderRadius: "8px",
-    boxShadow: `0 6px 18px ${tokens.shadowColor}`,
     color: tokens.inkMuted,
     fontFamily: tokens.fontSerif,
     interpolateSize: "allow-keywords",
     transition: {
-      default:
-        "width 180ms cubic-bezier(0.2, 0.7, 0.2, 1) 80ms, height 180ms cubic-bezier(0.2, 0.7, 0.2, 1) 80ms, box-shadow 180ms ease 80ms",
+      default: `width ${motion.medium} cubic-bezier(0.2, 0.7, 0.2, 1) ${motion.fast}, height ${motion.medium} cubic-bezier(0.2, 0.7, 0.2, 1) ${motion.fast}`,
       [reducedMotion]: "none",
     },
-    backgroundColor: tokens.surface,
   },
   tocOpen: {
     width: { default: "248px", [narrow]: "min(248px, calc(100cqi - 16px))" },
     height: "auto",
-    boxShadow: `0 1px 0 ${tokens.tocInnerShadow}, 0 18px 44px ${tokens.shadowColor}`,
     transition: {
-      default:
-        "width 220ms cubic-bezier(0.2, 0.7, 0.2, 1), height 220ms cubic-bezier(0.2, 0.7, 0.2, 1), box-shadow 220ms ease",
+      default: `width ${motion.medium} cubic-bezier(0.2, 0.7, 0.2, 1), height ${motion.medium} cubic-bezier(0.2, 0.7, 0.2, 1)`,
       [reducedMotion]: "none",
     },
   },
@@ -432,25 +437,25 @@ const styles = stylex.create({
     top: `calc(48px + ${tokens.reviewPageTop} + 40px)`,
     left: {
       default: "24px",
-      [besideDocumentHeader]: "max(24px, calc((100% - 1320px) / 2))",
+      [besideDocumentHeader()]: "max(24px, calc((100% - 1320px) / 2))",
       [narrow]: {
         default: "8px",
-        [besideDocumentHeader]: "max(24px, calc((100% - 1320px) / 2))",
+        [besideDocumentHeader()]: "max(24px, calc((100% - 1320px) / 2))",
       },
     },
-    zIndex: 31,
+    zIndex: tocLayer.rail,
     width: {
       default: "248px",
-      [besideDocumentHeader]: "240px",
+      [besideDocumentHeader()]: "240px",
       [narrow]: {
         default: "min(248px, calc(100cqi - 16px))",
-        [besideDocumentHeader]: "240px",
+        [besideDocumentHeader()]: "240px",
       },
     },
     overflow: "visible",
     padding: {
       default: "20px 18px 22px 20px",
-      [besideDocumentHeader]: "6px 0 0",
+      [besideDocumentHeader()]: "6px 0 0",
     },
     transition: "none",
     borderColor: tokens.transparent,
@@ -459,33 +464,9 @@ const styles = stylex.create({
   },
   toggle: {
     position: "absolute",
-    top: 0,
-    left: 0,
-    display: { default: "flex", ":is([hidden])": "none" },
-    alignItems: "center",
-    justifyContent: "center",
-    width: "32px",
-    height: "32px",
-    padding: 0,
-    borderWidth: 0,
-    borderStyle: "none",
-    borderColor: "currentcolor",
-    borderRadius: "7px",
-    backgroundColor: {
-      default: tokens.transparent,
-      ":hover": tokens.well,
-      ":focus-visible": tokens.well,
-    },
-    color: {
-      default: "inherit",
-      ":hover": tokens.ink,
-      ":focus-visible": tokens.ink,
-    },
-    outline: {
-      default: null,
-      ":focus-visible": `1px solid ${tokens.ruleSoft}`,
-    },
-    outlineOffset: { default: null, ":focus-visible": "-3px" },
+    top: "1px",
+    left: "1px",
+    display: { default: "inline-flex", ":is([hidden])": "none" },
   },
   toggleOpen: {
     color: tokens.ink,
@@ -501,16 +482,16 @@ const styles = stylex.create({
     opacity: 0,
     pointerEvents: "none",
     transition: {
-      default: "opacity 80ms ease",
-      [reducedMotion]: "opacity 140ms ease",
+      default: `opacity ${motion.fast} ${motion.ease}`,
+      [reducedMotion]: `opacity ${motion.fast} ${motion.ease}`,
     },
   },
   bodyOpen: {
     opacity: 1,
     pointerEvents: "auto",
     transition: {
-      default: "opacity 140ms ease 100ms",
-      [reducedMotion]: "opacity 140ms ease",
+      default: `opacity ${motion.fast} ${motion.ease} ${motion.fast}`,
+      [reducedMotion]: `opacity ${motion.fast} ${motion.ease}`,
     },
   },
   bodyRail: {
@@ -524,18 +505,13 @@ const styles = stylex.create({
     paddingLeft: "32px",
     fontFamily: tokens.fontMono,
     lineHeight: "32px",
-    textTransform: "uppercase",
     whiteSpace: "nowrap",
-    color: tokens.inkFaint,
-    fontSize: "11px",
-    fontWeight: 400,
-    letterSpacing: tokens.wbCaps,
   },
   headRail: {
     height: "auto",
     marginBottom: "14px",
-    paddingBottom: { default: null, [besideDocumentHeader]: "10px" },
-    paddingLeft: { default: 0, [besideDocumentHeader]: "14px" },
+    paddingBottom: { default: null, [besideDocumentHeader()]: "10px" },
+    paddingLeft: { default: 0, [besideDocumentHeader()]: "14px" },
     lineHeight: "normal",
   },
   list: {
@@ -547,7 +523,7 @@ const styles = stylex.create({
   },
   listRail: {
     padding: 0,
-    gap: { default: "6px", [besideDocumentHeader]: "4px" },
+    gap: { default: "6px", [besideDocumentHeader()]: "4px" },
   },
   item: {
     margin: 0,
@@ -564,7 +540,7 @@ const styles = stylex.create({
     borderStyle: "none",
     borderColor: "currentcolor",
     backgroundColor: tokens.transparent,
-    fontWeight: 400,
+    fontWeight: fontWeight.regular,
     textAlign: "left",
     position: "relative",
     gap: "10px",
@@ -576,19 +552,19 @@ const styles = stylex.create({
       ":focus-visible": tokens.ink,
     },
     fontFamily: tokens.fontMono,
-    fontSize: "12px",
+    fontSize: fontSize.body,
     lineHeight: "18px",
     outline: { default: null, ":hover": "none", ":focus-visible": "none" },
   },
   linkRail: {
-    minHeight: { default: null, [besideDocumentHeader]: "30px" },
-    gap: { default: "10px", [besideDocumentHeader]: "12px" },
-    paddingBlock: { default: null, [besideDocumentHeader]: 0 },
-    fontSize: { default: "12px", [besideDocumentHeader]: "13px" },
+    minHeight: { default: null, [besideDocumentHeader()]: "30px" },
+    gap: { default: "10px", [besideDocumentHeader()]: "12px" },
+    paddingBlock: { default: null, [besideDocumentHeader()]: 0 },
+    fontSize: { default: fontSize.body, [besideDocumentHeader()]: fontSize.ui },
   },
   linkActive: {
     color: tokens.ink,
-    fontWeight: 600,
+    fontWeight: fontWeight.semibold,
     outline: "none",
   },
   number: {
@@ -596,11 +572,14 @@ const styles = stylex.create({
     color: tokens.inkFaint,
     fontFamily: tokens.fontMono,
     minWidth: "22px",
-    fontSize: "11px",
+    fontSize: fontSize.small,
   },
   numberRail: {
-    minWidth: { default: "22px", [besideDocumentHeader]: "12px" },
-    fontSize: { default: "11px", [besideDocumentHeader]: "12px" },
+    minWidth: { default: "22px", [besideDocumentHeader()]: "12px" },
+    fontSize: {
+      default: fontSize.small,
+      [besideDocumentHeader()]: fontSize.body,
+    },
   },
   // Fits "5.10".
   numberH3: {

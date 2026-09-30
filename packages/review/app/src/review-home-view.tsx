@@ -1,3 +1,14 @@
+import { documentType } from "@canvas/document-type.stylex";
+import {
+  fontSize,
+  fontWeight,
+  motion,
+  radius,
+  tracking,
+} from "@canvas/scale.stylex";
+import { Button, IconButton, buttonStyles } from "@canvas/ui/button";
+import { EmptyState } from "@canvas/ui/empty-state";
+import { textStyles } from "@canvas/ui/text";
 import type {
   ReviewApiSummary,
   ReviewCanvasInstallContent,
@@ -243,11 +254,13 @@ export function ReviewHome({
               only dismissed reviews empties the main area, and the collapsed
               Dismissed count alone does not explain why. */}
           {needle && active.length === 0 && !scratchpadShown ? (
-            <p {...stylex.props(styles.searchEmpty)}>
-              {dismissed.length > 0
-                ? `No active reviews match “${needle}”. Look in Dismissed below.`
-                : `No reviews match “${needle}”.`}
-            </p>
+            <EmptyState
+              message={
+                dismissed.length > 0
+                  ? `No active reviews match “${needle}”. Look in Dismissed below.`
+                  : `No reviews match “${needle}”.`
+              }
+            />
           ) : null}
           <SearchQueryContext.Provider value={needle}>
             <AttentionActionsContext.Provider value={actions}>
@@ -373,7 +386,7 @@ function DismissedSection({
     >
       <button
         type="button"
-        {...stylex.props(styles.dismissedToggle)}
+        {...stylex.props(textStyles.eyebrow, styles.dismissedToggle)}
         aria-expanded={expanded}
         onClick={onToggle}
       >
@@ -412,9 +425,8 @@ function RestoreReviewButton({ review }: { review: ReviewApiSummary }) {
   if (!onRestore) return null;
 
   return (
-    <button
-      type="button"
-      {...stylex.props(styles.restore)}
+    <Button
+      xstyle={styles.restore}
       disabled={busy}
       onClick={(event) => {
         event.stopPropagation();
@@ -425,7 +437,7 @@ function RestoreReviewButton({ review }: { review: ReviewApiSummary }) {
       }}
     >
       Undo
-    </button>
+    </Button>
   );
 }
 
@@ -648,12 +660,9 @@ function ReviewRowActions({ review }: { review: ReviewApiSummary }) {
       onClick={(event) => event.stopPropagation()}
       onKeyDown={(event) => event.stopPropagation()}
     >
-      <button
-        type="button"
-        {...stylex.props(
-          rowMenuStyles.trigger,
-          menu.open && rowMenuStyles.expanded,
-        )}
+      <IconButton
+        size="large"
+        xstyle={[rowMenuStyles.trigger, menu.open && rowMenuStyles.expanded]}
         aria-label={`Actions for ${reviewTitle(review)}`}
         {...menu.triggerProps}
         disabled={!ui?.confirmDelete}
@@ -667,7 +676,7 @@ function ReviewRowActions({ review }: { review: ReviewApiSummary }) {
           <circle cx="10" cy="10" r="1.6" />
           <circle cx="15.5" cy="10" r="1.6" />
         </svg>
-      </button>
+      </IconButton>
     </div>
   );
 }
@@ -691,7 +700,12 @@ function TableMenu<T extends string>({
       value={value}
       options={options}
       onChange={onChange}
-      triggerStyle={styles.menuTrigger}
+      triggerStyle={[
+        buttonStyles.base,
+        buttonStyles.secondary,
+        buttonStyles.large,
+        styles.menuTrigger,
+      ]}
     >
       <svg
         {...stylex.props(styles.menuIcon)}
@@ -801,9 +815,9 @@ function DismissReviewButton({ review }: { review: ReviewApiSummary }) {
   const title = reviewTitle(review);
 
   return (
-    <button
-      type="button"
-      {...stylex.props(styles.dismiss)}
+    <IconButton
+      size="small"
+      xstyle={styles.dismiss}
       aria-label={`Dismiss ${title}`}
       title="Dismiss session"
       disabled={busy}
@@ -817,7 +831,7 @@ function DismissReviewButton({ review }: { review: ReviewApiSummary }) {
       }}
     >
       <ArchiveIcon xstyle={styles.dismissIcon} />
-    </button>
+    </IconButton>
   );
 }
 
@@ -832,9 +846,9 @@ function DeleteReviewButton({
   const [busy, setBusy] = useState(false);
 
   return (
-    <button
-      type="button"
-      {...stylex.props(styles.delete)}
+    <IconButton
+      size="small"
+      xstyle={styles.delete}
       aria-label={`Delete ${reviewTitle(review)}`}
       title="Delete session"
       disabled={busy || !ui?.confirmDelete}
@@ -848,7 +862,7 @@ function DeleteReviewButton({
       }}
     >
       <TrashIcon />
-    </button>
+    </IconButton>
   );
 }
 
@@ -1008,28 +1022,15 @@ function TrashIcon() {
 }
 
 const rowMenuStyles = stylex.create({
+  // Waits for its row's hover or focus.
   trigger: {
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    width: "32px",
-    height: "32px",
-    padding: 0,
-    borderWidth: 0,
-    borderStyle: "none",
-    borderColor: "currentcolor",
-    borderRadius: "6px",
-    backgroundColor: { default: "transparent", ":hover": tokens.well },
-    color: tokens.ink,
     opacity: {
       default: 0,
       [stylex.when.ancestor(":hover")]: 1,
       [stylex.when.ancestor(":focus-within")]: 1,
     },
-    cursor: "pointer",
   },
   expanded: {
-    backgroundColor: tokens.well,
     opacity: 1,
   },
   icon: {
@@ -1059,14 +1060,14 @@ const styles = stylex.create({
     borderWidth: "1px",
     borderStyle: "solid",
     borderColor: { default: tokens.rule, ":focus-within": tokens.accent },
-    borderRadius: "6px",
+    borderRadius: radius.control,
     backgroundColor: tokens.surface,
     boxShadow: {
       default: null,
       ":focus-within": `0 0 0 3px ${tokens.markerTint}`,
     },
     color: { default: tokens.inkFaint, ":focus-within": tokens.inkMuted },
-    fontSize: "15px",
+    fontSize: fontSize.reading,
     gap: "12px",
   },
   searchIcon: {
@@ -1113,7 +1114,7 @@ const styles = stylex.create({
     borderWidth: 0,
     borderStyle: "none",
     borderColor: "currentcolor",
-    borderRadius: "4px",
+    borderRadius: radius.small,
     color: { default: tokens.reviewHomeMeta, ":hover": tokens.ink },
     backgroundColor: tokens.transparent,
     outline: { default: null, ":focus-visible": `1px solid ${tokens.accent}` },
@@ -1124,10 +1125,6 @@ const styles = stylex.create({
     height: "11px",
     flex: "0 0 auto",
   },
-  searchEmpty: {
-    margin: "20px 0 0",
-    color: tokens.reviewHomeMeta,
-  },
   // The user agent paints <mark> black on yellow, which is unreadable on the
   // canvas. Carry the mark on the background and inherit the text colour: on
   // a dark theme, recolouring the glyphs to the accent makes the matched word
@@ -1135,7 +1132,7 @@ const styles = stylex.create({
   // Inherit the weight too, so marking a run does not reflow its line.
   mark: {
     padding: "0 1px",
-    borderRadius: "3px",
+    borderRadius: radius.small,
     backgroundColor: `color-mix(in srgb, ${tokens.accent} 30%, ${tokens.transparent})`,
     color: "inherit",
     fontWeight: "inherit",
@@ -1175,11 +1172,11 @@ const styles = stylex.create({
       ":focus-visible": tokens.accent,
       ":hover:not(:disabled)": tokens.ruleSoft,
     },
-    borderRadius: "8px",
+    borderRadius: radius.surface,
     color: "inherit",
     backgroundColor: tokens.surface,
     textAlign: "left",
-    transition: "border-color 120ms ease, box-shadow 120ms ease",
+    transition: `border-color ${motion.fast} ${motion.ease}, box-shadow ${motion.fast} ${motion.ease}`,
     boxShadow: {
       default: null,
       ":focus-visible": `0 0 0 3px ${tokens.markerTint}`,
@@ -1198,7 +1195,7 @@ const styles = stylex.create({
     minWidth: 0,
     overflow: "hidden",
     color: tokens.ink,
-    font: `500 17px/22px ${tokens.fontSerif}`,
+    font: `${fontWeight.medium} ${documentType.body}/22px ${tokens.fontSerif}`,
     textOverflow: "ellipsis",
     whiteSpace: "nowrap",
   },
@@ -1221,7 +1218,7 @@ const styles = stylex.create({
     columnGap: "10px",
     rowGap: "3px",
     color: tokens.reviewHomeMeta,
-    font: `11px ${tokens.fontMono}`,
+    font: `${fontSize.small} ${tokens.fontMono}`,
   },
   // Meta lines are one sentence of facts joined by a middle dot.
   cardMetaNext: {
@@ -1258,13 +1255,11 @@ const styles = stylex.create({
     borderStyle: "none",
     borderColor: "currentcolor",
     backgroundColor: tokens.transparent,
-    font: `600 11px ${tokens.fontMono}`,
-    letterSpacing: "0.1em",
-    textTransform: "uppercase",
     color: tokens.inkMuted,
+    fontFamily: tokens.fontMono,
   },
   dismissedCount: {
-    fontWeight: 500,
+    fontWeight: fontWeight.medium,
     letterSpacing: 0,
   },
   dismissedRows: {
@@ -1280,7 +1275,7 @@ const styles = stylex.create({
     borderWidth: "1px",
     borderStyle: "solid",
     borderColor: tokens.ruleSoft,
-    borderRadius: "8px",
+    borderRadius: radius.surface,
   },
   dismissedOpen: {
     overflow: "hidden",
@@ -1290,7 +1285,7 @@ const styles = stylex.create({
     borderColor: "currentcolor",
     backgroundColor: tokens.transparent,
     color: tokens.inkMuted,
-    fontSize: "14px",
+    fontSize: fontSize.ui,
     textAlign: "left",
     textOverflow: "ellipsis",
     whiteSpace: "nowrap",
@@ -1298,44 +1293,17 @@ const styles = stylex.create({
   dismissedClock: {
     flex: "0 0 auto",
     color: tokens.inkMuted,
-    font: `400 11.5px ${tokens.fontMono}`,
+    font: `${fontWeight.regular} ${fontSize.small} ${tokens.fontMono}`,
     opacity: 0.75,
   },
   restore: {
-    flex: "0 0 auto",
-    padding: "4px 10px",
-    borderWidth: "1px",
-    borderStyle: "solid",
-    borderColor: tokens.ruleSoft,
-    borderRadius: "6px",
-    backgroundColor: tokens.transparent,
     color: tokens.accent,
-    font: `600 11.5px ${tokens.fontMono}`,
   },
   delete: {
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    minWidth: "22px",
-    height: "22px",
-    padding: "0 4px",
-    borderWidth: 0,
-    borderStyle: "none",
-    borderColor: "currentcolor",
-    borderRadius: "4px",
     color: {
-      default: tokens.inkFaint,
+      default: tokens.chromeIconFg,
       ":hover:not(:disabled)": tokens.changeRemoved,
       ":focus-visible": tokens.changeRemoved,
-    },
-    fontSize: "10px",
-    fontWeight: 600,
-    lineHeight: "14px",
-    backgroundColor: tokens.transparent,
-    outline: { default: null, ":focus-visible": "none" },
-    boxShadow: {
-      default: null,
-      ":focus-visible": `0 0 0 1px ${tokens.accent}`,
     },
   },
   deleteIcon: {
@@ -1351,33 +1319,10 @@ const styles = stylex.create({
   },
   // In the table it waits for its row's hover or focus.
   dismiss: {
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    position: "static",
-    minWidth: "22px",
-    width: "20px",
-    height: "20px",
-    padding: "0 4px",
-    borderWidth: 0,
-    borderStyle: "none",
-    borderColor: "currentcolor",
-    borderRadius: "4px",
-    color: {
-      default: tokens.inkFaint,
-      ":hover:not(:disabled)": tokens.ink,
-      ":focus-visible": tokens.ink,
-    },
-    backgroundColor: tokens.transparent,
     opacity: {
       default: 0,
       [stylex.when.ancestor(":hover")]: 1,
       [stylex.when.ancestor(":focus-within")]: 1,
-    },
-    outline: { default: null, ":focus-visible": "none" },
-    boxShadow: {
-      default: null,
-      ":focus-visible": `0 0 0 1px ${tokens.accent}`,
     },
   },
   dismissIcon: {
@@ -1405,7 +1350,7 @@ const styles = stylex.create({
     borderBottomStyle: "solid",
     borderBottomColor: tokens.rule,
     color: tokens.inkMuted,
-    font: `15px/24px ${tokens.fontMono}`,
+    font: `${fontSize.reading}/24px ${tokens.fontMono}`,
   },
   controls: {
     display: "flex",
@@ -1414,30 +1359,22 @@ const styles = stylex.create({
     justifyContent: "space-between",
     gap: "8px",
   },
+  // A secondary Button held down while its menu is open.
   menuTrigger: {
-    display: "flex",
-    alignItems: "center",
-    gap: "6px",
-    height: "32px",
-    padding: "0 10px 0 12px",
-    borderWidth: "1px",
-    borderStyle: "solid",
     borderColor: {
       default: tokens.rule,
       ':is([aria-expanded="true"])': tokens.inkFaint,
     },
-    borderRadius: "6px",
     backgroundColor: {
       default: tokens.surface,
+      ":hover": tokens.tray,
       ':is([aria-expanded="true"])': tokens.tray,
     },
     color: tokens.inkMuted,
-    font: `13px/18px ${tokens.fontMono}`,
-    cursor: "pointer",
   },
   menuValue: {
     color: tokens.ink,
-    fontWeight: 500,
+    fontWeight: fontWeight.medium,
   },
   menuIcon: {
     width: "14px",
@@ -1454,14 +1391,14 @@ const styles = stylex.create({
     borderWidth: "1px",
     borderStyle: "solid",
     borderColor: tokens.rule,
-    borderRadius: "8px",
+    borderRadius: radius.surface,
   },
   table: {
     width: "100%",
     minWidth: "840px",
     borderCollapse: "collapse",
     tableLayout: "fixed",
-    font: `12px/18px ${tokens.fontMono}`,
+    font: `${fontSize.body}/18px ${tokens.fontMono}`,
   },
   colPr: {
     width: "88px",
@@ -1486,8 +1423,11 @@ const styles = stylex.create({
     borderBottomColor: tokens.rule,
     backgroundColor: tokens.tray,
     color: tokens.inkMuted,
-    font: `600 11px/16px ${tokens.fontMono}`,
-    letterSpacing: "0.04em",
+    fontFamily: tokens.fontMono,
+    fontSize: fontSize.small,
+    fontWeight: fontWeight.semibold,
+    lineHeight: "16px",
+    letterSpacing: tracking.chrome,
     textTransform: "uppercase",
     textAlign: "left",
     overflow: "hidden",
@@ -1518,14 +1458,14 @@ const styles = stylex.create({
   },
   strongCell: {
     color: tokens.ink,
-    fontSize: "13px",
-    fontWeight: 500,
+    fontSize: fontSize.ui,
+    fontWeight: fontWeight.medium,
   },
   inkCell: {
     color: tokens.ink,
   },
   dateCell: {
-    fontSize: "13px",
+    fontSize: fontSize.ui,
   },
   lastRowCell: {
     borderBottomWidth: 0,
@@ -1553,10 +1493,10 @@ const styles = stylex.create({
     overflow: "hidden",
     textOverflow: "ellipsis",
     color: tokens.inkFaint,
-    font: `11px/14px ${tokens.fontMono}`,
+    font: `${fontSize.small}/14px ${tokens.fontMono}`,
   },
   repositoryName: {
-    fontWeight: 400,
+    fontWeight: fontWeight.regular,
   },
   repositorySeparator: {
     paddingInline: "5px",

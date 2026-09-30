@@ -1,3 +1,4 @@
+import { fontSize } from "@canvas/scale.stylex";
 import {
   type ReviewCanvasContent,
   parseReviewStackResponse,
@@ -25,7 +26,7 @@ import {
 import { retainedTrace } from "./api-trace";
 import { App } from "./App";
 import type { RenderedReviewDocument } from "./App";
-import { AuthoringActivityContext } from "./authoring-activity";
+import { AuthoringActivityContext } from "./authoring-activity-context";
 import {
   type AuthoringCursor,
   type CursorMemory,
@@ -525,6 +526,6 @@ const styles = stylex.create({
     maxWidth: "72ch",
     margin: "32px auto",
     padding: "0 24px",
-    font: `15px/1.6 ${tokens.fontDisplay}`,
+    font: `${fontSize.reading}/1.6 ${tokens.fontDisplay}`,
   },
 });

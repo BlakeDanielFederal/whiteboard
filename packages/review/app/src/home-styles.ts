@@ -1,3 +1,5 @@
+import { documentType } from "@canvas/document-type.stylex";
+import { fontSize, fontWeight, tracking } from "@canvas/scale.stylex";
 import * as stylex from "@stylexjs/stylex";
 
 import { tokens } from "./tokens.stylex";
@@ -17,7 +19,7 @@ export const homeStyles = stylex.create({
     overflow: "hidden",
     color: tokens.ink,
     backgroundColor: tokens.reviewHomeBg,
-    font: `12px/16px ${tokens.fontMono}`,
+    font: `${fontSize.body}/16px ${tokens.fontMono}`,
   },
   scroll: {
     flex: "1 1 auto",
@@ -47,7 +49,7 @@ export const homeStyles = stylex.create({
   heading: {
     margin: 0,
     color: tokens.ink,
-    font: `600 32px/42px ${tokens.fontMono}`,
-    letterSpacing: "-0.02em",
+    font: `${fontWeight.semibold} ${documentType.title}/42px ${tokens.fontMono}`,
+    letterSpacing: tracking.tight,
   },
 });

@@ -1,3 +1,5 @@
+import { fontSize } from "@canvas/scale.stylex";
+import { TextField } from "@canvas/ui/text-field";
 import type {
   ReviewCanvasInstallContent,
   ReviewCliInstallStatus,
@@ -129,29 +131,25 @@ export function TraceCaptureSection({
       </div>
       {hosted ? null : (
         <div {...stylex.props(styles.fields)}>
-          <input
-            {...stylex.props(styles.field)}
+          <TextField
             aria-label="S3/R2 endpoint URL"
             placeholder="S3/R2 endpoint URL"
             value={traceEndpoint}
             onChange={(event) => setTraceEndpoint(event.currentTarget.value)}
           />
-          <input
-            {...stylex.props(styles.field)}
+          <TextField
             aria-label="S3/R2 bucket"
             placeholder="S3/R2 bucket"
             value={traceBucket}
             onChange={(event) => setTraceBucket(event.currentTarget.value)}
           />
-          <input
-            {...stylex.props(styles.field)}
+          <TextField
             aria-label="S3/R2 region"
             placeholder="Region (auto for R2)"
             value={traceRegion}
             onChange={(event) => setTraceRegion(event.currentTarget.value)}
           />
-          <input
-            {...stylex.props(styles.field)}
+          <TextField
             aria-label="S3/R2 access key ID"
             placeholder={
               status.trace.accessKeyIdPrefix
@@ -161,8 +159,7 @@ export function TraceCaptureSection({
             value={traceKey}
             onChange={(event) => setTraceKey(event.currentTarget.value)}
           />
-          <input
-            {...stylex.props(styles.field)}
+          <TextField
             aria-label="S3/R2 secret access key"
             type="password"
             placeholder={
@@ -256,7 +253,7 @@ const styles = stylex.create({
     flex: 1,
     minWidth: 0,
     color: tokens.reviewHomeMeta,
-    fontSize: "12px",
+    fontSize: fontSize.body,
   },
   // Enabled is the one state worth colouring.
   stateEnabled: {
@@ -264,22 +261,12 @@ const styles = stylex.create({
   },
   detail: {
     color: tokens.reviewHomeMeta,
-    fontSize: "12px",
+    fontSize: fontSize.body,
   },
   fields: {
     display: "grid",
     flex: 1,
     gridTemplateColumns: "repeat(2, minmax(160px, 1fr))",
     gap: "6px",
-  },
-  field: {
-    minWidth: 0,
-    padding: "5px 8px",
-    borderWidth: "1px",
-    borderStyle: "solid",
-    borderColor: tokens.reviewHomeRuleSoft,
-    borderRadius: "5px",
-    color: "inherit",
-    backgroundColor: tokens.controlBg,
   },
 });

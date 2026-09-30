@@ -6,12 +6,13 @@ import { type Root, createRoot } from "react-dom/client";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 
 import { ApiDocument } from "./api-document";
-import { AuthoringActivityContext } from "./authoring-activity";
+import { AuthoringActivityContext } from "./authoring-activity-context";
 import type { AuthoringCursor } from "./authoring-cursor";
 import { TestCanvasQuery } from "./canvas-query-test-utils";
 import { AuthoringCursorContext } from "./courier";
 import { documentStyles } from "./document-styles";
 import { ReviewSessionProvider } from "./host/review-session";
+import { documentMarker } from "./markers.stylex";
 import type { ReviewRoots } from "./review-root-context";
 import { ReviewRootsProvider } from "./review-root-context";
 import {
@@ -55,7 +56,7 @@ let container: HTMLElement, article: HTMLElement, root: Root;
 beforeEach(() => {
   vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
   article = document.createElement("article");
-  article.className = `review-document ${stylex.props(documentStyles.article).className}`;
+  article.className = `review-document ${stylex.props(documentStyles.article, documentMarker).className}`;
   container = document.createElement("div");
   article.append(container);
   document.body.append(article);

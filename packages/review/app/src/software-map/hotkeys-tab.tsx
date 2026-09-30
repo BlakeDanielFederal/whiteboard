@@ -1,5 +1,8 @@
 import { MinusIcon, PlusIcon } from "@canvas/icons";
+import { fontSize, fontWeight, motion, radius } from "@canvas/scale.stylex";
+import { dockShadow } from "@canvas/software-map/hotkeys-tab.stylex";
 import { tokens } from "@canvas/tokens.stylex";
+import { Kbd } from "@canvas/ui/kbd";
 import * as stylex from "@stylexjs/stylex";
 import {
   type CSSProperties,
@@ -134,9 +137,7 @@ export function SoftwareMapHotkeysTab({
                 >
                   <span {...stylex.props(styles.keys)}>
                     {item.keys.map((key) => (
-                      <kbd key={key} {...stylex.props(styles.key)}>
-                        {key}
-                      </kbd>
+                      <Kbd key={key}>{key}</Kbd>
                     ))}
                   </span>
                   <span {...stylex.props(styles.itemLabel)}>{item.label}</span>
@@ -211,21 +212,21 @@ const styles = stylex.create({
     borderWidth: "1px 1px 0",
     borderStyle: "solid solid none",
     borderColor: `${tokens.rule} ${tokens.rule} currentcolor`,
-    borderRadius: "8px 8px 0 0",
+    borderRadius: `${radius.surface} ${radius.surface} 0 0`,
     backgroundColor: tokens.surface,
     color: tokens.ink,
-    boxShadow: `0 -8px 24px ${tokens.shadowColorStrong}`,
-    fontSize: "11px",
+    boxShadow: dockShadow.open,
+    fontSize: fontSize.small,
     lineHeight: 1,
     transform: "translateX(-50%)",
     transition: {
-      default: `width 180ms ${settle}, box-shadow 180ms ease`,
+      default: `width ${motion.medium} ${settle}, box-shadow ${motion.medium} ${motion.ease}`,
       [reducedMotion]: "none",
     },
     willChange: "width",
   },
   tabCollapsed: {
-    boxShadow: `0 -4px 14px ${tokens.shadowColorStrong}`,
+    boxShadow: dockShadow.collapsed,
   },
   panel: {
     display: "flex",
@@ -236,7 +237,7 @@ const styles = stylex.create({
     opacity: 1,
     transform: "translateY(0)",
     transition: {
-      default: `opacity 140ms ease, transform 180ms ${settle}`,
+      default: `opacity ${motion.fast} ${motion.ease}, transform ${motion.medium} ${settle}`,
       [reducedMotion]: "none",
     },
   },
@@ -269,8 +270,8 @@ const styles = stylex.create({
   },
   groupLabel: {
     color: tokens.inkFaint,
-    fontSize: "10px",
-    fontWeight: 650,
+    fontSize: fontSize.micro,
+    fontWeight: fontWeight.semibold,
     letterSpacing: 0,
   },
   groupLabelActive: {
@@ -286,22 +287,6 @@ const styles = stylex.create({
     display: "inline-flex",
     alignItems: "center",
     gap: "2px",
-  },
-  key: {
-    display: "inline-grid",
-    placeItems: "center",
-    minWidth: "16px",
-    height: "17px",
-    padding: "0 4px",
-    borderWidth: "1px",
-    borderStyle: "solid",
-    borderColor: tokens.ruleSoft,
-    borderRadius: "4px",
-    backgroundColor: tokens.bg,
-    color: tokens.ink,
-    fontFamily: tokens.fontMono,
-    fontSize: "10px",
-    lineHeight: 1,
   },
   itemLabel: {
     color: tokens.inkFaint,
@@ -350,7 +335,7 @@ const styles = stylex.create({
     pointerEvents: "none",
     transform: "translateY(-3px)",
     transition: {
-      default: `opacity 140ms ease, transform 180ms ${settle}`,
+      default: `opacity ${motion.fast} ${motion.ease}, transform ${motion.medium} ${settle}`,
       [reducedMotion]: "none",
     },
   },

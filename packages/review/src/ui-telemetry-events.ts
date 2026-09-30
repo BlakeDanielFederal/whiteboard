@@ -140,6 +140,7 @@ export const SETTING_NAME = [
   "theme",
   "ctrl_tab",
   "open_files_in",
+  "ready_notification",
 ] as const;
 
 export const REVIEW_OPENED_VIA = ["home", "cli", "other"] as const;

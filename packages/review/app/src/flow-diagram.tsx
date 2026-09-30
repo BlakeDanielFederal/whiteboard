@@ -1,7 +1,8 @@
+import { fontSize, radius } from "@canvas/scale.stylex";
 import type { FlowDiagramBlock } from "@review/review-api/blocks/flow_diagram";
 import type { Snapshot } from "@review/review-api/store";
 import * as stylex from "@stylexjs/stylex";
-import { useCallback, useMemo, useState } from "react";
+import { useMemo } from "react";
 import { createPortal } from "react-dom";
 
 import { DiagramHeader } from "./diagram-header";
@@ -9,6 +10,8 @@ import { diagramStyles } from "./diagram-styles";
 import { DiagramTourOverlay, useDiagramTourShell } from "./diagram-tour";
 import { drawStyles } from "./draw-styles";
 import { FlowGraph } from "./flow-graph";
+import { documentMarker } from "./markers.stylex";
+import { useReviewPanel, useReviewPanelStore } from "./review-panel";
 import type { GuidedTour, GuidedTourStop } from "./review-panel-model";
 import { withClass } from "./stylex-props";
 import { tokens } from "./tokens.stylex";
@@ -61,12 +64,16 @@ export function FlowDiagram({
     [node.id, node.title, stops],
   );
 
-  const [selection, setSelection] = useState<{
-    anchor: string;
-    revealRequest: number;
-  } | null>(null);
+  const panelStore = useReviewPanelStore();
 
-  const close = useCallback(() => setSelection(null), []);
+  const selection = useReviewPanel((state) =>
+    state.overlayTour?.tourId === tour.id &&
+    stops.some((stop) => stop.anchor.id === state.overlayTour!.anchor)
+      ? state.overlayTour
+      : null,
+  );
+
+  const { closeOverlayTour: close, moveOverlayTour } = panelStore.getState();
 
   const { overlayRef, portalTarget, paneResize } = useDiagramTourShell(
     selection !== null,
@@ -83,10 +90,9 @@ export function FlowDiagram({
     )?.anchor.id;
 
     if (anchor)
-      setSelection((previous) => ({
-        anchor,
-        revealRequest: (previous?.revealRequest ?? 0) + 1,
-      }));
+      panelStore
+        .getState()
+        .openOverlayTour({ tourId: tour.id, kind: "flow" }, anchor);
   };
 
   const figure = (fullscreen: boolean) => (
@@ -165,16 +171,7 @@ export function FlowDiagram({
               separatorProps={paneResize.separatorProps}
               overlayRef={overlayRef}
               onClose={close}
-              onActiveAnchorChange={(anchor, { reveal }) =>
-                setSelection((previous) =>
-                  previous
-                    ? {
-                        anchor,
-                        revealRequest: previous.revealRequest + Number(reveal),
-                      }
-                    : previous,
-                )
-              }
+              onActiveAnchorChange={moveOverlayTour}
             >
               {figure(true)}
             </DiagramTourOverlay>,
@@ -185,6 +182,8 @@ export function FlowDiagram({
   );
 }
 
+const inDocument = () => stylex.when.ancestor(":is(*)", documentMarker);
+
 const styles = stylex.create({
   figure: {
     overflow: "hidden",
@@ -192,10 +191,10 @@ const styles = stylex.create({
     borderWidth: "1px",
     borderStyle: "solid",
     borderColor: tokens.rule,
-    borderRadius: "8px",
+    borderRadius: radius.surface,
     backgroundColor: tokens.surface,
     color: tokens.ink,
-    font: `12px/1.5 ${tokens.fontMono}`,
+    font: `${fontSize.body}/1.5 ${tokens.fontMono}`,
   },
   // The tour stage: the figure fills the overlay without its card chrome.
   stage: {
@@ -215,8 +214,8 @@ const styles = stylex.create({
     margin: 0,
     padding: "0 16px 12px",
     color: tokens.inkMuted,
-    font: `11px/1.6 ${tokens.fontMono}`,
-    textAlign: { default: null, ":is(.review-document *)": "left" },
+    font: `${fontSize.small}/1.6 ${tokens.fontMono}`,
+    textAlign: { default: null, [inDocument()]: "left" },
   },
   body: {
     display: "flex",
@@ -247,8 +246,8 @@ const styles = stylex.create({
     borderTopColor: tokens.rule,
     backgroundColor: tokens.tray,
     color: tokens.inkMuted,
-    font: `10px/1.5 ${tokens.fontMono}`,
-    fontSize: "11px",
+    font: `${fontSize.micro}/1.5 ${tokens.fontMono}`,
+    fontSize: fontSize.small,
   },
   legend: {
     display: "flex",
@@ -260,7 +259,7 @@ const styles = stylex.create({
     width: "6px",
     height: "6px",
     marginLeft: "7px",
-    borderRadius: "50%",
+    borderRadius: radius.round,
   },
   added: {
     backgroundColor: tokens.changeAdded,

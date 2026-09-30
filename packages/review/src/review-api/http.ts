@@ -1,4 +1,4 @@
-import type { JsonObject } from "@dev.fast/json";
+import { type JsonObject, isJsonObject } from "@dev.fast/json";
 import type { ReviewStructuralDiffEvent } from "@dev.fast/review-protocol";
 import { errorMessage } from "@dev.fast/trace-core";
 import {
@@ -388,13 +388,25 @@ export function createReviewApi(
         : store.activity.read(id),
     );
   });
-  app.post("/:id/activity", async (context) => {
-    const input = await readBoundedRequestJson(context.req.raw);
-    const id = context.req.param("id");
-    store.assertExists(id);
 
-    return context.json(store.activity.update(id, input));
-  });
+  // One route per agent tool; the path names the action.
+  for (const [path, action] of [
+    ["begin", "begin"],
+    ["update", "renew"],
+    ["end", "end"],
+  ] as const)
+    app.post(`/:id/activity/${path}`, async (context) => {
+      const input = await readBoundedRequestJson(context.req.raw);
+      const id = context.req.param("id");
+      store.assertExists(id);
+
+      return context.json(
+        store.activity.update(
+          id,
+          isJsonObject(input) ? { ...input, action } : input,
+        ),
+      );
+    });
   app.get("/watch", async (context) => {
     const query = context.req.query("subscriptions");
 
@@ -476,6 +488,9 @@ export function createReviewApi(
             store.activity.subscribe((id) => {
               if (mark(id)) notify();
             }),
+            store.activity.subscribeWorking(() => {
+              if (mark(null)) notify();
+            }),
             shared?.subscribe(() => {
               if (mark(null)) notify();
             }) ?? (() => {}),
@@ -497,10 +512,12 @@ export function createReviewApi(
       () => catalog(coverageModeSchema.parse(context.req.query("mode"))),
       (notify) => {
         const local = store.subscribeCatalog(notify);
+        const activity = store.activity.subscribeWorking(notify);
         const imported = shared?.subscribe(notify);
 
         return () => {
           local();
+          activity();
           imported?.();
         };
       },
@@ -1253,7 +1270,7 @@ export function createReviewApi(
 
     const result = await store.execute(input);
 
-    if (input.operation.type === "lens") {
+    if (input.operation.type === "lens_edit") {
       const gaps = await lensGaps(
         result.reviewId,
         result.version,
@@ -1345,8 +1362,11 @@ function watch<T>(
       return;
 
     try {
-      controller.enqueue(encoder.encode(JSON.stringify(read()) + "\n"));
+      const line = JSON.stringify(read()) + "\n";
+
+      // enqueue can pull synchronously; clear first so it doesn't resend.
       dirty = false;
+      controller.enqueue(encoder.encode(line));
     } catch (error) {
       // A review can be deleted while this stream is open. Do not throw into
       // the already-committed writer; close this reader and unsubscribe it.

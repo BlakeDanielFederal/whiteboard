@@ -114,7 +114,11 @@ export const commandSchema = z.strictObject({
       target: reviewTargetSchema,
     }),
     z.strictObject({ type: z.literal("edit"), reviewId, edit: editSchema }),
-    z.strictObject({ type: z.literal("lens"), reviewId, edit: lensEditSchema }),
+    z.strictObject({
+      type: z.literal("lens_edit"),
+      reviewId,
+      edit: lensEditSchema,
+    }),
     z.strictObject({
       type: z.literal("rename"),
       reviewId,
@@ -200,8 +204,8 @@ export interface Result {
   target?: ReviewTarget;
   /** The requested head differs from the existing review's. */
   headMoved?: boolean;
-  /** A live authoring lease that is not the caller's. */
-  ownedBy?: "another session";
+  /** The live document lease on the existing review, whoever holds it. */
+  activeLeaseId?: string;
   /** Older reviews that also name the PR, newest first. */
   otherReviewIds?: string[];
   /** The component an edit landed on, its type, and — for an insert or
@@ -423,6 +427,10 @@ export class ReviewStore {
       CREATE TABLE IF NOT EXISTS versions(review_id TEXT REFERENCES reviews(id), version INTEGER, snapshot TEXT NOT NULL,
         PRIMARY KEY(review_id,version));
       CREATE TABLE IF NOT EXISTS receipts(command_id TEXT PRIMARY KEY, request TEXT NOT NULL, response TEXT NOT NULL);`);
+    // The lens command was "lens" before it took its tool's name.
+    this.db.exec(
+      "UPDATE receipts SET request=json_set(request,'$.operation.type','lens_edit') WHERE json_extract(request,'$.operation.type')='lens'",
+    );
     this.db.exec(
       `CREATE TABLE IF NOT EXISTS review_attention(review_id TEXT PRIMARY KEY REFERENCES reviews(id), viewed_at TEXT, dismissed_at TEXT);`,
     );
@@ -859,6 +867,7 @@ export class ReviewStore {
             : (summary.pins?.repositoryId ?? ""),
           viewedAt: row.viewed_at ? String(row.viewed_at) : null,
           dismissedAt: row.dismissed_at ? String(row.dismissed_at) : null,
+          working: this.activity.isWorking(summary.reviewId),
         };
 
         if (summary.kind === "scratchpad")
@@ -996,7 +1005,7 @@ export class ReviewStore {
       if (
         op.type !== "create" &&
         op.type !== "edit" &&
-        op.type !== "lens" &&
+        op.type !== "lens_edit" &&
         op.type !== "restore" &&
         this.read(op.reviewId).kind === "scratchpad"
       )
@@ -1061,7 +1070,6 @@ export class ReviewStore {
             found,
             others,
             resolvedTarget?.pins ?? op.pins!,
-            command.leaseId,
           );
 
           // Nothing is written but the receipt: a retry replays this answer,
@@ -1241,7 +1249,7 @@ export class ReviewStore {
           snapshot = this.read(id, op.version);
           delete snapshot.lastEdit;
           break;
-        case "lens": {
+        case "lens_edit": {
           if (snapshot.kind === "scratchpad")
             throw new ReviewInputError(
               "The scratchpad has no changes of its own to lens.",
@@ -1443,7 +1451,6 @@ export class ReviewStore {
     reviewId: string,
     others: string[],
     requested: Pins,
-    leaseId?: string,
   ): Result {
     const snapshot = this.read(reviewId);
 
@@ -1451,14 +1458,13 @@ export class ReviewStore {
       snapshot.pins?.repositoryId !== requested.repositoryId ||
       snapshot.pins?.head !== requested.head;
 
-    const ownedBy = this.activity.heldByAnother(reviewId, leaseId);
+    const activeLeaseId = this.activity.liveLeaseId(reviewId);
 
     const note = [
       "Returned the existing review for this PR instead of creating one; the requested title and target were not applied. Update it in place (read it with session_get first), or pass reuseExisting:false to create a separate review.",
       headMoved &&
         "The PR head moved since this review's target was set, and the target was NOT changed: call review_set_target to move it, then repair the source references it reports.",
-      ownedBy &&
-        "Another session is authoring it now; wait for its lease to end before editing.",
+      activeLeaseId && `Lease ${activeLeaseId} is currently authoring it.`,
       others.length > 0 &&
         "Older reviews also name this PR; see otherReviewIds.",
     ]
@@ -1472,7 +1478,7 @@ export class ReviewStore {
       version: snapshot.version,
       target: snapshot.target,
       headMoved,
-      ...(ownedBy && { ownedBy: "another session" as const }),
+      ...(activeLeaseId && { activeLeaseId }),
       ...(others.length > 0 && { otherReviewIds: others }),
     };
   }
@@ -1848,7 +1854,7 @@ export class ReviewStore {
 
 /** Lens writes need the lenses lease; every other write needs the document's. */
 function scopeOf(operation: { type: string }): LeaseScope {
-  return operation.type === "lens" ? "lenses" : "document";
+  return operation.type === "lens_edit" ? "lenses" : "document";
 }
 
 /** A new document's first version, before its initial content. Field order

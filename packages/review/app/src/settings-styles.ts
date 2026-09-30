@@ -1,3 +1,4 @@
+import { fontSize, radius } from "@canvas/scale.stylex";
 import * as stylex from "@stylexjs/stylex";
 
 import { tokens } from "./tokens.stylex";
@@ -12,7 +13,7 @@ export const settingsStyles = stylex.create({
   lede: {
     margin: "0 0 28px",
     color: tokens.reviewHomeMeta,
-    fontSize: "13px",
+    fontSize: fontSize.ui,
   },
   section: {
     marginBottom: "28px",
@@ -24,14 +25,11 @@ export const settingsStyles = stylex.create({
     borderBottomStyle: "solid",
     borderBottomColor: tokens.reviewHomeRule,
     color: tokens.reviewHomeMeta,
-    fontSize: "11px",
-    fontWeight: 600,
-    letterSpacing: "0.09em",
-    textTransform: "uppercase",
   },
   row: {
     display: "grid",
-    gridTemplateColumns: "1fr 200px",
+    // Wide segmented controls grow the lane instead of overlapping the text.
+    gridTemplateColumns: "minmax(0, 1fr) minmax(200px, max-content)",
     alignItems: "center",
     gap: "24px",
     padding: "14px 0",
@@ -47,35 +45,23 @@ export const settingsStyles = stylex.create({
   },
   rowLabel: {
     color: tokens.ink,
-    fontSize: "13px",
+    fontSize: fontSize.ui,
   },
   rowDescription: {
     color: tokens.reviewHomeMeta,
-    fontSize: "12px",
+    fontSize: fontSize.body,
   },
   rowControl: {
     display: "flex",
     alignItems: "center",
     justifyContent: "flex-end",
   },
-  button: {
-    padding: "4px 10px",
-    borderWidth: "1px",
-    borderStyle: "solid",
-    borderColor: tokens.reviewHomeRuleSoft,
-    borderRadius: "5px",
-    color: "inherit",
-    backgroundColor: tokens.transparent,
-    font: "inherit",
-    cursor: { default: "pointer", ":disabled": "default" },
-    opacity: { default: null, ":disabled": 0.5 },
-  },
   toggle: {
     display: "flex",
     alignItems: "center",
     gap: "8px",
     color: tokens.reviewHomeMeta,
-    fontSize: "12px",
+    fontSize: fontSize.body,
     cursor: "pointer",
   },
   // A box is the state of a thing (viewed, enabled); it is the same 14px
@@ -87,7 +73,7 @@ export const settingsStyles = stylex.create({
     borderWidth: "1px",
     borderStyle: "solid",
     borderColor: { default: tokens.ruleSoft, ":checked": tokens.accent },
-    borderRadius: "3px",
+    borderRadius: radius.small,
     backgroundColor: { default: tokens.surface, ":checked": tokens.accent },
     backgroundImage: { default: "none", ":checked": tokens.checkMark },
     backgroundPosition: "center",
@@ -98,15 +84,6 @@ export const settingsStyles = stylex.create({
   },
   input: {
     minWidth: "200px",
-    padding: "4px 8px",
-    borderWidth: "1px",
-    borderStyle: "solid",
-    borderColor: tokens.reviewHomeRuleSoft,
-    borderRadius: "5px",
-    color: "inherit",
-    backgroundColor: tokens.transparent,
-    font: "inherit",
-    opacity: { default: null, ":disabled": 0.5 },
   },
   diffr: {
     marginTop: "8px",
@@ -121,12 +98,12 @@ export const settingsStyles = stylex.create({
   },
   unavailable: {
     color: tokens.reviewHomeMeta,
-    fontSize: "12px",
+    fontSize: fontSize.body,
   },
   error: {
     margin: "4px 0 0",
     color: tokens.changeRemoved,
-    fontSize: "12px",
+    fontSize: fontSize.body,
     whiteSpace: "pre-wrap",
   },
   summaryFields: {

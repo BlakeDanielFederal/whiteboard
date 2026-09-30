@@ -1,3 +1,4 @@
+import { fontSize, fontWeight, radius } from "@canvas/scale.stylex";
 import {
   type ShjLanguage,
   type ShjToken,
@@ -14,6 +15,7 @@ import {
 import { CopyButton } from "./copy-text";
 import { DiagramHeader } from "./diagram-header";
 import { drawStyles } from "./draw-styles";
+import { documentMarker } from "./markers.stylex";
 import { withClass } from "./stylex-props";
 import { tokens } from "./tokens.stylex";
 
@@ -218,6 +220,11 @@ function normalizeMarkdownCodeLanguage(language: string): ShjLanguage | null {
   }
 }
 
+const inDocument = () => stylex.when.ancestor(":is(*)", documentMarker);
+
+// A block's own element: a child of the block's node.
+const inDocumentBlock = () => `${inDocument()}:is([data-review-node-id] > *)`;
+
 // The same figure as a diagram: hairline frame, tray header with the language
 // as its kind, the caption as its title, a line count and an icon-only copy
 // button; then the code, scrolling sideways, never wrapping.
@@ -227,22 +234,22 @@ const styles = stylex.create({
     maxWidth: {
       default: "100%",
       // A document block sits in the prose column.
-      ":is(.review-document .api-document-node > *)": `calc(100cqi - 2 * ${tokens.reviewDocumentPaddingInline})`,
+      [inDocumentBlock()]: `calc(100cqi - 2 * ${tokens.reviewDocumentPaddingInline})`,
     },
     width: {
       default: null,
-      ":is(.review-document .api-document-node > *)": `min(100%, ${tokens.reviewProseMaxWidth})`,
+      [inDocumentBlock()]: `min(100%, ${tokens.reviewProseMaxWidth})`,
     },
     marginInline: {
       default: null,
-      ":is(.review-document .api-document-node > *)": "auto",
+      [inDocumentBlock()]: "auto",
     },
     marginBlock: "24px",
     overflow: "hidden",
     borderWidth: "1px",
     borderStyle: "solid",
     borderColor: tokens.rule,
-    borderRadius: "8px",
+    borderRadius: radius.surface,
     backgroundColor: tokens.surface,
   },
   compact: {
@@ -255,26 +262,15 @@ const styles = stylex.create({
     marginLeft: 0,
   },
   copy: {
-    display: "inline-flex",
-    flex: "0 0 auto",
-    alignItems: "center",
-    justifyContent: "center",
-    width: "24px",
-    height: "24px",
     marginLeft: "auto",
-    padding: 0,
     borderWidth: "1px",
     borderStyle: "solid",
-    borderColor: { default: tokens.ruleSoft, ":focus-visible": tokens.accent },
-    borderRadius: "6px",
+    borderColor: tokens.ruleSoft,
     backgroundColor: {
       default: tokens.surface,
       ":hover": tokens.well,
       ":is([data-copied])": tokens.well,
     },
-    color: { default: tokens.inkMuted, ":is([data-copied])": tokens.ink },
-    cursor: "pointer",
-    outline: { default: null, ":focus-visible": "none" },
   },
   copyIcon: {
     width: "14px",
@@ -286,7 +282,7 @@ const styles = stylex.create({
     margin: 0,
     overflowX: "auto",
     color: tokens.ink,
-    font: `13px/20px ${tokens.fontMono}`,
+    font: `${fontSize.ui}/20px ${tokens.fontMono}`,
     textAlign: "left",
   },
   code: {
@@ -321,13 +317,13 @@ const styles = stylex.create({
 const syntaxStyles = stylex.create({
   kwd: { color: tokens.accent },
   type: { color: tokens.syntaxType },
-  class: { color: tokens.syntaxType, fontWeight: 500 },
+  class: { color: tokens.syntaxType, fontWeight: fontWeight.medium },
   func: { color: tokens.syntaxFunction },
-  section: { color: tokens.syntaxFunction, fontWeight: 600 },
+  section: { color: tokens.syntaxFunction, fontWeight: fontWeight.semibold },
   var: { color: tokens.ink },
   str: { color: tokens.syntaxString },
   num: { color: tokens.syntaxNumber },
-  bool: { color: tokens.syntaxNumber, fontWeight: 500 },
+  bool: { color: tokens.syntaxNumber, fontWeight: fontWeight.medium },
   cmnt: { color: tokens.syntaxComment, fontStyle: "italic" },
   oper: { color: tokens.syntaxOperator },
   insert: { color: tokens.syntaxInserted },

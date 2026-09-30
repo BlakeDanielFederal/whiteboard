@@ -1,3 +1,4 @@
+import { fontSize, fontWeight, radius } from "@canvas/scale.stylex";
 import type { DiffSelection } from "@review/lens-selection";
 import type { CallStackDiffBlock } from "@review/review-api/blocks/call_stack_diff";
 import * as stylex from "@stylexjs/stylex";
@@ -258,7 +259,7 @@ const styles = stylex.create({
     borderWidth: "1px",
     borderStyle: "solid",
     borderColor: tokens.rule,
-    borderRadius: "8px",
+    borderRadius: radius.surface,
     overflow: "hidden",
     backgroundColor: tokens.surface,
   },
@@ -290,13 +291,13 @@ const styles = stylex.create({
       default: "transparent",
       ":hover:not(:disabled)": `color-mix(in srgb, ${tokens.ink} 3%, transparent)`,
     },
-    font: `12px/26px ${tokens.fontMono}`,
+    font: `${fontSize.body}/26px ${tokens.fontMono}`,
     textAlign: "left",
     whiteSpace: "nowrap",
   },
   rowCurrent: {
     backgroundColor: tokens.markerTint,
-    fontWeight: 600,
+    fontWeight: fontWeight.semibold,
   },
   name: {
     flex: "0 1 auto",
@@ -322,7 +323,7 @@ const styles = stylex.create({
     flexShrink: 0,
     marginLeft: "auto",
     paddingLeft: "12px",
-    fontSize: "10px",
+    fontSize: fontSize.micro,
   },
   connectors: {
     flexShrink: 0,

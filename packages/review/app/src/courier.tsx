@@ -1,3 +1,5 @@
+import { courierMotion } from "@canvas/courier-motion.stylex";
+import { fontSize, fontWeight, motion, radius } from "@canvas/scale.stylex";
 import type { LeaseScope } from "@review/review-api/activity";
 import * as stylex from "@stylexjs/stylex";
 import {
@@ -10,7 +12,7 @@ import {
   useState,
 } from "react";
 
-import { AuthoringActivityContext } from "./authoring-activity";
+import { AuthoringActivityContext } from "./authoring-activity-context";
 import {
   type AuthoringCursor,
   scopeFocus,
@@ -18,7 +20,7 @@ import {
 } from "./authoring-cursor";
 import { CourierFigure } from "./courier-figure";
 import { cursorElement } from "./cursor-element";
-import { courierMarker } from "./markers.stylex";
+import { courierMarker, diffWorkspaceMarker } from "./markers.stylex";
 import { useReviewRoots } from "./review-root-context";
 import { withClass } from "./stylex-props";
 import { tokens } from "./tokens.stylex";
@@ -328,7 +330,8 @@ export function Courier({
 
 const REDUCED = "@media (prefers-reduced-motion: reduce)";
 
-const inDiffWorkspace = ":is(.diff-workspace *)";
+const inDiffWorkspace = () =>
+  stylex.when.ancestor(":is(*)", diffWorkspaceMarker);
 
 // The hop: the wrapper slides, the arc lifts, the body squashes on landing.
 
@@ -400,7 +403,7 @@ const styles = stylex.create({
     color: tokens.accent,
     pointerEvents: "none",
     transition: {
-      default: "left 260ms linear, top 260ms linear",
+      default: `left ${courierMotion.hop} linear, top ${courierMotion.hop} linear`,
       [REDUCED]: "none",
     },
   },
@@ -417,7 +420,7 @@ const styles = stylex.create({
     borderWidth: 0,
     borderStyle: "none",
     borderColor: "currentcolor",
-    borderRadius: { default: null, ":focus-visible": "8px" },
+    borderRadius: { default: null, ":focus-visible": radius.surface },
     backgroundColor: "transparent",
     backgroundImage: "none",
     color: "inherit",
@@ -428,12 +431,12 @@ const styles = stylex.create({
       default: null,
       ":focus-visible": {
         default: `2px solid ${tokens.accent}`,
-        [inDiffWorkspace]: `1px solid ${tokens.accent}`,
+        [inDiffWorkspace()]: `1px solid ${tokens.accent}`,
       },
     },
     outlineOffset: {
       default: null,
-      ":focus-visible": { default: "4px", [inDiffWorkspace]: "-2px" },
+      ":focus-visible": { default: "4px", [inDiffWorkspace()]: "-2px" },
     },
   },
   figureSvg: {
@@ -447,10 +450,10 @@ const styles = stylex.create({
     top: "-20px",
     left: "50%",
     padding: "2px 7px",
-    borderRadius: "999px",
+    borderRadius: radius.pill,
     backgroundColor: tokens.ink,
     color: tokens.surface,
-    font: `500 10px ${tokens.fontMono}`,
+    font: `${fontWeight.medium} ${fontSize.micro} ${tokens.fontMono}`,
     whiteSpace: "nowrap",
     transform: "translateX(-50%)",
     opacity: {
@@ -459,7 +462,7 @@ const styles = stylex.create({
       [stylex.when.ancestor(":focus-visible", courierMarker)]: 1,
       [REDUCED]: 1,
     },
-    transition: "opacity 150ms ease",
+    transition: `opacity ${motion.fast} ${motion.ease}`,
     pointerEvents: "none",
   },
   arc: {
@@ -470,12 +473,18 @@ const styles = stylex.create({
   },
   hopArc: {
     animationName: { default: hopArc, [REDUCED]: "none" },
-    animationDuration: { default: "260ms", [REDUCED]: "0s" },
+    animationDuration: {
+      default: courierMotion.hop,
+      [REDUCED]: motion.instant,
+    },
     animationTimingFunction: { default: "ease-out", [REDUCED]: "ease" },
   },
   jumpArc: {
     animationName: { default: jumpArc, [REDUCED]: "none" },
-    animationDuration: { default: "420ms", [REDUCED]: "0s" },
+    animationDuration: {
+      default: courierMotion.jump,
+      [REDUCED]: motion.instant,
+    },
     animationTimingFunction: {
       default: "cubic-bezier(0.3, 0, 0.2, 1)",
       [REDUCED]: "ease",
@@ -483,7 +492,10 @@ const styles = stylex.create({
   },
   leave: {
     animationName: { default: leave, [REDUCED]: "none" },
-    animationDuration: { default: "420ms", [REDUCED]: "0s" },
+    animationDuration: {
+      default: courierMotion.leave,
+      [REDUCED]: motion.instant,
+    },
     animationTimingFunction: {
       default: "cubic-bezier(0.4, 0, 1, 1)",
       [REDUCED]: "ease",
@@ -500,24 +512,33 @@ const styles = stylex.create({
   // Sitting eases in, reduced motion included.
   sitting: {
     transform: "translateY(7px)",
-    transition: "transform 300ms ease",
+    transition: `transform ${motion.slow} ${motion.ease}`,
   },
   slumped: {
     transform: "translateY(2px) rotate(-8deg)",
   },
   squash: {
     animationName: { default: hopSquash, [REDUCED]: "none" },
-    animationDuration: { default: "340ms", [REDUCED]: "0s" },
+    animationDuration: {
+      default: courierMotion.squash,
+      [REDUCED]: motion.instant,
+    },
     animationTimingFunction: { default: "ease-out", [REDUCED]: "ease" },
   },
   jumpSquash: {
     animationName: { default: jumpSquash, [REDUCED]: "none" },
-    animationDuration: { default: "520ms", [REDUCED]: "0s" },
+    animationDuration: {
+      default: courierMotion.bounce,
+      [REDUCED]: motion.instant,
+    },
     animationTimingFunction: { default: "ease-out", [REDUCED]: "ease" },
   },
   bob: {
     animationName: { default: marchBob, [REDUCED]: "none" },
-    animationDuration: { default: "480ms", [REDUCED]: "0s" },
+    animationDuration: {
+      default: courierMotion.march,
+      [REDUCED]: motion.instant,
+    },
     animationTimingFunction: { default: "ease-in-out", [REDUCED]: "ease" },
     animationIterationCount: { default: "infinite", [REDUCED]: 1 },
   },
@@ -528,19 +549,25 @@ const styles = stylex.create({
     width: "18px",
     height: "4px",
     marginLeft: "-9px",
-    borderRadius: "50%",
+    borderRadius: radius.round,
     backgroundColor: tokens.ink,
     opacity: 0.18,
     transition: { default: null, [REDUCED]: "none" },
   },
   hopShadow: {
     animationName: { default: hopShadow, [REDUCED]: "none" },
-    animationDuration: { default: "260ms", [REDUCED]: "0s" },
+    animationDuration: {
+      default: courierMotion.hop,
+      [REDUCED]: motion.instant,
+    },
     animationTimingFunction: { default: "ease-out", [REDUCED]: "ease" },
   },
   jumpShadow: {
     animationName: { default: jumpShadow, [REDUCED]: "none" },
-    animationDuration: { default: "420ms", [REDUCED]: "0s" },
+    animationDuration: {
+      default: courierMotion.jump,
+      [REDUCED]: motion.instant,
+    },
     animationTimingFunction: {
       default: "cubic-bezier(0.3, 0, 0.2, 1)",
       [REDUCED]: "ease",

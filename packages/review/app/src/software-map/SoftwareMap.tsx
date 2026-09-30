@@ -7,16 +7,34 @@ import {
 import { createDiagramNavigationStore } from "@canvas/diagram-navigation-store";
 import { diagramStyles } from "@canvas/diagram-styles";
 import { hasTextSelectionWithin } from "@canvas/diagram-text-selection";
+import { flowLayer } from "@canvas/flow-layers.stylex";
 import { useReviewSession } from "@canvas/host/review-session";
 import { CloseIcon, RefreshIcon } from "@canvas/icons";
-import { mapFrameMarker } from "@canvas/markers.stylex";
+import {
+  appMarker,
+  codeInspectorMarker,
+  documentMarker,
+  mapFrameMarker,
+} from "@canvas/markers.stylex";
 import { useReviewContainer } from "@canvas/review-root-context";
+import {
+  fontSize,
+  fontWeight,
+  motion,
+  radius,
+  tracking,
+} from "@canvas/scale.stylex";
 import { shellStyles } from "@canvas/shell-styles";
 import { useRightPanelResize } from "@canvas/side-panel-resizer";
 import { withClass } from "@canvas/stylex-props";
 import { themeStyles } from "@canvas/theme-styles";
 import { tokens } from "@canvas/tokens.stylex";
 import { captureUiEvent } from "@canvas/ui-telemetry";
+import { IconButton } from "@canvas/ui/button";
+import { Chip } from "@canvas/ui/chip";
+import { EmptyState } from "@canvas/ui/empty-state";
+import { surfaceStyles } from "@canvas/ui/surface";
+import { textStyles } from "@canvas/ui/text";
 import { codePeekSource } from "@review/source";
 import * as stylex from "@stylexjs/stylex";
 import {
@@ -928,9 +946,7 @@ export function SoftwareMapFrame({
       {showChrome && (
         <header {...stylex.props(styles.header)}>
           <div {...stylex.props(diagramStyles.headerMain, styles.titleBlock)}>
-            <span {...stylex.props(diagramStyles.kindBadge, styles.kindBadge)}>
-              {VIEW_TYPE_LABELS[viewType]}
-            </span>
+            <Chip xstyle={styles.kindBadge}>{VIEW_TYPE_LABELS[viewType]}</Chip>
             <figcaption
               {...stylex.props(diagramStyles.title, styles.title)}
               data-review-copy-prose
@@ -940,55 +956,44 @@ export function SoftwareMapFrame({
           </div>
           <div {...stylex.props(styles.actions)}>
             {onRefresh ? (
-              <button
-                type="button"
-                {...stylex.props(
-                  styles.iconButton,
-                  refreshing && styles.refreshing,
-                )}
+              <IconButton
+                xstyle={refreshing && styles.refreshing}
                 onClick={onRefresh}
                 aria-label="Refresh software map"
                 title="Refresh software map"
               >
                 <RefreshIcon />
-              </button>
+              </IconButton>
             ) : null}
             {expanded ? (
-              <button
-                type="button"
-                {...stylex.props(styles.iconButton)}
+              <IconButton
                 onClick={onClose}
                 aria-label="Close expanded software map"
               >
                 <CloseIcon />
-              </button>
+              </IconButton>
             ) : (
-              <button
-                type="button"
-                {...stylex.props(styles.iconButton, styles.expandButton)}
+              <IconButton
+                xstyle={styles.expandButton}
                 onClick={onExpand}
                 aria-label="Expand software map"
               >
                 <span {...stylex.props(styles.expandIcon)} aria-hidden="true" />
-              </button>
+              </IconButton>
             )}
           </div>
         </header>
       )}
       {showMapFloatingActions && onRefresh ? (
-        <div {...stylex.props(styles.floatingActions)}>
-          <button
-            type="button"
-            {...stylex.props(
-              styles.iconButton,
-              refreshing && styles.refreshing,
-            )}
+        <div {...stylex.props(surfaceStyles.popover, styles.floatingActions)}>
+          <IconButton
+            xstyle={refreshing && styles.refreshing}
             onClick={onRefresh}
             aria-label="Refresh software map"
             title="Refresh software map"
           >
             <RefreshIcon />
-          </button>
+          </IconButton>
         </div>
       ) : null}
 
@@ -1076,14 +1081,14 @@ function SoftwareMapCodeInspector({
     : "Collapse all diffs";
 
   return (
-    // The class is the hook code peeks restyle themselves by in the inspector.
+    // The marker is the hook code peeks restyle themselves by in the inspector.
     <aside
-      {...withClass("software-map-code-inspector", styles.inspector)}
+      {...stylex.props(styles.inspector, codeInspectorMarker)}
       aria-label={`${node.label} diff`}
     >
       <header {...stylex.props(styles.inspectorHeader)}>
         <div {...stylex.props(styles.inspectorTitle)}>
-          <span {...stylex.props(styles.inspectorKind)}>
+          <span {...stylex.props(textStyles.eyebrow, styles.inspectorKind)}>
             {softwareMapNodeTypeLabel(node)}
           </span>
           <strong {...stylex.props(styles.inspectorLabel)} title={node.label}>
@@ -1092,9 +1097,7 @@ function SoftwareMapCodeInspector({
         </div>
         <div {...stylex.props(styles.inspectorActions)}>
           {diffPeeks.length > 0 ? (
-            <button
-              type="button"
-              {...stylex.props(styles.iconButton)}
+            <IconButton
               onClick={() => setDiffsCollapsed((current) => !current)}
               aria-expanded={!diffsCollapsed}
               aria-label={collapseActionLabel}
@@ -1107,29 +1110,25 @@ function SoftwareMapCodeInspector({
                 )}
                 aria-hidden="true"
               />
-            </button>
+            </IconButton>
           ) : null}
           <SoftwareMapChangeBadge
             additions={node.additions}
             deletions={node.deletions}
           />
-          <button
-            type="button"
-            {...stylex.props(styles.iconButton)}
-            onClick={onClose}
-            aria-label="Close code inspector"
-          >
+          <IconButton onClick={onClose} aria-label="Close code inspector">
             <CloseIcon />
-          </button>
+          </IconButton>
         </div>
       </header>
       <div {...stylex.props(styles.inspectorDiffs)}>
         {diffPeeks.length > 0 ? (
           <CodePeekGroup peeks={diffPeekSources} collapsed={diffsCollapsed} />
         ) : (
-          <div {...stylex.props(styles.inspectorEmpty)}>
-            No changed code is mapped to this node.
-          </div>
+          <EmptyState
+            xstyle={styles.inspectorEmpty}
+            message="No changed code is mapped to this node."
+          />
         )}
       </div>
     </aside>
@@ -1143,6 +1142,8 @@ export function softwareMapOverlayProps(settings: {
 }) {
   return withClass(
     softwareMapOverlayClassName(settings),
+    appMarker,
+    themeStyles.vars,
     themeStyles.app,
     settings.theme === "light" && themeStyles.light,
     styles.overlay,
@@ -2073,7 +2074,7 @@ function SoftwareMapC4GroupNode({
           data.node.type === "softwareSystem" && styles.groupTitleSystem,
         )}
       >
-        <span {...stylex.props(styles.groupKind)}>
+        <span {...stylex.props(textStyles.eyebrow, styles.groupKind)}>
           {softwareMapNodeTypeLabel(data.node)}
         </span>
         <strong
@@ -2450,7 +2451,7 @@ function SoftwareMapNodeFrame({
               isCollection && styles.hidden,
             )}
           >
-            <div {...stylex.props(styles.nodeType)}>
+            <div {...stylex.props(textStyles.eyebrow, styles.nodeType)}>
               {softwareMapNodeTypeLabel(node)}
             </div>
             <SoftwareMapChangeBadge
@@ -2567,17 +2568,17 @@ function SoftwareMapDataStoreSchema({
               >
                 <span {...stylex.props(styles.schemaRowName)}>
                   {row.primaryKey && (
-                    <strong {...stylex.props(styles.schemaKeyFlag)}>PK</strong>
+                    <Chip xstyle={styles.schemaKeyFlag}>PK</Chip>
                   )}
                   {row.foreignKey && (
-                    <strong
-                      {...stylex.props(
+                    <Chip
+                      xstyle={[
                         styles.schemaKeyFlag,
                         styles.schemaKeyFlagForeign,
-                      )}
+                      ]}
                     >
                       FK
-                    </strong>
+                    </Chip>
                   )}
                   {row.label}
                 </span>
@@ -2735,9 +2736,9 @@ function createPlaceholderSnapshot(
   };
 }
 
-const inDocument = ":is(.review-document *)";
+const inDocument = () => stylex.when.ancestor(":is(*)", documentMarker);
 
-const peekOpen = ":is(.review-app--peek-open *)";
+const peekOpen = () => stylex.when.ancestor("[data-peek-open]", appMarker);
 
 const stacked = "@media (max-width: 900px)";
 
@@ -2790,7 +2791,7 @@ const styles = stylex.create({
     borderWidth: "1px",
     borderStyle: "solid",
     borderColor: tokens.rule,
-    borderRadius: "6px",
+    borderRadius: radius.control,
     backgroundColor: tokens.surface,
     boxShadow: "none",
     fontFamily: tokens.fontMono,
@@ -2838,8 +2839,8 @@ const styles = stylex.create({
   },
   title: {
     margin: 0,
-    fontSize: "13px",
-    fontWeight: 650,
+    fontSize: fontSize.ui,
+    fontWeight: fontWeight.semibold,
   },
   actions: {
     display: "flex",
@@ -2852,44 +2853,15 @@ const styles = stylex.create({
     position: "absolute",
     top: "10px",
     right: "10px",
-    zIndex: 20,
-    display: { default: "flex", [peekOpen]: "none" },
+    zIndex: flowLayer.actions,
+    display: { default: "flex", [peekOpen()]: "none" },
     gap: "8px",
     padding: "2px",
-    borderWidth: "1px",
-    borderStyle: "solid",
-    borderColor: tokens.rule,
-    borderRadius: "6px",
-    backgroundColor: tokens.surface,
-    boxShadow: `0 4px 18px ${tokens.shadowColor}`,
-  },
-  iconButton: {
-    ...noBorder,
-    position: "relative",
-    display: "grid",
-    placeItems: "center",
-    width: "26px",
-    height: "26px",
-    padding: 0,
-    borderRadius: "3px",
-    backgroundColor: tokens.transparent,
-    color: {
-      default: tokens.inkFaint,
-      ":hover": tokens.inkMuted,
-      ":focus-visible": tokens.inkMuted,
-    },
-    outline: {
-      default: null,
-      ":focus-visible": `1px solid ${tokens.ruleSoft}`,
-    },
-    outlineOffset: { default: null, ":focus-visible": "2px" },
+    // A toolbar: its corners follow the buttons inside.
+    borderRadius: radius.control,
   },
   refreshing: {
-    color: {
-      default: tokens.accent,
-      ":hover": tokens.inkMuted,
-      ":focus-visible": tokens.inkMuted,
-    },
+    color: tokens.accent,
   },
   // Shows while the pointer is over the map.
   expandButton: {
@@ -2898,7 +2870,7 @@ const styles = stylex.create({
       ":focus-visible": 1,
       [stylex.when.ancestor(":hover", mapFrameMarker)]: 1,
     },
-    transition: "opacity 120ms ease, color 120ms ease",
+    transition: `opacity ${motion.fast} ${motion.ease}, color ${motion.fast} ${motion.ease}`,
   },
   // Two corner brackets.
   expandIcon: {
@@ -2979,11 +2951,11 @@ const styles = stylex.create({
     maxWidth: "min(420px, calc(100% - 28px))",
     margin: 0,
     padding: "8px 10px",
-    borderRadius: "6px",
+    borderRadius: radius.control,
     backgroundColor: tokens.transparent,
     boxShadow: "none",
     color: tokens.inkMuted,
-    fontSize: "12px",
+    fontSize: fontSize.body,
     lineHeight: "17px",
   },
   statusError: {
@@ -2999,7 +2971,7 @@ const styles = stylex.create({
     display: {
       default: null,
       [stacked]: "none",
-      [peekOpen]: {
+      [peekOpen()]: {
         default: null,
         "@container review-canvas (max-width: 929px)": "none",
         [narrow]: "none",
@@ -3010,7 +2982,7 @@ const styles = stylex.create({
     display: { default: "none", [narrow]: "block" },
     position: { default: null, [narrow]: "absolute" },
     inset: { default: null, [narrow]: 0 },
-    zIndex: { default: null, [narrow]: 48 },
+    zIndex: { default: null, [narrow]: flowLayer.inspectorBackdrop },
     padding: { default: null, [narrow]: 0 },
     borderWidth: { default: null, [narrow]: 0 },
     borderStyle: { default: null, [narrow]: "none" },
@@ -3023,14 +2995,14 @@ const styles = stylex.create({
     right: { default: null, [narrow]: "8px" },
     bottom: { default: null, [narrow]: "8px" },
     left: { default: null, [narrow]: "8px" },
-    zIndex: { default: null, [narrow]: 49 },
+    zIndex: { default: null, [narrow]: flowLayer.inspector },
     display: "grid",
     gridTemplateRows: "auto minmax(0, 1fr)",
     minWidth: 0,
     height: { default: null, [narrow]: "min(72%, 560px)" },
     minHeight: { default: 0, [narrow]: "240px" },
     overflow: "hidden",
-    borderRadius: { default: null, [narrow]: "12px" },
+    borderRadius: { default: null, [narrow]: radius.surface },
     backgroundColor: tokens.bg,
     boxShadow: "none",
   },
@@ -3059,19 +3031,14 @@ const styles = stylex.create({
   },
   inspectorKind: {
     flex: "none",
-    color: tokens.inkFaint,
-    fontSize: "10px",
-    fontWeight: 500,
-    letterSpacing: "0.08em",
     lineHeight: "14px",
-    textTransform: "uppercase",
   },
   inspectorLabel: {
     minWidth: 0,
     overflow: "hidden",
     color: tokens.ink,
-    fontSize: "13px",
-    fontWeight: 600,
+    fontSize: fontSize.ui,
+    fontWeight: fontWeight.semibold,
     lineHeight: "18px",
     textOverflow: "ellipsis",
   },
@@ -3082,7 +3049,7 @@ const styles = stylex.create({
     alignItems: "center",
   },
   codicon: {
-    fontSize: "16px",
+    fontSize: fontSize.reading,
   },
   inspectorDiffs: {
     minHeight: 0,
@@ -3091,10 +3058,7 @@ const styles = stylex.create({
     scrollbarColor: `${tokens.ruleSoft} ${tokens.surface}`,
   },
   inspectorEmpty: {
-    padding: "16px",
-    color: tokens.inkMuted,
-    fontSize: "12px",
-    lineHeight: "18px",
+    paddingInline: "16px",
   },
   c4Canvas: {
     ...noBorder,
@@ -3122,7 +3086,7 @@ const styles = stylex.create({
     ...noBorder,
     backgroundColor: tokens.transparent,
     boxShadow: "none",
-    transition: `transform 220ms ${settle}, width 220ms ${settle}, height 220ms ${settle}, opacity 160ms ease`,
+    transition: `transform ${motion.medium} ${settle}, width ${motion.medium} ${settle}, height ${motion.medium} ${settle}, opacity ${motion.medium} ${motion.ease}`,
     userSelect: "text",
   },
   flowEdge: {
@@ -3136,11 +3100,11 @@ const styles = stylex.create({
     zIndex: 8,
     maxWidth: "min(380px, calc(100% - 28px))",
     padding: "8px 10px",
-    borderRadius: "6px",
+    borderRadius: radius.control,
     backgroundColor: tokens.transparent,
     boxShadow: "none",
     color: tokens.inkMuted,
-    fontSize: "12px",
+    fontSize: fontSize.body,
     lineHeight: "17px",
   },
   edgeHighlight: {
@@ -3161,14 +3125,14 @@ const styles = stylex.create({
   },
   edgeEndpoint: {
     position: "absolute",
-    zIndex: 39,
+    zIndex: flowLayer.edgeEndpoint,
     boxSizing: "border-box",
     width: "11px",
     height: "11px",
     borderWidth: "1.5px",
     borderStyle: "solid",
     borderColor: tokens.inkFaint,
-    borderRadius: "999px",
+    borderRadius: radius.pill,
     backgroundColor: tokens.surface,
     opacity: 1,
     pointerEvents: "none",
@@ -3180,7 +3144,7 @@ const styles = stylex.create({
   },
   edgeLabelAnchor: {
     position: "absolute",
-    zIndex: 40,
+    zIndex: flowLayer.label,
     display: "inline-flex",
     alignItems: "center",
     justifyContent: "center",
@@ -3195,12 +3159,12 @@ const styles = stylex.create({
     borderWidth: "1px",
     borderStyle: "solid",
     borderColor: tokens.rule,
-    borderRadius: "7px",
+    borderRadius: radius.control,
     backgroundColor: tokens.surface,
     color: tokens.inkMuted,
     fontFamily: tokens.fontMono,
-    fontSize: "11px",
-    fontWeight: 500,
+    fontSize: fontSize.small,
+    fontWeight: fontWeight.medium,
     letterSpacing: 0,
     lineHeight: "15px",
     textAlign: "center",
@@ -3243,7 +3207,7 @@ const styles = stylex.create({
     width: "100%",
     height: "100%",
     animationName: cardBloom,
-    animationDuration: "180ms",
+    animationDuration: motion.medium,
     animationTimingFunction: settle,
   },
   groupShell: {
@@ -3259,7 +3223,7 @@ const styles = stylex.create({
       ":hover": tokens.ruleSoft,
       ":focus-visible": tokens.ruleSoft,
     },
-    borderRadius: "8px",
+    borderRadius: radius.surface,
     backgroundColor: {
       default: tokens.surface,
       ":hover": tokens.markerTint,
@@ -3270,7 +3234,7 @@ const styles = stylex.create({
     cursor: "pointer",
     fontFamily: tokens.fontMono,
     animationName: groupBloom,
-    animationDuration: "220ms",
+    animationDuration: motion.medium,
     animationTimingFunction: settle,
   },
   // Hover outranks a change's border; selection outranks hover.
@@ -3328,23 +3292,18 @@ const styles = stylex.create({
   },
   groupKind: {
     flex: "0 0 auto",
-    color: tokens.inkFaint,
-    fontSize: "10px",
-    fontWeight: 500,
-    letterSpacing: "0.08em",
-    textTransform: "uppercase",
   },
   groupLabel: {
     minWidth: 0,
     overflow: "hidden",
     color: tokens.ink,
-    fontSize: "13px",
-    fontWeight: 600,
+    fontSize: fontSize.ui,
+    fontWeight: fontWeight.semibold,
     textOverflow: "ellipsis",
     whiteSpace: "nowrap",
   },
   groupLabelSystem: {
-    fontSize: "14px",
+    fontSize: fontSize.reading,
   },
   struck: {
     textDecorationLine: "line-through",
@@ -3372,7 +3331,7 @@ const styles = stylex.create({
     borderWidth: "1px",
     borderStyle: "solid",
     borderColor: tokens.ruleSoft,
-    borderRadius: "10px",
+    borderRadius: radius.surface,
     backgroundColor: {
       default: tokens.surface,
       ":hover": tokens.markerTint,
@@ -3391,8 +3350,7 @@ const styles = stylex.create({
     font: "inherit",
     fontFamily: tokens.fontMono,
     textAlign: "left",
-    transition:
-      "border-color 120ms ease, background 120ms ease, box-shadow 120ms ease, transform 120ms ease",
+    transition: `border-color ${motion.fast} ${motion.ease}, background ${motion.fast} ${motion.ease}, box-shadow ${motion.fast} ${motion.ease}, transform ${motion.fast} ${motion.ease}`,
   },
   nodeTight: {
     gap: 0,
@@ -3470,20 +3428,15 @@ const styles = stylex.create({
   nodeType: {
     minWidth: 0,
     overflow: "hidden",
-    color: tokens.inkFaint,
-    fontSize: "10px",
-    fontWeight: 500,
-    letterSpacing: "0.08em",
     lineHeight: "14px",
     textOverflow: "ellipsis",
-    textTransform: "uppercase",
     whiteSpace: "nowrap",
   },
   label: {
     margin: 0,
     color: tokens.ink,
-    fontSize: "15px",
-    fontWeight: 600,
+    fontSize: fontSize.reading,
+    fontWeight: fontWeight.semibold,
     lineHeight: "19px",
   },
   labelWithSchema: {
@@ -3491,11 +3444,11 @@ const styles = stylex.create({
   },
   // In a document the description reads as a document paragraph.
   description: {
-    margin: { default: 0, [inDocument]: "14px 0" },
+    margin: { default: 0, [inDocument()]: "14px 0" },
     color: tokens.inkMuted,
-    fontFamily: { default: null, [inDocument]: tokens.fontSerif },
-    fontSize: "12px",
-    fontWeight: 400,
+    fontFamily: { default: null, [inDocument()]: tokens.fontSerif },
+    fontSize: fontSize.body,
+    fontWeight: fontWeight.regular,
     lineHeight: "17px",
   },
   meta: {
@@ -3514,8 +3467,8 @@ const styles = stylex.create({
     backgroundColor: tokens.transparent,
     color: tokens.inkFaint,
     fontFamily: geistMono,
-    fontSize: "11px",
-    fontWeight: 400,
+    fontSize: fontSize.small,
+    fontWeight: fontWeight.regular,
     lineHeight: "15px",
     textOverflow: "ellipsis",
     whiteSpace: "nowrap",
@@ -3534,13 +3487,13 @@ const styles = stylex.create({
     flex: "0 1 auto",
     minWidth: 0,
     overflow: "hidden",
-    padding: { default: null, [inDocument]: "2px 5px" },
-    borderRadius: { default: null, [inDocument]: "3px" },
-    backgroundColor: { default: null, [inDocument]: tokens.well },
+    padding: { default: null, [inDocument()]: "2px 5px" },
+    borderRadius: { default: null, [inDocument()]: radius.small },
+    backgroundColor: { default: null, [inDocument()]: tokens.well },
     color: tokens.ink,
-    fontFamily: { default: geistMono, [inDocument]: tokens.fontMono },
-    fontSize: "15px",
-    fontWeight: 600,
+    fontFamily: { default: geistMono, [inDocument()]: tokens.fontMono },
+    fontSize: fontSize.reading,
+    fontWeight: fontWeight.semibold,
     lineHeight: "18px",
     textOverflow: "ellipsis",
     whiteSpace: "nowrap",
@@ -3560,8 +3513,8 @@ const styles = stylex.create({
     padding: 0,
     backgroundColor: tokens.transparent,
     fontFamily: geistMono,
-    fontSize: "11px",
-    fontWeight: 500,
+    fontSize: fontSize.small,
+    fontWeight: fontWeight.medium,
     lineHeight: "15px",
     textOverflow: "ellipsis",
     whiteSpace: "nowrap",
@@ -3572,14 +3525,14 @@ const styles = stylex.create({
   badgeInGroup: {
     marginLeft: "auto",
     color: tokens.inkFaint,
-    fontSize: "10px",
-    letterSpacing: "0.08em",
+    fontSize: fontSize.micro,
+    letterSpacing: tracking.caps,
     textTransform: "uppercase",
   },
   count: {
     minWidth: 0,
     overflow: "hidden",
-    fontWeight: 500,
+    fontWeight: fontWeight.medium,
     textOverflow: "ellipsis",
   },
   countAdded: {
@@ -3591,8 +3544,8 @@ const styles = stylex.create({
   countInGroup: {
     flex: "0 0 auto",
     color: tokens.inkFaint,
-    fontSize: "10px",
-    letterSpacing: "0.08em",
+    fontSize: fontSize.micro,
+    letterSpacing: tracking.caps,
     textTransform: "uppercase",
   },
   storageOutline: {
@@ -3666,7 +3619,7 @@ const styles = stylex.create({
     borderWidth: "0 2px 2px",
     borderStyle: "none solid solid",
     borderColor: `currentcolor ${tokens.softwareMapStorageBorder} ${tokens.softwareMapStorageBorder}`,
-    borderRadius: "0 10px 10px 10px",
+    borderRadius: `0 ${radius.surface} ${radius.surface} ${radius.surface}`,
     backgroundColor: tokens.softwareMapStorageFill,
   },
   storageFolderTab: {
@@ -3692,7 +3645,7 @@ const styles = stylex.create({
     borderWidth: "1px",
     borderStyle: "solid",
     borderColor: tokens.rule,
-    borderRadius: "3px",
+    borderRadius: radius.small,
     backgroundColor: tokens.surface,
   },
   schemaSectionSelected: {
@@ -3714,9 +3667,10 @@ const styles = stylex.create({
   schemaKind: {
     color: tokens.inkFaint,
     fontFamily: tokens.fontMono,
-    fontSize: "10px",
-    fontWeight: 700,
+    fontSize: fontSize.micro,
+    fontWeight: fontWeight.bold,
     lineHeight: "12px",
+    letterSpacing: tracking.caps,
     textTransform: "uppercase",
   },
   schemaLabel: {
@@ -3724,7 +3678,7 @@ const styles = stylex.create({
     overflow: "hidden",
     color: tokens.ink,
     fontFamily: tokens.fontMono,
-    fontSize: "12px",
+    fontSize: fontSize.body,
     lineHeight: "15px",
     textOverflow: "ellipsis",
     whiteSpace: "nowrap",
@@ -3738,7 +3692,7 @@ const styles = stylex.create({
     backgroundColor: tokens.tray,
     color: tokens.inkMuted,
     fontFamily: tokens.fontMono,
-    fontSize: "11px",
+    fontSize: fontSize.small,
     textOverflow: "ellipsis",
     whiteSpace: "nowrap",
   },
@@ -3769,17 +3723,14 @@ const styles = stylex.create({
     overflow: "hidden",
     color: tokens.ink,
     fontFamily: tokens.fontMono,
-    fontSize: "12px",
+    fontSize: fontSize.body,
     textOverflow: "ellipsis",
     whiteSpace: "nowrap",
   },
   schemaKeyFlag: {
     marginRight: "6px",
-    padding: "1px 4px",
-    borderRadius: "4px",
     backgroundColor: tokens.diffModifiedBg,
     color: tokens.diffModified,
-    fontSize: "10px",
   },
   schemaKeyFlagForeign: {
     backgroundColor: tokens.rpcWash,
@@ -3790,7 +3741,7 @@ const styles = stylex.create({
     overflow: "hidden",
     color: tokens.inkMuted,
     fontFamily: tokens.fontMono,
-    fontSize: "11px",
+    fontSize: fontSize.small,
     textAlign: "right",
     textOverflow: "ellipsis",
     whiteSpace: "nowrap",

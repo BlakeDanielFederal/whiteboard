@@ -48,6 +48,7 @@ import {
 	REVIEW_OPEN_FILES_IN_SETTING,
 	REVIEW_KEYMAP_SETTING,
 	REVIEW_KEYMAPS,
+	REVIEW_READY_NOTIFICATION_SETTING,
 	REVIEW_SOFTWARE_MAP_SETTING,
 	REVIEW_STRUCTURAL_DIFF_SETTING,
 	REVIEW_TELEMETRY_SETTING,
@@ -68,6 +69,7 @@ import type {
 	ReviewCtrlTabChoice,
 	ReviewOpenFilesInChoice,
 	ReviewKeymapChoice,
+	ReviewReadyNotificationChoice,
 	ReviewRuntimeConfig,
 	ReviewSurfaceEvent,
 	ReviewTheme,
@@ -802,6 +804,15 @@ export class ReviewCanvasEditorPane extends EditorPane {
 				await this.configurationService.updateValue(REVIEW_OPEN_FILES_IN_SETTING, choice, ConfigurationTarget.USER);
 				return this.currentOpenFilesIn();
 			},
+			readyNotification: this.currentReadyNotification(),
+			setReadyNotification: async (choice) => {
+				this.reviewTelemetryService.capture("setting_changed", {
+					setting: "ready_notification",
+					enabled: choice !== "off",
+				});
+				await this.configurationService.updateValue(REVIEW_READY_NOTIFICATION_SETTING, choice, ConfigurationTarget.USER);
+				return this.currentReadyNotification();
+			},
 			softwareMapEnabled: this.currentSoftwareMapEnabled(),
 			setSoftwareMapEnabled: async (enabled) => {
 				this.reviewTelemetryService.capture("setting_changed", {
@@ -860,6 +871,10 @@ export class ReviewCanvasEditorPane extends EditorPane {
 	private currentOpenFilesIn(): ReviewOpenFilesInChoice {
 		const value = this.configurationService.getValue<ReviewOpenFilesInChoice>(REVIEW_OPEN_FILES_IN_SETTING);
 		return REVIEW_OPEN_FILES_IN_CHOICES.includes(value) ? value : "whiteboard";
+	}
+
+	private currentReadyNotification(): ReviewReadyNotificationChoice {
+		return this.configurationService.getValue<ReviewReadyNotificationChoice>(REVIEW_READY_NOTIFICATION_SETTING) ?? "off";
 	}
 
 	private currentStructuralDiffEnabled(): boolean {

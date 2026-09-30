@@ -1,3 +1,5 @@
+import { flowLayer } from "@canvas/flow-layers.stylex";
+import { fontSize, fontWeight, radius } from "@canvas/scale.stylex";
 import type { Step } from "@review/review-api/document";
 import * as stylex from "@stylexjs/stylex";
 import {
@@ -32,6 +34,7 @@ import { DiagramTourOverlay, useDiagramTourShell } from "./diagram-tour";
 import { useMotionPhase } from "./draw-queue-provider";
 import { drawStyles } from "./draw-styles";
 import { useReviewSession } from "./host/review-session";
+import { appMarker, documentMarker } from "./markers.stylex";
 import { useReviewPanel, useReviewPanelStore } from "./review-panel";
 import type { GuidedTour, PeekAnchor } from "./review-panel-model";
 import { withClass } from "./stylex-props";
@@ -1011,12 +1014,10 @@ function sequenceHandleId(
   return `${handleType}-${messageId}`;
 }
 
-const inDocument = ":is(.review-document *)";
+const inDocument = () => stylex.when.ancestor(":is(*)", documentMarker);
 
-// Where the theme defines --diagram-border (a .review-app inside the canvas
-// scope).
-// (:scope is the canvas root, so an app portaled out of it does not count.)
-const inApp = ":is(:scope .review-app *)";
+// Where the theme defines --diagram-border: inside the app root.
+const inApp = () => stylex.when.ancestor(":is(*)", appMarker);
 
 const labelHover = `0 0 0 2px ${tokens.accentShadow}, 0 6px 14px ${tokens.shadowColorStrong}`;
 
@@ -1031,13 +1032,13 @@ const styles = stylex.create({
       default: "100%",
       "@media (max-width: 720px)": {
         default: "100%",
-        [inDocument]: "calc(100cqi - 16px)",
+        [inDocument()]: "calc(100cqi - 16px)",
       },
     },
     minWidth: 0,
     maxWidth: {
       default: "100%",
-      [inDocument]: `min(${tokens.reviewProseMaxWidth}, calc(100cqi - ${tokens.reviewDocumentPaddingInline} - ${tokens.reviewDocumentPaddingInline}))`,
+      [inDocument()]: `min(${tokens.reviewProseMaxWidth}, calc(100cqi - ${tokens.reviewDocumentPaddingInline} - ${tokens.reviewDocumentPaddingInline}))`,
     },
     // Natural height; the document scrolls, not the diagram. The body
     // scrolls only past about forty steps.
@@ -1045,15 +1046,15 @@ const styles = stylex.create({
     minHeight: `min(${tokens.sequenceHeight}, 260px)`,
     maxHeight: "3200px",
     marginBlock: "24px",
-    marginInline: { default: 0, [inDocument]: "auto" },
+    marginInline: { default: 0, [inDocument()]: "auto" },
     paddingTop: 0,
     overflow: "hidden",
     // Without --diagram-border the border drops out whole, as the shorthand
     // it replaces did.
-    borderWidth: { default: null, [inApp]: "1px" },
-    borderStyle: { default: null, [inApp]: "solid" },
-    borderColor: { default: null, [inApp]: tokens.diagramBorder },
-    borderRadius: "6px",
+    borderWidth: { default: null, [inApp()]: "1px" },
+    borderStyle: { default: null, [inApp()]: "solid" },
+    borderColor: { default: null, [inApp()]: tokens.diagramBorder },
+    borderRadius: radius.control,
     backgroundColor: tokens.diagramSurface,
     boxShadow: "none",
     cursor: "pointer",
@@ -1081,8 +1082,8 @@ const styles = stylex.create({
   },
   header: {
     justifyContent: "space-between",
-    fontSize: "12px",
-    fontWeight: 700,
+    fontSize: fontSize.body,
+    fontWeight: fontWeight.bold,
   },
   // No overscroll-behavior: Chrome latches wheel gestures to the nearest
   // scroll container even when it has nothing to scroll, and `contain` would
@@ -1111,7 +1112,7 @@ const styles = stylex.create({
   // whole lane before it ellipsizes (its title carries the full name).
   participantLabelAnchor: {
     position: "relative",
-    zIndex: 40,
+    zIndex: flowLayer.label,
     width: "fit-content",
     minWidth: "min(148px, 100%)",
     maxWidth: "calc(100% - 16px)",
@@ -1127,13 +1128,13 @@ const styles = stylex.create({
     borderWidth: "1px",
     borderStyle: "solid",
     borderColor: tokens.ruleSoft,
-    borderRadius: "6px",
+    borderRadius: radius.control,
     backgroundColor: tokens.surface,
     boxShadow: { default: "none", ":hover": labelHover },
     color: tokens.ink,
     fontFamily: tokens.fontMono,
-    fontSize: "11.5px",
-    fontWeight: 700,
+    fontSize: fontSize.small,
+    fontWeight: fontWeight.bold,
     textAlign: "center",
     textOverflow: "ellipsis",
     whiteSpace: "nowrap",
@@ -1189,7 +1190,7 @@ const styles = stylex.create({
     borderWidth: "1.5px",
     borderStyle: "solid",
     borderColor: tokens.ruleSoft,
-    borderRadius: "50%",
+    borderRadius: radius.round,
     backgroundColor: tokens.surface,
   },
   dotAttention: {
@@ -1208,7 +1209,7 @@ const styles = stylex.create({
     height: "18px",
     color: tokens.inkMuted,
     fontFamily: tokens.fontMono,
-    fontSize: "10px",
+    fontSize: fontSize.micro,
     lineHeight: 1,
   },
   stopBadgeActive: {
@@ -1216,7 +1217,7 @@ const styles = stylex.create({
   },
   labelAnchor: {
     position: "absolute",
-    zIndex: 40,
+    zIndex: flowLayer.label,
     display: "inline-flex",
     alignItems: "center",
     pointerEvents: "all",
@@ -1233,8 +1234,8 @@ const styles = stylex.create({
     boxShadow: { default: "none", ":hover": labelHover },
     color: tokens.inkMuted,
     fontFamily: tokens.fontMono,
-    fontSize: "11.5px",
-    fontWeight: 500,
+    fontSize: fontSize.small,
+    fontWeight: fontWeight.medium,
     lineHeight: "14px",
     overflowWrap: "anywhere",
     textAlign: "center",
@@ -1243,6 +1244,6 @@ const styles = stylex.create({
   },
   labelActive: {
     color: tokens.accent,
-    fontWeight: 700,
+    fontWeight: fontWeight.bold,
   },
 });

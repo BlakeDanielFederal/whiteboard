@@ -1,3 +1,4 @@
+import { motion } from "@canvas/scale.stylex";
 import * as stylex from "@stylexjs/stylex";
 import type { ReactElement } from "react";
 
@@ -31,34 +32,6 @@ export function SlidersIcon({ xstyle }: IconProps = {}): ReactElement {
       <path d="M4 8h4.5M13.5 8H20M4 16h6.5M15.5 16H20" />
       <circle cx="11" cy="8" r="2.5" />
       <circle cx="13" cy="16" r="2.5" />
-    </svg>
-  );
-}
-
-export function UnifiedLayoutIcon({ xstyle }: IconProps = {}): ReactElement {
-  return (
-    <svg
-      aria-hidden="true"
-      {...stylex.props(styles.icon, xstyle)}
-      focusable="false"
-      viewBox="0 0 24 24"
-    >
-      <rect x="4" y="5" width="16" height="14" rx="2" />
-      <path d="M8 10h8M8 14h8" />
-    </svg>
-  );
-}
-
-export function SplitLayoutIcon({ xstyle }: IconProps = {}): ReactElement {
-  return (
-    <svg
-      aria-hidden="true"
-      {...stylex.props(styles.icon, xstyle)}
-      focusable="false"
-      viewBox="0 0 24 24"
-    >
-      <rect x="4" y="5" width="16" height="14" rx="2" />
-      <path d="M12 5v14" />
     </svg>
   );
 }
@@ -355,10 +328,10 @@ const styles = stylex.create({
     },
     pointerEvents: "none",
     transition: {
-      default: "opacity 140ms ease, clip-path 0s linear 140ms",
+      default: `opacity ${motion.fast} ${motion.ease}, clip-path ${motion.instant} linear ${motion.fast}`,
       [stylex.when.ancestor(":hover", segmentMarker)]:
-        "opacity 0s, clip-path 260ms cubic-bezier(0.2, 0.7, 0.2, 1)",
-      [reducedMotion]: "opacity 100ms ease",
+        `opacity ${motion.instant}, clip-path ${motion.slow} cubic-bezier(0.2, 0.7, 0.2, 1)`,
+      [reducedMotion]: `opacity ${motion.fast} ${motion.ease}`,
     },
   },
   underlineActive: {
@@ -368,8 +341,8 @@ const styles = stylex.create({
       [stylex.when.ancestor(":hover", segmentMarker)]: 0.7,
     },
     transition: {
-      default: "opacity 0s, clip-path 260ms cubic-bezier(0.2, 0.7, 0.2, 1)",
-      [reducedMotion]: "opacity 100ms ease",
+      default: `opacity ${motion.instant}, clip-path ${motion.slow} cubic-bezier(0.2, 0.7, 0.2, 1)`,
+      [reducedMotion]: `opacity ${motion.fast} ${motion.ease}`,
     },
   },
   underlineStroke: {
@@ -394,7 +367,7 @@ const styles = stylex.create({
     strokeWidth: "1.5",
     strokeLinecap: "round",
     strokeLinejoin: "round",
-    transition: "transform 120ms ease, color 120ms ease",
+    transition: `transform ${motion.fast} ${motion.ease}, color ${motion.fast} ${motion.ease}`,
   },
   chevronOpen: {
     transform: "rotate(90deg)",
@@ -412,7 +385,10 @@ const styles = stylex.create({
     strokeLinejoin: "round",
     strokeWidth: "1.2",
     animationName: { default: drawIn, [reducedMotion]: "none" },
-    animationDuration: { default: "360ms", [reducedMotion]: "0s" },
+    animationDuration: {
+      default: motion.slow,
+      [reducedMotion]: motion.instant,
+    },
     animationTimingFunction: { default: "ease-out", [reducedMotion]: "ease" },
     animationFillMode: { default: "both", [reducedMotion]: "none" },
   },

@@ -1,3 +1,4 @@
+import { fontSize, radius } from "@canvas/scale.stylex";
 import type {
   ReviewDiffProgress,
   ReviewDiffSide,
@@ -350,7 +351,7 @@ const styles = stylex.create({
     borderWidth: "1px",
     borderStyle: "solid",
     borderColor: tokens.rule,
-    borderRadius: "6px",
+    borderRadius: radius.control,
     backgroundColor: tokens.bg,
   },
   error: {
@@ -360,6 +361,6 @@ const styles = stylex.create({
     borderColor: tokens.ruleSoft,
     backgroundColor: tokens.surface,
     color: tokens.inkFaint,
-    font: `11px/1 ${tokens.fontMono}`,
+    font: `${fontSize.small}/1 ${tokens.fontMono}`,
   },
 });

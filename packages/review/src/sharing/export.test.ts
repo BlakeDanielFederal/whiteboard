@@ -305,7 +305,7 @@ it("shares a review's lenses and reads a bundle that holds them as document bloc
     const { targetId } = await local.store.execute({
       commandId: randomUUID(),
       operation: {
-        type: "lens",
+        type: "lens_edit",
         reviewId,
         edit: { type: "insert", ...lens },
       },
@@ -391,7 +391,7 @@ it("uses normal source and workspace routes but rejects authoring mutations", as
       .status,
   ).toBe(404);
   expect(
-    (await app.request(`/${id}/activity`, { method: "POST" })).status,
+    (await app.request(`/${id}/activity/begin`, { method: "POST" })).status,
   ).toBe(409);
   expect(
     (await app.request(`/${id}/source-attachment?side=head&file=main.ts`))

@@ -1,3 +1,13 @@
+// Aliased: review stacks call their entries layers.
+import {
+  fontSize,
+  fontWeight,
+  motion,
+  radius,
+  layer as stackingLayer,
+  tracking,
+} from "@canvas/scale.stylex";
+import { surfaceStyles } from "@canvas/ui/surface";
 import {
   type ReviewDiffStats,
   type ReviewStackLayer,
@@ -23,7 +33,6 @@ import { drawStyles } from "./draw-styles";
 import { useReviewSession } from "./host/review-session";
 import { ReviewBranchRange, WORKING_TREE } from "./review-branch-range";
 import { useReviewDiffFiles } from "./review-diff-files-context";
-import { withClass } from "./stylex-props";
 import { tokens } from "./tokens.stylex";
 
 interface ReviewDocumentMetaState {
@@ -163,14 +172,11 @@ export function ReviewDocumentMetaLine({
   }
 
   return (
-    // The class is a marker: the document and the contents read whether
+    // The attribute is a marker: the document and the contents read whether
     // the document has a header.
     <header
-      {...withClass(
-        "review-document-header",
-        styles.header,
-        drawStyles.blockChild,
-      )}
+      {...stylex.props(styles.header, drawStyles.blockChild)}
+      data-review-document-header
     >
       <div {...stylex.props(styles.row, styles.top)} data-review-copy-ignore>
         <div {...stylex.props(styles.row, styles.identity)}>
@@ -295,7 +301,7 @@ function ReviewStackSelector({
           <path d="m3 4.5 3 3 3-3" {...stylex.props(styles.stackChevronPath)} />
         </svg>
       </summary>
-      <div {...stylex.props(styles.stackMenu)}>
+      <div {...stylex.props(surfaceStyles.popover, styles.stackMenu)}>
         {layers.map((layer, index) => (
           <ReviewStackLayerRow
             key={layer.pullRequestNumber}
@@ -452,7 +458,7 @@ const styles = stylex.create({
     flexDirection: "column",
     gap: "12px",
     paddingBottom: "28px",
-    font: `13px/18px ${tokens.fontMono}`,
+    font: `${fontSize.ui}/18px ${tokens.fontMono}`,
     color: tokens.inkFaint,
   },
   row: {
@@ -488,7 +494,7 @@ const styles = stylex.create({
     alignItems: "center",
     gap: "5px",
     color: tokens.accent,
-    fontWeight: 500,
+    fontWeight: fontWeight.medium,
     textDecoration: "none",
   },
   pullRequestLink: {
@@ -503,7 +509,7 @@ const styles = stylex.create({
     flex: "0 0 3px",
     width: "3px",
     height: "3px",
-    borderRadius: "50%",
+    borderRadius: radius.round,
     backgroundColor: tokens.inkFaint,
   },
   branch: {
@@ -518,7 +524,7 @@ const styles = stylex.create({
     borderWidth: "1px",
     borderStyle: "solid",
     borderColor: tokens.rule,
-    borderRadius: "6px",
+    borderRadius: radius.control,
     backgroundColor: tokens.well,
     color: tokens.ink,
     overflowWrap: "anywhere",
@@ -541,7 +547,7 @@ const styles = stylex.create({
   },
   change: {
     minWidth: "1px",
-    borderRadius: "1px",
+    borderRadius: radius.hairline,
     backgroundColor: tokens.changeAdded,
   },
   removed: {
@@ -566,11 +572,11 @@ const styles = stylex.create({
       default: tokens.rule,
       ":hover": `color-mix(in srgb, ${tokens.accent} 45%, ${tokens.ruleSoft})`,
     },
-    borderRadius: "4px",
+    borderRadius: radius.small,
     backgroundColor: { default: "transparent", ":hover": tokens.controlBg },
     color: tokens.ink,
     cursor: "pointer",
-    fontSize: "11px",
+    fontSize: fontSize.small,
     listStyle: "none",
     "::-webkit-details-marker": {
       display: "none",
@@ -578,20 +584,20 @@ const styles = stylex.create({
   },
   stackPosition: {
     color: tokens.ink,
-    fontSize: "11px",
-    fontWeight: 600,
+    fontSize: fontSize.small,
+    fontWeight: fontWeight.semibold,
   },
   stackLabel: {
     color: tokens.inkFaint,
-    fontSize: "10px",
-    fontWeight: 400,
+    fontSize: fontSize.micro,
+    fontWeight: fontWeight.regular,
   },
   stackChevron: {
     width: "12px",
     height: "12px",
     color: tokens.inkFaint,
     transform: { default: null, ":is([open] > summary > *)": "rotate(180deg)" },
-    transition: "transform 120ms ease-out",
+    transition: `transform ${motion.fast} ease-out`,
   },
   stackChevronPath: {
     fill: "none",
@@ -602,19 +608,13 @@ const styles = stylex.create({
   },
   stackMenu: {
     position: "absolute",
-    zIndex: 20,
+    zIndex: stackingLayer.popover,
     top: "calc(100% + 6px)",
     left: 0,
     display: "flex",
     flexDirection: "column",
     minWidth: "340px",
     padding: "7px",
-    borderWidth: "1px",
-    borderStyle: "solid",
-    borderColor: tokens.ruleSoft,
-    borderRadius: "9px",
-    backgroundColor: tokens.surfaceRaised,
-    boxShadow: `0 14px 32px ${tokens.shadowColor}`,
   },
   stackRow: {
     display: "flex",
@@ -626,7 +626,7 @@ const styles = stylex.create({
     borderWidth: 0,
     borderStyle: "none",
     borderColor: "currentcolor",
-    borderRadius: "6px",
+    borderRadius: radius.control,
     backgroundColor: "transparent",
     color: tokens.ink,
     font: "inherit",
@@ -659,16 +659,16 @@ const styles = stylex.create({
     borderWidth: "1px",
     borderStyle: "solid",
     borderColor: tokens.inkFaint,
-    borderRadius: "50%",
+    borderRadius: radius.round,
     color: tokens.inkMuted,
-    fontSize: "9px",
-    fontWeight: 500,
+    fontSize: fontSize.micro,
+    fontWeight: fontWeight.medium,
   },
   stackMarkerCurrent: {
     borderColor: `color-mix(in srgb, ${tokens.accent} 64%, ${tokens.ruleSoft})`,
     backgroundColor: `color-mix(in srgb, ${tokens.accent} 12%, transparent)`,
     color: tokens.accent,
-    fontWeight: 600,
+    fontWeight: fontWeight.semibold,
   },
   stackCopy: {
     display: "flex",
@@ -684,26 +684,26 @@ const styles = stylex.create({
   },
   stackTitle: {
     color: tokens.ink,
-    fontSize: "11px",
+    fontSize: fontSize.small,
     lineHeight: "15px",
   },
   stackTitleCurrent: {
-    fontWeight: 600,
+    fontWeight: fontWeight.semibold,
   },
   stackBranch: {
     color: tokens.inkFaint,
-    fontSize: "10px",
+    fontSize: fontSize.micro,
     lineHeight: "14px",
   },
   stackBranchCurrent: {
     color: tokens.inkMuted,
   },
   stackRelation: {
-    flex: "0 0 54px",
-    width: "54px",
+    flex: "0 0 64px",
+    width: "64px",
     color: tokens.inkFaint,
-    fontSize: "8px",
-    letterSpacing: "0.02em",
+    fontSize: fontSize.micro,
+    letterSpacing: tracking.chrome,
     lineHeight: "13px",
     textAlign: "right",
     textTransform: "uppercase",

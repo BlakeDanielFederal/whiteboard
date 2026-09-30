@@ -1,3 +1,7 @@
+import { documentType } from "@canvas/document-type.stylex";
+import { fontSize, fontWeight } from "@canvas/scale.stylex";
+import { IconButton } from "@canvas/ui/button";
+import { textStyles } from "@canvas/ui/text";
 import type { ReviewComponentProps } from "@review/review-document-data";
 import * as stylex from "@stylexjs/stylex";
 import type {
@@ -21,7 +25,7 @@ import {
 } from "./host/review-session";
 import { CloseIcon, DisclosureChevron, MapPinIcon } from "./icons";
 import { newTabLinkProps } from "./link-props";
-import { chevronMarker } from "./markers.stylex";
+import { chevronMarker, documentMarker } from "./markers.stylex";
 import { useReviewActions } from "./review-context";
 import { useOptionalReviewPanelStore, useReviewPanel } from "./review-panel";
 import type {
@@ -129,18 +133,20 @@ function ReviewPanelFrame({
       />
       <header {...stylex.props(panelStyles.header)}>
         <div {...stylex.props(panelStyles.title)}>
-          <span {...stylex.props(panelStyles.kicker)}>{label}</span>
+          <span {...stylex.props(textStyles.eyebrow, panelStyles.kicker)}>
+            {label}
+          </span>
           {title && <h2 {...stylex.props(panelStyles.heading)}>{title}</h2>}
           {titleAccessory}
         </div>
-        <button
-          type="button"
-          {...stylex.props(controlStyles.iconButton, panelStyles.close)}
+        <IconButton
+          size="large"
+          xstyle={panelStyles.close}
           onClick={onClose}
           aria-label={closeLabel}
         >
           <CloseIcon xstyle={controlStyles.inertIcon} />
-        </button>
+        </IconButton>
       </header>
       <div
         ref={bodyRef}
@@ -230,15 +236,15 @@ export function ReviewSection({
           tutorialSection.state === "complete" && sectionStyles.complete,
         )}
       >
-        <button
-          type="button"
-          {...stylex.props(chevronMarker, sectionStyles.toggle)}
+        <IconButton
+          size="small"
+          xstyle={[chevronMarker, sectionStyles.toggle]}
           aria-expanded={!collapsed}
           aria-label={collapsed ? `Expand ${title}` : `Collapse ${title}`}
           onClick={toggleCollapsed}
         >
           <DisclosureChevron expanded={!collapsed} />
-        </button>
+        </IconButton>
         <div {...withClass("review-section-heading", sectionStyles.heading)}>
           <h2
             id={id}
@@ -648,20 +654,16 @@ function CodeReviewPeekPanel({
       <div {...stylex.props(panelStyles.peekBody)}>
         {softwareMapEnabled && anchor.softwareMapPath ? (
           <div {...stylex.props(panelStyles.peekActions)}>
-            <button
-              type="button"
+            <IconButton
+              size="large"
               onClick={() => {
                 openSoftwareMapElement(anchor.softwareMapPath!);
                 onClose();
               }}
-              {...stylex.props(
-                controlStyles.iconButton,
-                controlStyles.iconButtonPeek,
-              )}
               aria-label={`Show ${anchor.title} in software map`}
             >
               <MapPinIcon xstyle={controlStyles.inertIcon} />
-            </button>
+            </IconButton>
           </div>
         ) : null}
 
@@ -909,27 +911,25 @@ export function GuidedTourPanel({
                 role="group"
                 aria-label="Tour steps"
               >
-                <button
-                  type="button"
-                  {...stylex.props(tourStyles.pillButton)}
+                <IconButton
+                  xstyle={tourStyles.pillButton}
                   aria-label="Previous step"
                   disabled={displayIndex === 0}
                   onClick={() => stepTo(displayIndex - 1)}
                 >
                   ↑
-                </button>
+                </IconButton>
                 <span className="tour-pill-count" aria-live="polite">
                   {displayIndex + 1}/{tour.stops.length}
                 </span>
-                <button
-                  type="button"
-                  {...stylex.props(tourStyles.pillButton)}
+                <IconButton
+                  xstyle={tourStyles.pillButton}
                   aria-label="Next step"
                   disabled={displayIndex === lastIndex}
                   onClick={() => stepTo(displayIndex + 1)}
                 >
                   ↓
-                </button>
+                </IconButton>
               </div>
             )}
           </div>
@@ -1024,7 +1024,7 @@ function GuidedTourStopMain({
     <div {...stylex.props(tourStyles.main, active && tourStyles.mainActive)}>
       <header {...stylex.props(tourStyles.header)}>
         <div>
-          <div {...stylex.props(tourStyles.count)}>
+          <div {...stylex.props(textStyles.eyebrow, textStyles.count)}>
             Step {index + 1} of {total}
           </div>
           <div {...stylex.props(tourStyles.titleRow)}>
@@ -1043,9 +1043,8 @@ function GuidedTourStopMain({
         </div>
         {softwareMapEnabled && stop.anchor.softwareMapPath ? (
           <div {...stylex.props(panelStyles.peekActions)}>
-            <button
-              type="button"
-              {...stylex.props(controlStyles.iconButton)}
+            <IconButton
+              size="large"
               aria-label={`Show ${stop.anchor.title} in software map`}
               onClick={() => {
                 openSoftwareMapElement(stop.anchor.softwareMapPath!);
@@ -1053,7 +1052,7 @@ function GuidedTourStopMain({
               }}
             >
               <MapPinIcon xstyle={controlStyles.inertIcon} />
-            </button>
+            </IconButton>
           </div>
         ) : null}
       </header>
@@ -1110,7 +1109,7 @@ function ReviewPeekContentView({
   return null;
 }
 
-const inDocument = ":is(.review-document *)";
+const inDocument = () => stylex.when.ancestor(":is(*)", documentMarker);
 
 const sectionStyles = stylex.create({
   section: {
@@ -1133,45 +1132,27 @@ const sectionStyles = stylex.create({
       content: "'Complete ✓'",
       marginLeft: "auto",
       color: tokens.tutorialRing,
-      font: `10px/16px ${tokens.fontMono}`,
+      font: `${fontSize.micro}/16px ${tokens.fontMono}`,
     },
   },
   // Expanded sections keep a faint chevron so "this collapses" is legible
   // without hovering the header first.
   toggle: {
     position: "absolute",
-    top: "5px",
-    left: "-28px",
-    display: "grid",
-    placeItems: "center",
-    width: "18px",
-    height: "18px",
-    padding: 0,
-    borderWidth: 0,
-    borderStyle: "none",
-    borderColor: "currentcolor",
-    borderRadius: "4px",
-    backgroundColor: tokens.transparent,
-    color: {
-      default: tokens.inkFaint,
-      ":hover": tokens.inkMuted,
-      ":focus-visible": tokens.inkMuted,
-    },
-    outline: { default: null, ":hover": "none", ":focus-visible": "none" },
-    opacity: 1,
-    transition: "opacity 120ms ease",
+    top: "4px",
+    left: "-29px",
   },
   heading: {
     minWidth: 0,
   },
   title: {
-    scrollMarginTop: { default: null, [inDocument]: "24px" },
+    scrollMarginTop: { default: null, [inDocument()]: "24px" },
     margin: 0,
-    color: { default: null, [inDocument]: tokens.ink },
-    fontFamily: { default: null, [inDocument]: tokens.fontSerif },
-    fontSize: { default: null, [inDocument]: "26px" },
-    fontWeight: { default: null, [inDocument]: 500 },
-    lineHeight: { default: null, [inDocument]: "32px" },
+    color: { default: null, [inDocument()]: tokens.ink },
+    fontFamily: { default: null, [inDocument()]: tokens.fontSerif },
+    fontSize: { default: null, [inDocument()]: documentType.h2 },
+    fontWeight: { default: null, [inDocument()]: fontWeight.medium },
+    lineHeight: { default: null, [inDocument()]: "32px" },
   },
   titleActive: {
     color: tokens.ink,
@@ -1183,7 +1164,7 @@ const sectionStyles = stylex.create({
     flex: "0 0 auto",
     color: tokens.inkFaint,
     fontFamily: tokens.fontMono,
-    fontSize: "11px",
+    fontSize: fontSize.small,
     whiteSpace: "nowrap",
   },
 });

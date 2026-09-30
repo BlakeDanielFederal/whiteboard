@@ -1,7 +1,9 @@
-import type { ActivitySnapshot } from "@review/review-api/activity";
+import { courierMotion } from "@canvas/courier-motion.stylex";
+import { fontSize, fontWeight, motion, radius } from "@canvas/scale.stylex";
 import * as stylex from "@stylexjs/stylex";
-import { createContext, useContext, useState } from "react";
+import { useContext, useState } from "react";
 
+import { AuthoringActivityContext } from "./authoring-activity-context";
 import { scopeLive } from "./authoring-cursor";
 import {
   AuthoringCursorContext,
@@ -11,14 +13,11 @@ import {
 import { CourierFigure } from "./courier-figure";
 import { cursorElement } from "./cursor-element";
 import { DisplayedReviewVersionContext } from "./displayed-review-version-context";
+import { topbarTabsMarker } from "./markers.stylex";
 import { useReviewRoots } from "./review-root-context";
 import { withClass } from "./stylex-props";
 import { tokens } from "./tokens.stylex";
 import { useTooltip } from "./use-tooltip";
-
-export const AuthoringActivityContext = createContext<
-  ActivitySnapshot | "unknown" | undefined
->(undefined);
 
 /**
  * The top-bar badge: the mini courier and what the agent is doing. While an
@@ -187,7 +186,7 @@ export function ReviewSurfaceLabel({
 const REDUCED = "@media (prefers-reduced-motion: reduce)";
 
 // The surface tab's word is styled only in the top bar's tabs.
-const inTopbarTabs = ":is(.review-topbar-left *)";
+const inTopbarTabs = () => stylex.when.ancestor(":is(*)", topbarTabsMarker);
 
 const shimmer = stylex.keyframes({
   from: { backgroundPosition: "120% 0" },
@@ -218,10 +217,10 @@ const styles = stylex.create({
     borderWidth: 0,
     borderStyle: "none",
     borderColor: "currentcolor",
-    borderRadius: "999px",
+    borderRadius: radius.pill,
     backgroundColor: tokens.transparent,
     color: tokens.inkMuted,
-    font: `500 11px ${tokens.fontMono}`,
+    font: `${fontWeight.medium} ${fontSize.small} ${tokens.fontMono}`,
     whiteSpace: "nowrap",
   },
   // While an agent works the badge is a button that locates the courier.
@@ -232,7 +231,7 @@ const styles = stylex.create({
       ":hover": tokens.markerGlow,
     },
     color: tokens.accent,
-    fontWeight: 600,
+    fontWeight: fontWeight.semibold,
     outline: { default: null, ":focus-visible": `1px solid ${tokens.accent}` },
     outlineOffset: { default: null, ":focus-visible": "1px" },
   },
@@ -255,7 +254,10 @@ const styles = stylex.create({
     color: tokens.accent,
     transform: "none",
     animationName: { default: courierArrive, [REDUCED]: "none" },
-    animationDuration: { default: "380ms", [REDUCED]: "0s" },
+    animationDuration: {
+      default: courierMotion.arrive,
+      [REDUCED]: motion.instant,
+    },
     animationTimingFunction: {
       default: "cubic-bezier(0.2, 0.7, 0.2, 1)",
       [REDUCED]: "ease",
@@ -265,57 +267,57 @@ const styles = stylex.create({
   // Neither the ink nor the unread dot touches the tab's layout: the dot is
   // out of flow and only color moves.
   word: {
-    position: { default: null, [inTopbarTabs]: "relative" },
+    position: { default: null, [inTopbarTabs()]: "relative" },
   },
   // Marker ink sweeps through the word while the agent writes.
   wordWorking: {
     backgroundImage: {
       default: null,
-      [inTopbarTabs]: { default: mutedInk, [REDUCED]: "none" },
+      [inTopbarTabs()]: { default: mutedInk, [REDUCED]: "none" },
     },
     backgroundSize: {
       default: null,
-      [inTopbarTabs]: { default: "240% 100%", [REDUCED]: "auto" },
+      [inTopbarTabs()]: { default: "240% 100%", [REDUCED]: "auto" },
     },
     backgroundClip: {
       default: null,
-      [inTopbarTabs]: { default: "text", [REDUCED]: "border-box" },
+      [inTopbarTabs()]: { default: "text", [REDUCED]: "border-box" },
     },
     color: {
       default: null,
-      [inTopbarTabs]: {
+      [inTopbarTabs()]: {
         default: tokens.transparent,
         [REDUCED]: tokens.inkMuted,
       },
     },
     animationName: {
       default: null,
-      [inTopbarTabs]: { default: shimmer, [REDUCED]: "none" },
+      [inTopbarTabs()]: { default: shimmer, [REDUCED]: "none" },
     },
     animationDuration: {
       default: null,
-      [inTopbarTabs]: { default: "1.8s", [REDUCED]: "0s" },
+      [inTopbarTabs()]: { default: motion.pulse, [REDUCED]: motion.instant },
     },
     animationTimingFunction: {
       default: null,
-      [inTopbarTabs]: { default: "linear", [REDUCED]: "ease" },
+      [inTopbarTabs()]: { default: "linear", [REDUCED]: "ease" },
     },
     animationIterationCount: {
       default: null,
-      [inTopbarTabs]: { default: "infinite", [REDUCED]: 1 },
+      [inTopbarTabs()]: { default: "infinite", [REDUCED]: 1 },
     },
   },
   // The chosen tab inks darker, reduced motion included.
   wordWorkingActive: {
-    backgroundImage: { default: null, [inTopbarTabs]: strongInk },
+    backgroundImage: { default: null, [inTopbarTabs()]: strongInk },
   },
   unread: {
-    position: { default: null, [inTopbarTabs]: "absolute" },
-    top: { default: null, [inTopbarTabs]: "1px" },
-    right: { default: null, [inTopbarTabs]: "-7px" },
-    width: { default: null, [inTopbarTabs]: "4px" },
-    height: { default: null, [inTopbarTabs]: "4px" },
-    borderRadius: { default: null, [inTopbarTabs]: "50%" },
-    backgroundColor: { default: null, [inTopbarTabs]: tokens.accent },
+    position: { default: null, [inTopbarTabs()]: "absolute" },
+    top: { default: null, [inTopbarTabs()]: "1px" },
+    right: { default: null, [inTopbarTabs()]: "-7px" },
+    width: { default: null, [inTopbarTabs()]: "4px" },
+    height: { default: null, [inTopbarTabs()]: "4px" },
+    borderRadius: { default: null, [inTopbarTabs()]: radius.round },
+    backgroundColor: { default: null, [inTopbarTabs()]: tokens.accent },
   },
 });

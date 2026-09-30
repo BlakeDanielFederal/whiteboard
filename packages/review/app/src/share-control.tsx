@@ -1,3 +1,7 @@
+import { layer } from "@canvas/scale.stylex";
+import { Button, IconButton } from "@canvas/ui/button";
+import { surfaceStyles } from "@canvas/ui/surface";
+import { TextField } from "@canvas/ui/text-field";
 import {
   type ReviewApiClient,
   ReviewApiError,
@@ -16,6 +20,7 @@ import { controlStyles } from "./controls-styles";
 import { copyText } from "./copy-text";
 import { useOptionalReviewSession } from "./host/review-session";
 import { ShareIcon } from "./icons";
+import { topbarActionsMarker } from "./markers.stylex";
 import { shellStyles } from "./shell-styles";
 import { tokens } from "./tokens.stylex";
 import { captureUiEvent } from "./ui-telemetry";
@@ -192,9 +197,7 @@ export function ShareControl() {
       {...stylex.props(shellStyles.topbarItem)}
       style={{ position: "relative" }}
     >
-      <button
-        type="button"
-        {...stylex.props(shellStyles.topbarIconButton, open && styles.expanded)}
+      <IconButton
         ref={tooltip}
         aria-label={label}
         aria-haspopup="dialog"
@@ -219,14 +222,18 @@ export function ShareControl() {
         }}
       >
         <ShareIcon xstyle={controlStyles.chromeIcon} />
-      </button>
+      </IconButton>
       {open && (
         <div
           ref={popoverRef}
           popover="manual"
           role="dialog"
           aria-label={shared ? "Shared review" : "Share review"}
-          {...stylex.props(shellStyles.topbarPopover, styles.popover)}
+          {...stylex.props(
+            shellStyles.topbarPopover,
+            surfaceStyles.popover,
+            styles.popover,
+          )}
         >
           {(error || accountError || account?.error) && (
             <p {...stylex.props(styles.paragraph, styles.error)} role="alert">
@@ -243,29 +250,24 @@ export function ShareControl() {
           ) : signedIn ? (
             link ? (
               <>
-                <input
-                  {...stylex.props(styles.link)}
+                <TextField
+                  xstyle={styles.link}
                   aria-label="Share link"
                   readOnly
                   value={link}
                   onFocus={(event) => event.target.select()}
                 />
-                <button
-                  type="button"
-                  {...stylex.props(styles.action)}
-                  onClick={() => void copy(link)}
-                >
+                <Button variant="primary" onClick={() => void copy(link)}>
                   {copied ? "Copied" : "Copy link"}
-                </button>
+                </Button>
               </>
             ) : error ? (
-              <button
-                type="button"
-                {...stylex.props(styles.action)}
+              <Button
+                variant="primary"
                 onClick={() => target && upload(target)}
               >
                 Retry
-              </button>
+              </Button>
             ) : (
               <p {...stylex.props(styles.paragraph, styles.status)}>
                 Uploading…
@@ -274,9 +276,8 @@ export function ShareControl() {
           ) : (
             account && (
               <>
-                <button
-                  type="button"
-                  {...stylex.props(styles.action)}
+                <Button
+                  variant="primary"
                   disabled={
                     account.pending || login.isPending || publish.isPending
                   }
@@ -288,7 +289,7 @@ export function ShareControl() {
                   {account.pending
                     ? "Waiting for sign-in…"
                     : "Sign in to share"}
-                </button>
+                </Button>
               </>
             )
           )}
@@ -298,37 +299,27 @@ export function ShareControl() {
   );
 }
 
+const inTopbarActions = () =>
+  stylex.when.ancestor(":is(*)", topbarActionsMarker);
+
 const styles = stylex.create({
   // Hovered, the open button keeps the topbar button hover colors.
-  expanded: {
-    backgroundColor: {
-      default: tokens.chromeHoverBg,
-      ":hover": tokens.well,
-    },
-    color: { default: tokens.chromeFg, ":hover": tokens.ink },
-  },
   // In the topbar action row the shared anchoring (shellStyles.topbarPopover)
   // places it; these are its own values anywhere else.
   popover: {
-    position: { default: "absolute", ":is(.review-topbar-actions *)": "fixed" },
-    zIndex: 30,
+    position: { default: "absolute", [inTopbarActions()]: "fixed" },
+    zIndex: layer.popover,
     top: {
       default: "calc(100% + 4px)",
-      ":is(.review-topbar-actions *)": "calc(anchor(bottom) + 4px)",
+      [inTopbarActions()]: "calc(anchor(bottom) + 4px)",
     },
-    right: { default: 0, ":is(.review-topbar-actions *)": "anchor(right)" },
+    right: { default: 0, [inTopbarActions()]: "anchor(right)" },
     display: "flex",
     flexDirection: "column",
     gap: "8px",
     width: "280px",
     margin: 0,
     padding: "10px 12px",
-    borderWidth: "1px",
-    borderStyle: "solid",
-    borderColor: tokens.ruleSoft,
-    borderRadius: "8px",
-    backgroundColor: tokens.surfaceRaised,
-    boxShadow: `0 8px 28px ${tokens.shadowColorStrong}`,
     color: tokens.chromeFg,
     fontFamily: tokens.chromeFont,
     fontSize: tokens.chromeFontSize,
@@ -344,42 +335,5 @@ const styles = stylex.create({
   },
   link: {
     width: "100%",
-    boxSizing: "border-box",
-    height: "26px",
-    padding: "0 8px",
-    borderWidth: "1px",
-    borderStyle: "solid",
-    borderColor: {
-      default: tokens.ruleSoft,
-      ":focus-visible": tokens.chromeActiveBorder,
-    },
-    borderRadius: tokens.chromeControlRadius,
-    backgroundColor: tokens.surface,
-    color: tokens.ink,
-    font: "inherit",
-    outline: { default: null, ":focus-visible": "none" },
-  },
-  action: {
-    height: "26px",
-    padding: "0 12px",
-    borderWidth: 0,
-    borderStyle: "none",
-    borderColor: "currentcolor",
-    borderRadius: tokens.chromeControlRadius,
-    backgroundColor: tokens.accent,
-    color: tokens.onAccent,
-    font: "inherit",
-    cursor: { default: "pointer", ":disabled": "default" },
-    filter: {
-      default: null,
-      ":hover:not(:disabled)": "brightness(1.1)",
-      ":focus-visible:not(:disabled)": "brightness(1.1)",
-    },
-    outline: {
-      default: null,
-      ":hover:not(:disabled)": "none",
-      ":focus-visible:not(:disabled)": "none",
-    },
-    opacity: { default: null, ":disabled": 0.6 },
   },
 });

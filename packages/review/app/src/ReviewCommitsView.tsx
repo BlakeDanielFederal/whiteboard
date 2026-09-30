@@ -1,10 +1,16 @@
+import { fontSize, fontWeight, radius } from "@canvas/scale.stylex";
+import { IconButton } from "@canvas/ui/button";
+import { EmptyState } from "@canvas/ui/empty-state";
+import { textStyles } from "@canvas/ui/text";
 import {
   type ReviewCommitSummary,
   type ReviewDiffFileWire,
 } from "@dev.fast/review-protocol";
 import * as stylex from "@stylexjs/stylex";
+import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 
+import { canvasQueryKeys } from "./canvas-query";
 import { controlStyles } from "./controls-styles";
 import { CopyButton } from "./copy-text";
 import { DiffCount } from "./diff-count";
@@ -13,10 +19,7 @@ import { useReviewSession } from "./host/review-session";
 import { CodeIcon, DisclosureChevron } from "./icons";
 import { chevronMarker } from "./markers.stylex";
 import { shortRef } from "./review-branch-range";
-import { ReviewUnavailable } from "./review-empty-state";
 import { countLabel } from "./review-home-view";
-import { shellStyles } from "./shell-styles";
-import { withClass } from "./stylex-props";
 import { tokens } from "./tokens.stylex";
 import { captureUiEvent } from "./ui-telemetry";
 import { useTooltip } from "./use-tooltip";
@@ -26,11 +29,6 @@ type OpenCommitDiff = (
   via: "row" | "file",
   file?: string,
 ) => void;
-
-type CommitFilesState =
-  | { status: "loading" }
-  | { status: "error"; error: string }
-  | { status: "loaded"; files: ReviewDiffFileWire[] };
 
 export function ReviewCommitsView({
   commits,
@@ -43,7 +41,8 @@ export function ReviewCommitsView({
 }) {
   if (range.sourceUnavailable) {
     return (
-      <ReviewUnavailable
+      <EmptyState
+        variant="document"
         role="status"
         title="Commits unavailable"
         message={range.sourceUnavailable}
@@ -91,7 +90,9 @@ function CommitGroups({
         >
           <circle cx="7" cy="7" r="3" />
         </svg>
-        <h2 {...stylex.props(styles.dateHeading)}>Commits on {group.label}</h2>
+        <h2 {...stylex.props(textStyles.eyebrow, styles.dateHeading)}>
+          Commits on {group.label}
+        </h2>
       </div>
       <div {...stylex.props(styles.timeline)}>
         {group.commits.map((commit) => (
@@ -115,34 +116,25 @@ function CommitRow({
 }) {
   const session = useReviewSession();
   const [expanded, setExpanded] = useState(false);
-  const [filesState, setFilesState] = useState<CommitFilesState | null>(null);
   const openTooltip = useTooltip("Open commit diff");
+
+  // A commit's files never change.
+  const files = useQuery({
+    queryKey: canvasQueryKeys.commitFiles(commit.commit),
+    queryFn: async () => [
+      ...(await session.bridge.diffView.files({ commit: commit.commit })),
+    ],
+    enabled: expanded,
+    staleTime: Infinity,
+  });
 
   const toggleExpanded = () => {
     const next = !expanded;
     setExpanded(next);
     captureUiEvent(session, "commit_expanded", { expanded: next });
-
-    if (!next || filesState) return;
-    setFilesState({ status: "loading" });
-    const diffView = session.bridge.diffView;
-
-    const request = diffView.files({ commit: commit.commit });
-
-    request
-      .then((files) => setFilesState({ status: "loaded", files: [...files] }))
-      .catch((cause: unknown) => {
-        setFilesState({
-          status: "error",
-          error: cause instanceof Error ? cause.message : String(cause),
-        });
-      });
   };
 
-  const visibleFiles =
-    filesState?.status === "loaded"
-      ? visibleCommitFiles(filesState.files)
-      : null;
+  const visibleFiles = files.data ? visibleCommitFiles(files.data) : null;
 
   const omittedFileCount = visibleFiles
     ? visibleFiles.testFilesOmitted + visibleFiles.overflowFilesOmitted
@@ -166,18 +158,16 @@ function CommitRow({
           <CopyButton
             text={commit.commit}
             label="Copy commit SHA"
-            xstyle={shellStyles.topbarIconButton}
             iconStyle={controlStyles.chromeIcon}
           />
-          <button
+          <IconButton
             ref={openTooltip}
-            type="button"
-            {...withClass("review-commit-open", shellStyles.topbarIconButton)}
+            className="review-commit-open"
             aria-label="Open commit diff"
             onClick={() => onOpenDiff(commit, "row")}
           >
             <CodeIcon xstyle={controlStyles.chromeIcon} />
-          </button>
+          </IconButton>
         </span>
         <span {...stylex.props(styles.meta)}>
           {commit.author} · {formatCommitTime(commit.authoredAt)} ·{" "}
@@ -190,11 +180,11 @@ function CommitRow({
       </div>
       {expanded ? (
         <div {...stylex.props(styles.files)}>
-          {filesState?.status === "loading" ? (
+          {files.isPending ? (
             <p {...stylex.props(styles.filesNote)}>Loading files…</p>
           ) : null}
-          {filesState?.status === "error" ? (
-            <p {...stylex.props(styles.filesNote)}>{filesState.error}</p>
+          {files.isError ? (
+            <p {...stylex.props(styles.filesNote)}>{files.error.message}</p>
           ) : null}
           {visibleFiles?.files.map((file) => (
             <button
@@ -318,14 +308,14 @@ const styles = stylex.create({
   rangeCount: {
     color: tokens.ink,
     flexShrink: 0,
-    font: `600 15px/20px ${tokens.fontMono}`,
+    font: `${fontWeight.semibold} ${fontSize.reading}/20px ${tokens.fontMono}`,
     whiteSpace: "nowrap",
   },
   rangeRefs: {
     minWidth: 0,
     overflow: "hidden",
     color: tokens.inkMuted,
-    font: `11px ${tokens.fontMono}`,
+    font: `${fontSize.small} ${tokens.fontMono}`,
     textOverflow: "ellipsis",
     whiteSpace: "nowrap",
   },
@@ -334,10 +324,6 @@ const styles = stylex.create({
     alignItems: "center",
     gap: "10px",
     padding: "8px 0",
-    color: tokens.inkFaint,
-    fontSize: "11px",
-    letterSpacing: tokens.wbCaps,
-    textTransform: "uppercase",
   },
   laterDate: {
     paddingTop: "10px",
@@ -352,11 +338,6 @@ const styles = stylex.create({
   },
   dateHeading: {
     margin: 0,
-    color: tokens.inkFaint,
-    fontSize: "10px",
-    fontWeight: 500,
-    letterSpacing: "0.06em",
-    textTransform: "uppercase",
   },
   timeline: {
     position: "relative",
@@ -378,7 +359,7 @@ const styles = stylex.create({
     borderWidth: "1px",
     borderStyle: "solid",
     borderColor: tokens.rule,
-    borderRadius: "8px",
+    borderRadius: radius.surface,
     backgroundColor: tokens.surface,
     boxShadow: "none",
   },
@@ -428,8 +409,8 @@ const styles = stylex.create({
   subject: {
     overflow: "hidden",
     color: tokens.ink,
-    fontSize: "12px",
-    fontWeight: 500,
+    fontSize: fontSize.body,
+    fontWeight: fontWeight.medium,
     textOverflow: "ellipsis",
     whiteSpace: "nowrap",
   },
@@ -444,11 +425,11 @@ const styles = stylex.create({
   sha: {
     marginRight: "6px",
     color: tokens.inkFaint,
-    font: `11px ${tokens.fontMono}`,
+    font: `${fontSize.small} ${tokens.fontMono}`,
     fontVariantNumeric: "tabular-nums",
   },
   meta: {
-    font: `11px ${tokens.fontMono}`,
+    font: `${fontSize.small} ${tokens.fontMono}`,
     fontVariantNumeric: "tabular-nums",
     paddingLeft: "26px",
     color: tokens.inkMuted,
@@ -459,7 +440,7 @@ const styles = stylex.create({
   filesNote: {
     margin: "6px 12px",
     color: tokens.inkFaint,
-    fontSize: "11px",
+    fontSize: fontSize.small,
   },
   file: {
     display: "flex",
@@ -472,7 +453,7 @@ const styles = stylex.create({
     borderColor: "currentcolor",
     backgroundColor: { default: "transparent", ":hover": tokens.controlBg },
     color: tokens.ink,
-    fontSize: "11px",
+    fontSize: fontSize.small,
     textAlign: "left",
   },
   filePath: {
@@ -489,7 +470,7 @@ const styles = stylex.create({
     borderColor: "currentcolor",
     backgroundColor: "transparent",
     color: { default: tokens.inkFaint, ":hover": tokens.accent },
-    fontSize: "10px",
+    fontSize: fontSize.micro,
   },
   // The whole header is the toggle's hit area, so its chevron stays quiet on
   // hover.

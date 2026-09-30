@@ -32,6 +32,8 @@ export const REVIEW_CTRL_TAB_SETTING = 'review.tabs.ctrlTab';
 export const REVIEW_CTRL_TAB_CHOICES = ['recent', 'next'] as const;
 export const REVIEW_OPEN_FILES_IN_SETTING = 'review.openFilesIn';
 export const REVIEW_OPEN_FILES_IN_CHOICES = ['whiteboard', 'vscode', 'cursor', 'zed'] as const;
+export const REVIEW_READY_NOTIFICATION_SETTING = 'review.notifications.reviewReady';
+export const REVIEW_READY_NOTIFICATION_CHOICES = ['notificationAndBadge', 'notification', 'off'] as const;
 
 export const reviewConfigurationDefaults = {
 	[REVIEW_SOFTWARE_MAP_SETTING]: false,

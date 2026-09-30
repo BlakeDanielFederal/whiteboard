@@ -416,6 +416,11 @@ export type ReviewOpenFilesInChoice =
   | "cursor"
   | "zed";
 
+export type ReviewReadyNotificationChoice =
+  | "notificationAndBadge"
+  | "notification"
+  | "off";
+
 export const REVIEW_TUTORIAL_STEP_IDS = [
   "openPeek",
   "gotoDefinition",
@@ -520,6 +525,10 @@ export interface ReviewCanvasSettingsContent {
   setOpenFilesIn(
     choice: ReviewOpenFilesInChoice,
   ): Promise<ReviewOpenFilesInChoice>;
+  readyNotification: ReviewReadyNotificationChoice;
+  setReadyNotification(
+    choice: ReviewReadyNotificationChoice,
+  ): Promise<ReviewReadyNotificationChoice>;
   softwareMapEnabled: boolean;
   setSoftwareMapEnabled(enabled: boolean): Promise<boolean>;
   structuralDiffEnabled: boolean;
@@ -758,7 +767,7 @@ export interface ReviewCanvasModule {
 // bump; readers must ignore fields they do not understand.
 export const ReviewDesktopDiscoverySchema = z.object({
   version: z.literal(REVIEW_DESKTOP_DISCOVERY_VERSION, {
-    error: "Unsupported Review Desktop discovery version",
+    error: "Unsupported Whiteboard Desktop discovery version",
   }),
   instanceId: requiredString,
   url: loopbackOriginSchema,

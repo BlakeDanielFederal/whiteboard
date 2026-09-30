@@ -6,6 +6,14 @@ import {
   traceToolMarker,
   traceWorkedMarker,
 } from "./markers.stylex";
+import {
+  elevation,
+  fontSize,
+  fontWeight,
+  layer,
+  motion,
+  radius,
+} from "./scale.stylex";
 import { tokens } from "./tokens.stylex";
 
 // The agent trace view, and the trace scoped into a side peek.
@@ -30,11 +38,6 @@ export const traceStyles = stylex.create({
   },
   kicker: {
     fontFamily: tokens.fontMono,
-    fontSize: "10px",
-    fontWeight: 700,
-    letterSpacing: "0.08em",
-    textTransform: "uppercase",
-    color: tokens.inkFaint,
   },
   header: {
     display: "flex",
@@ -48,9 +51,9 @@ export const traceStyles = stylex.create({
   title: {
     margin: 0,
     fontFamily: tokens.fontSerif,
-    fontSize: "22px",
+    fontSize: fontSize.display,
     lineHeight: "28px",
-    fontWeight: 500,
+    fontWeight: fontWeight.medium,
     color: tokens.ink,
   },
   meta: {
@@ -59,7 +62,7 @@ export const traceStyles = stylex.create({
     flexWrap: "wrap",
     gap: "8px",
     fontFamily: tokens.fontMono,
-    fontSize: "11px",
+    fontSize: fontSize.small,
     color: tokens.inkFaint,
   },
   metaSeparator: {
@@ -71,23 +74,16 @@ export const traceStyles = stylex.create({
     display: "inline-block",
     marginBottom: "20px",
   },
+  // A secondary Button that stands off the page like a select.
   pickerTrigger: {
-    display: "inline-flex",
-    alignItems: "center",
+    justifyContent: "flex-start",
     gap: "8px",
     maxWidth: "min(680px, 100%)",
-    height: "28px",
-    padding: "0 10px",
-    borderRadius: "6px",
-    borderWidth: "1px",
-    borderStyle: "solid",
     borderColor: { default: tokens.rule, ":hover": tokens.ruleSoft },
     backgroundColor: { default: tokens.surface, ":hover": tokens.tray },
     color: tokens.ink,
-    fontSize: "12.5px",
-    cursor: "pointer",
-    boxShadow: `0 1px 2px ${tokens.shadowColor}`,
-    transition: "border-color 0.15s ease, background 0.15s ease",
+    fontWeight: fontWeight.regular,
+    boxShadow: elevation.raised,
   },
   pickerTriggerOpen: {
     borderColor: tokens.accent,
@@ -95,10 +91,6 @@ export const traceStyles = stylex.create({
   },
   pickerHarness: {
     fontFamily: tokens.fontMono,
-    fontSize: "10.5px",
-    fontWeight: 700,
-    letterSpacing: "0.04em",
-    textTransform: "uppercase",
     color: tokens.accent,
     flexShrink: 0,
   },
@@ -106,7 +98,7 @@ export const traceStyles = stylex.create({
     overflow: "hidden",
     textOverflow: "ellipsis",
     whiteSpace: "nowrap",
-    fontWeight: 500,
+    fontWeight: fontWeight.medium,
     color: tokens.ink,
   },
   pickerChevron: {
@@ -118,7 +110,7 @@ export const traceStyles = stylex.create({
     marginLeft: "2px",
     flexShrink: 0,
     color: tokens.inkFaint,
-    transition: "transform 0.15s ease",
+    transition: `transform ${motion.fast} ${motion.ease}`,
   },
   pickerChevronOpen: {
     transform: "rotate(180deg)",
@@ -127,15 +119,9 @@ export const traceStyles = stylex.create({
     position: "absolute",
     top: "calc(100% + 4px)",
     left: 0,
-    zIndex: 50,
+    zIndex: layer.popover,
     minWidth: "320px",
     maxWidth: "min(640px, 90vw)",
-    backgroundColor: tokens.surface,
-    borderWidth: "1px",
-    borderStyle: "solid",
-    borderColor: tokens.rule,
-    borderRadius: "6px",
-    boxShadow: `0 6px 20px ${tokens.shadowColorStrong}`,
     padding: "4px",
     display: "flex",
     flexDirection: "column",
@@ -148,16 +134,16 @@ export const traceStyles = stylex.create({
     gap: "10px",
     width: "100%",
     padding: "6px 10px",
-    borderRadius: "4px",
+    borderRadius: radius.small,
     borderWidth: 0,
     borderStyle: "none",
     borderColor: "currentcolor",
-    backgroundColor: { default: "transparent", ":hover": tokens.tray },
+    backgroundColor: { default: "transparent", ":hover": tokens.chromeHoverBg },
     color: tokens.ink,
-    fontSize: "12.5px",
+    fontSize: fontSize.body,
     textAlign: "left",
     cursor: "pointer",
-    transition: "background 0.1s ease",
+    transition: `background ${motion.fast} ${motion.ease}`,
   },
   pickerItemActive: {
     backgroundColor: tokens.accentWash,
@@ -176,10 +162,6 @@ export const traceStyles = stylex.create({
   },
   pickerItemHarness: {
     fontFamily: tokens.fontMono,
-    fontSize: "10.5px",
-    fontWeight: 700,
-    letterSpacing: "0.04em",
-    textTransform: "uppercase",
     color: tokens.inkMuted,
     flexShrink: 0,
     minWidth: "52px",
@@ -191,27 +173,21 @@ export const traceStyles = stylex.create({
     overflow: "hidden",
     textOverflow: "ellipsis",
     whiteSpace: "nowrap",
-    fontWeight: 400,
+    fontWeight: fontWeight.regular,
   },
   pickerItemTitleActive: {
-    fontWeight: 600,
+    fontWeight: fontWeight.semibold,
   },
   pickerItemCheck: {
-    fontSize: "12px",
-    fontWeight: 700,
+    fontSize: fontSize.body,
+    fontWeight: fontWeight.bold,
     color: tokens.accent,
     flexShrink: 0,
     marginLeft: "6px",
   },
   pickerItemBadge: {
-    fontFamily: tokens.fontMono,
-    fontSize: "9.5px",
-    padding: "1px 4px",
-    borderRadius: "3px",
     backgroundColor: tokens.tray,
     color: tokens.inkFaint,
-    textTransform: "uppercase",
-    flexShrink: 0,
   },
 
   events: {
@@ -232,13 +208,13 @@ export const traceStyles = stylex.create({
   // An elided message sets its own prose; a whole one leaves it to markdown.
   proseElided: {
     fontFamily: tokens.fontSerif,
-    fontSize: "15px",
+    fontSize: fontSize.reading,
     lineHeight: "26px",
     color: tokens.ink,
   },
   proseMarkdown: {
     fontFamily: tokens.fontSerif,
-    fontSize: "15px",
+    fontSize: fontSize.reading,
     lineHeight: "26px",
     color: tokens.ink,
     overflowWrap: "anywhere",
@@ -281,7 +257,7 @@ export const traceStyles = stylex.create({
     gap: "6px",
     minWidth: 0,
     fontFamily: tokens.fontMono,
-    fontSize: "12px",
+    fontSize: fontSize.body,
     lineHeight: "19px",
   },
   toolVerb: {
@@ -313,10 +289,6 @@ export const traceStyles = stylex.create({
   },
   errorFlag: {
     color: tokens.changeRemoved,
-    fontSize: "10px",
-    fontWeight: 600,
-    letterSpacing: "0.04em",
-    textTransform: "uppercase",
     flexShrink: 0,
   },
   toolChevronIcon: {
@@ -327,7 +299,7 @@ export const traceStyles = stylex.create({
       default: "rotate(-90deg)",
       [stylex.when.ancestor(":is([open])", traceToolMarker)]: "rotate(0deg)",
     },
-    transition: "transform 120ms ease",
+    transition: `transform ${motion.fast} ${motion.ease}`,
   },
 
   // The embedded workbench Chromium does not hide closed details content.
@@ -340,7 +312,7 @@ export const traceStyles = stylex.create({
     borderWidth: "1px",
     borderStyle: "solid",
     borderColor: tokens.rule,
-    borderRadius: "8px",
+    borderRadius: radius.surface,
     backgroundColor: tokens.surface,
     overflow: "hidden",
   },
@@ -355,11 +327,6 @@ export const traceStyles = stylex.create({
     borderBottomColor: tokens.rule,
     backgroundColor: tokens.tray,
     fontFamily: tokens.fontMono,
-    fontSize: "10px",
-    fontWeight: 700,
-    letterSpacing: "0.08em",
-    textTransform: "uppercase",
-    color: tokens.inkFaint,
   },
   figureBody: {
     display: "flex",
@@ -370,7 +337,7 @@ export const traceStyles = stylex.create({
     maxHeight: "420px",
     overflow: "auto",
     fontFamily: tokens.fontMono,
-    fontSize: "12.5px",
+    fontSize: fontSize.body,
     lineHeight: "20px",
     whiteSpace: "pre-wrap",
     overflowWrap: "break-word",
@@ -378,7 +345,7 @@ export const traceStyles = stylex.create({
   figureBodyThinking: {
     whiteSpace: "normal",
     fontFamily: tokens.fontSerif,
-    fontSize: "14px",
+    fontSize: fontSize.reading,
     lineHeight: "22px",
     color: tokens.inkMuted,
   },
@@ -401,10 +368,6 @@ export const traceStyles = stylex.create({
     gap: "8px",
     margin: "6px 0 0",
     fontFamily: tokens.fontMono,
-    fontSize: "10px",
-    fontWeight: 600,
-    letterSpacing: "0.08em",
-    textTransform: "uppercase",
     color: { default: tokens.inkFaint, ":hover": tokens.inkMuted },
   },
   inlineCentered: {
@@ -419,7 +382,7 @@ export const traceStyles = stylex.create({
       default: "rotate(-90deg)",
       [stylex.when.ancestor(":is([open])", traceWorkedMarker)]: "rotate(0deg)",
     },
-    transition: "transform 120ms ease",
+    transition: `transform ${motion.fast} ${motion.ease}`,
   },
   line: {
     flexGrow: 1,
@@ -443,7 +406,7 @@ export const traceStyles = stylex.create({
     gap: "8px",
     minHeight: "24px",
     fontFamily: tokens.fontMono,
-    fontSize: "12.5px",
+    fontSize: fontSize.body,
     color: tokens.inkMuted,
   },
   toolGroupLabel: {
@@ -451,7 +414,7 @@ export const traceStyles = stylex.create({
   },
   toolGroupCount: {
     color: tokens.inkFaint,
-    fontSize: "11px",
+    fontSize: fontSize.small,
   },
   toolGroupChevronIcon: {
     width: "12px",
@@ -461,7 +424,7 @@ export const traceStyles = stylex.create({
       default: "rotate(-90deg)",
       [stylex.when.ancestor(":is([open])", traceGroupMarker)]: "rotate(0deg)",
     },
-    transition: "transform 120ms ease",
+    transition: `transform ${motion.fast} ${motion.ease}`,
   },
   toolGroupBody: {
     display: {
@@ -475,25 +438,16 @@ export const traceStyles = stylex.create({
 
   note: {
     fontFamily: tokens.fontMono,
-    fontSize: "12px",
+    fontSize: fontSize.body,
     lineHeight: "19px",
     color: tokens.inkFaint,
   },
   noteError: {
     color: tokens.changeRemoved,
   },
+  // The empty notice starts where a trace's header would.
   empty: {
-    display: "flex",
-    flexDirection: "column",
-    gap: "10px",
     paddingTop: "48px",
-    fontFamily: tokens.fontSerif,
-    fontSize: "15px",
-    lineHeight: "26px",
-    color: tokens.ink,
-  },
-  flush: {
-    margin: 0,
   },
 
   // Lens rows. A gap row marks hidden events with dashes; a collapse row,
@@ -530,29 +484,18 @@ export const traceStyles = stylex.create({
     },
   },
   lensRowChip: {
-    display: "inline-flex",
-    alignItems: "center",
-    gap: "6px",
-    height: "22px",
-    padding: "0 10px",
     borderWidth: "1px",
     borderStyle: "dashed",
     borderColor: {
       default: tokens.ruleSoft,
       [stylex.when.ancestor(":hover", traceRowMarker)]: tokens.inkFaint,
     },
-    borderRadius: "999px",
     backgroundColor: tokens.surface,
     fontFamily: tokens.fontMono,
-    fontSize: "10px",
-    fontWeight: 600,
-    letterSpacing: "0.04em",
-    textTransform: "uppercase",
     color: {
       default: tokens.inkFaint,
       [stylex.when.ancestor(":hover", traceRowMarker)]: tokens.inkMuted,
     },
-    whiteSpace: "nowrap",
   },
   lensRowChipSolid: {
     borderStyle: "solid",
@@ -578,7 +521,7 @@ export const traceStyles = stylex.create({
   },
   kept: {
     fontFamily: tokens.fontSerif,
-    fontSize: "15px",
+    fontSize: fontSize.reading,
     lineHeight: "26px",
     color: tokens.ink,
   },
@@ -586,18 +529,12 @@ export const traceStyles = stylex.create({
     lineHeight: "24px",
   },
   lensChip: {
-    display: "inline-flex",
-    alignItems: "center",
-    height: "18px",
     margin: "0 6px",
-    padding: "0 7px",
     borderWidth: "1px",
     borderStyle: "dashed",
     borderColor: { default: tokens.ruleSoft, ":hover": tokens.inkFaint },
-    borderRadius: "999px",
     backgroundColor: tokens.surface,
     fontFamily: tokens.fontMono,
-    fontSize: "11px",
     color: { default: tokens.inkFaint, ":hover": tokens.inkMuted },
     cursor: "pointer",
     verticalAlign: "baseline",
@@ -608,14 +545,14 @@ export const traceStyles = stylex.create({
     alignItems: "center",
     gap: "4px",
     padding: "3px 8px",
-    borderRadius: "4px",
+    borderRadius: radius.small,
     borderWidth: "1px",
     borderStyle: "solid",
     borderColor: tokens.ruleSoft,
     backgroundColor: { default: tokens.surface, ":hover": tokens.accentWash },
     color: tokens.accent,
     fontFamily: tokens.fontMono,
-    fontSize: "11px",
+    fontSize: fontSize.small,
     cursor: "pointer",
     whiteSpace: "nowrap",
     flexShrink: 0,
@@ -625,15 +562,5 @@ export const traceStyles = stylex.create({
     alignItems: "center",
     gap: "0.5rem",
     margin: "0 0 0.75rem",
-  },
-  sourceSelect: {
-    font: "inherit",
-    color: "inherit",
-    backgroundColor: "transparent",
-    borderWidth: "1px",
-    borderStyle: "solid",
-    borderColor: tokens.rule,
-    borderRadius: "4px",
-    padding: "0.15rem 0.4rem",
   },
 });

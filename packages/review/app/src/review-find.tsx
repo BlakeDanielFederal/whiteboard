@@ -1,3 +1,7 @@
+import { fontSize, layer } from "@canvas/scale.stylex";
+import { IconButton } from "@canvas/ui/button";
+import { surfaceStyles } from "@canvas/ui/surface";
+import { fieldStyles } from "@canvas/ui/text-field";
 import type {
   ReviewFindQuery,
   ReviewInlineEditorHandle,
@@ -360,12 +364,14 @@ function ReviewFindWidget({
 
   return createPortal(
     <div
-      {...withClass("review-find-widget", styles.widget)}
+      {...withClass("review-find-widget", surfaceStyles.popover, styles.widget)}
       role="search"
       aria-label="Find in session"
     >
       <div
         {...stylex.props(
+          fieldStyles.box,
+          fieldStyles.shell,
           styles.inputShell,
           invalid ? styles.inputShellInvalid : null,
         )}
@@ -495,9 +501,7 @@ function FindActionButton({
   icon: "previous" | "next" | "close";
 }) {
   return (
-    <button
-      type="button"
-      {...stylex.props(styles.action)}
+    <IconButton
       aria-label={label}
       title={description}
       disabled={disabled}
@@ -505,7 +509,7 @@ function FindActionButton({
       onClick={onClick}
     >
       <FindActionIcon icon={icon} />
-    </button>
+    </IconButton>
   );
 }
 
@@ -629,7 +633,7 @@ const button = {
 const styles = stylex.create({
   widget: {
     position: "absolute",
-    zIndex: 120,
+    zIndex: layer.popover,
     top: "48px",
     right: { default: "16px", [compact]: "8px" },
     left: { default: null, [compact]: "8px" },
@@ -640,26 +644,14 @@ const styles = stylex.create({
     height: "34px",
     gap: "3px",
     padding: "3px 4px 3px 6px",
-    borderWidth: "1px",
-    borderStyle: "solid",
-    borderColor: tokens.ruleSoft,
-    borderRadius: "6px",
-    backgroundColor: tokens.surfaceRaised,
-    boxShadow: "0 5px 14px rgb(0 0 0 / 32%)",
   },
   inputShell: {
     display: "flex",
     alignItems: "center",
     flex: 1,
     minWidth: "160px",
-    height: "26px",
     gap: "1px",
     padding: "0 2px 0 6px",
-    borderWidth: "1px",
-    borderStyle: "solid",
-    borderColor: { default: tokens.ruleSoft, ":focus-within": tokens.accent },
-    borderRadius: "4px",
-    backgroundColor: tokens.controlBg,
   },
   inputShellInvalid: {
     borderColor: tokens.changeRemoved,
@@ -675,7 +667,7 @@ const styles = stylex.create({
     backgroundColor: "transparent",
     color: tokens.ink,
     fontFamily: tokens.chromeFont,
-    fontSize: "12px",
+    fontSize: fontSize.body,
     outline: "none",
   },
   options: {
@@ -693,7 +685,7 @@ const styles = stylex.create({
     padding: "0 3px",
     color: tokens.inkMuted,
     fontFamily: tokens.chromeFont,
-    fontSize: "12px",
+    fontSize: fontSize.body,
     lineHeight: "16px",
     textAlign: "center",
     whiteSpace: "nowrap",
@@ -711,7 +703,7 @@ const styles = stylex.create({
     },
     color: { default: tokens.inkMuted, ":hover:not(:disabled)": tokens.ink },
     fontFamily: tokens.chromeFont,
-    fontSize: "12px",
+    fontSize: fontSize.body,
     lineHeight: "16px",
   },
   togglePressed: {
@@ -731,25 +723,6 @@ const styles = stylex.create({
   },
   regex: {
     fontFamily: tokens.fontMono,
-  },
-  action: {
-    ...button,
-    flex: "0 0 24px",
-    width: "24px",
-    height: "24px",
-    padding: "4px",
-    borderColor: "transparent",
-    borderRadius: "4px",
-    backgroundColor: {
-      default: "transparent",
-      ":hover:not(:disabled)": hoverBackground,
-    },
-    color: {
-      default: tokens.inkMuted,
-      ":hover:not(:disabled)": tokens.ink,
-      ":disabled": tokens.inkFaint,
-    },
-    cursor: { default: "pointer", ":disabled": "default" },
   },
   actionIcon: {
     width: "14px",

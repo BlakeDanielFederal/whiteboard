@@ -1,3 +1,6 @@
+import { fontSize } from "@canvas/scale.stylex";
+import { EmptyState } from "@canvas/ui/empty-state";
+import { textStyles } from "@canvas/ui/text";
 import type {
   ReviewCanvasContent,
   ReviewCanvasHandle,
@@ -44,24 +47,20 @@ function ReviewCanvas({
   if (content.kind === "source") {
     if (content.error) {
       return (
-        <div {...stylex.props(styles.sourceEmpty)}>
-          <p {...stylex.props(styles.sourceEmptyLine)}>Worktree unavailable</p>
-          <p {...stylex.props(styles.sourceEmptyLine, styles.sourceEmptyHint)}>
-            {content.error}
-          </p>
-        </div>
+        <EmptyState
+          xstyle={styles.sourceEmpty}
+          title="Worktree unavailable"
+          message={content.error}
+        />
       );
     }
 
     return (
-      <div {...stylex.props(styles.sourceEmpty)}>
-        <p {...stylex.props(styles.sourceEmptyLine)}>
-          Select a file in the source tree
-        </p>
-        <p {...stylex.props(styles.sourceEmptyLine, styles.sourceEmptyHint)}>
-          ⌘B toggles the tree
-        </p>
-      </div>
+      <EmptyState
+        xstyle={styles.sourceEmpty}
+        title="Select a file in the source tree"
+        message="⌘B toggles the tree"
+      />
     );
   }
 
@@ -131,7 +130,9 @@ function CanvasShell({
 }) {
   return (
     <main {...stylex.props(styles.shell)}>
-      <div {...stylex.props(styles.brand)}>/dev/fast Whiteboard</div>
+      <div {...stylex.props(textStyles.eyebrow, styles.brand)}>
+        /dev/fast Whiteboard
+      </div>
       <h1 {...stylex.props(styles.shellTitle)}>{title}</h1>
       {children}
     </main>
@@ -168,24 +169,27 @@ export function mountReviewCanvas(
   // must live on an in-scope descendant, so all content renders inside this
   // host element.
   const themeHost = container.ownerDocument.createElement("div");
-  themeHost.className = stylex.props(styles.themeHost).className ?? "";
 
-  const lightClasses = [
-    "review-app--theme-light",
-    ...(stylex.props(themeStyles.light).className ?? "")
-      .split(" ")
-      .filter(Boolean),
-  ];
+  // Recomposed on every change so StyleX settles vars against light.
+  const applyTheme = (theme: "dark" | "light") => {
+    const light = theme === "light";
 
+    container.dataset.reviewTheme = theme;
+    themeHost.className = [
+      light && "review-app--theme-light",
+      stylex.props(
+        themeStyles.vars,
+        styles.themeHost,
+        light && themeStyles.light,
+      ).className,
+    ]
+      .filter(Boolean)
+      .join(" ");
+  };
+
+  applyTheme("dark");
   container.appendChild(themeHost);
   const root = createRoot(themeHost);
-
-  const applyTheme = (theme: "dark" | "light") => {
-    container.dataset.reviewTheme = theme;
-
-    for (const name of lightClasses)
-      themeHost.classList.toggle(name, theme === "light");
-  };
 
   const render = () => {
     themeSubscription?.dispose();
@@ -265,41 +269,27 @@ const styles = stylex.create({
   // The Source tab's VS Code-like watermark: quiet text centered in the
   // empty editor area, next to the native file tree.
   sourceEmpty: {
-    display: "flex",
-    flexDirection: "column",
     alignItems: "center",
     justifyContent: "center",
-    gap: "6px",
     height: "100%",
-    color: tokens.inkFaint,
-    font: `13px/1.55 ${tokens.fontDisplay}`,
+    textAlign: "center",
     userSelect: "none",
-  },
-  sourceEmptyLine: {
-    margin: 0,
-  },
-  sourceEmptyHint: {
-    fontSize: "11px",
   },
   shell: {
     width: "min(760px, 100%)",
     margin: "0 auto",
     padding: "32px",
     color: tokens.ink,
-    font: `13px/1.55 ${tokens.fontDisplay}`,
+    font: `${fontSize.ui}/1.55 ${tokens.fontDisplay}`,
   },
   shellTitle: {
     margin: "10px 0 6px",
-    fontSize: "26px",
+    fontSize: fontSize.display,
   },
   shellText: {
     color: tokens.inkMuted,
   },
   brand: {
     color: tokens.inkMuted,
-    fontSize: "12px",
-    fontWeight: 650,
-    letterSpacing: "0.08em",
-    textTransform: "uppercase",
   },
 });

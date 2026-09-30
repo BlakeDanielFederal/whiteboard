@@ -1,3 +1,5 @@
+import { fontSize, radius } from "@canvas/scale.stylex";
+import { Button } from "@canvas/ui/button";
 import {
   type ReviewCanvasInstallContent,
   type ReviewCliInstallStatus,
@@ -9,6 +11,7 @@ import { useEffect, useRef, useState } from "react";
 
 import { AGENT_LOGOS } from "./agent-logos";
 import { cliInstallReady } from "./cli-install-status";
+import { controlStyles } from "./controls-styles";
 import { CopyIcon, copyText } from "./copy-text";
 import { DrawnCheckIcon } from "./icons";
 import { newTabLinkProps } from "./link-props";
@@ -139,7 +142,11 @@ export function ConnectCard({
   return (
     <section aria-label="Connect your agents">
       <div
-        {...stylex.props(promptStyles.tabs, styles.agentTabs)}
+        {...stylex.props(
+          controlStyles.segmented,
+          promptStyles.tabs,
+          styles.agentTabs,
+        )}
         role="group"
         aria-label="Agent"
       >
@@ -151,8 +158,9 @@ export function ConnectCard({
               key={tab}
               type="button"
               {...stylex.props(
-                promptStyles.tab,
-                target === tab && promptStyles.tabActive,
+                controlStyles.segment,
+                controlStyles.segmentLarge,
+                target === tab && controlStyles.segmentActive,
               )}
               aria-pressed={target === tab}
               onClick={() => selectTarget(tab)}
@@ -168,7 +176,7 @@ export function ConnectCard({
         />
       </div>
       <div
-        {...stylex.props(promptStyles.tabs)}
+        {...stylex.props(controlStyles.segmented, promptStyles.tabs)}
         role="group"
         aria-label="Setup method"
       >
@@ -177,9 +185,8 @@ export function ConnectCard({
             key={tab}
             type="button"
             {...stylex.props(
-              promptStyles.tab,
-              styles.mode,
-              mode === tab && promptStyles.tabActive,
+              controlStyles.segment,
+              mode === tab && controlStyles.segmentActive,
             )}
             aria-pressed={mode === tab}
             onClick={() => selectMode(tab)}
@@ -247,7 +254,7 @@ export function ConnectCard({
       ) : plugin.url ? (
         <>
           <p {...stylex.props(promptStyles.body)}>
-            Opens {agent} and adds the review server.
+            Opens {agent} and adds the Whiteboard server.
           </p>
           <div {...stylex.props(promptStyles.actions)}>
             <a
@@ -295,9 +302,10 @@ function OtherAgentMenu({
       })}
       onChange={onSelect}
       triggerStyle={[
-        promptStyles.tab,
+        controlStyles.segment,
+        controlStyles.segmentLarge,
         styles.otherTrigger,
-        selected !== undefined && promptStyles.tabActive,
+        selected !== undefined && controlStyles.segmentActive,
       ]}
       triggerProps={{ "aria-pressed": selected !== undefined }}
     >
@@ -388,14 +396,14 @@ export function LegacySkillsRow({
               </li>
             ))}
           </ul>
-          <button
-            type="button"
-            {...stylex.props(styles.legacyButton)}
+          <Button
+            size="large"
+            xstyle={styles.legacyButton}
             disabled={busy}
             onClick={() => void removeSkills()}
           >
             Remove deprecated skills
-          </button>
+          </Button>
         </>
       ) : null}
       {removed.length > 0 ? (
@@ -423,12 +431,12 @@ const styles = stylex.create({
   note: {
     margin: "0 0 8px",
     color: tokens.reviewHomeMeta,
-    fontSize: "12px",
+    fontSize: fontSize.body,
   },
   // The prompt card's tabs, one agent at a time.
   agentTabs: {
     flexWrap: "wrap",
-    paddingBottom: "6px",
+    marginBottom: "6px",
   },
   logo: {
     width: "14px",
@@ -436,10 +444,6 @@ const styles = stylex.create({
   },
   otherTrigger: {
     paddingRight: "6px",
-  },
-  mode: {
-    padding: "2px 8px",
-    fontSize: "11px",
   },
   bodyWrap: {
     position: "relative",
@@ -465,10 +469,10 @@ const styles = stylex.create({
       default: tokens.reviewHomeRuleSoft,
       ":hover": tokens.inkMuted,
     },
-    borderRadius: "999px",
+    borderRadius: radius.pill,
     backgroundColor: tokens.raised,
     color: tokens.ink,
-    font: `12px/18px ${tokens.fontMono}`,
+    font: `${fontSize.body}/18px ${tokens.fontMono}`,
     cursor: "pointer",
   },
   collapse: {
@@ -479,7 +483,7 @@ const styles = stylex.create({
     borderColor: "currentcolor",
     backgroundColor: "transparent",
     color: { default: tokens.inkMuted, ":hover": tokens.ink },
-    font: `12px/22px ${tokens.fontMono}`,
+    font: `${fontSize.body}/22px ${tokens.fontMono}`,
     cursor: "pointer",
   },
   legacy: {
@@ -487,7 +491,7 @@ const styles = stylex.create({
     flexDirection: "column",
     alignItems: "flex-start",
     gap: "8px",
-    fontSize: "12px",
+    fontSize: fontSize.body,
   },
   legacyText: {
     margin: 0,
@@ -502,21 +506,6 @@ const styles = stylex.create({
     fontFamily: tokens.fontMono,
   },
   legacyButton: {
-    flexShrink: 0,
     marginTop: "8px",
-    minHeight: "30px",
-    padding: "5px 12px",
-    borderWidth: "1px",
-    borderStyle: "solid",
-    borderColor: tokens.reviewHomeRuleSoft,
-    borderRadius: "6px",
-    color: "inherit",
-    backgroundColor: tokens.transparent,
-    fontFamily: tokens.fontMono,
-    fontSize: "12px",
-    fontWeight: 500,
-    whiteSpace: "nowrap",
-    cursor: { default: "pointer", ":disabled": "default" },
-    opacity: { default: null, ":disabled": 0.5 },
   },
 });

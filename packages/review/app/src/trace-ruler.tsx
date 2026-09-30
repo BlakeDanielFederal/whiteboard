@@ -1,3 +1,5 @@
+import { fontSize, fontWeight, motion, radius } from "@canvas/scale.stylex";
+import { surfaceStyles } from "@canvas/ui/surface";
 import type { ReviewAgentTraceEvent } from "@dev.fast/review-protocol";
 import * as stylex from "@stylexjs/stylex";
 import {
@@ -394,7 +396,10 @@ export function TraceRuler({
       >
         {ticks}
         {preview && hoverTick !== null && (
-          <div {...stylex.props(styles.card)} style={{ top: cardTop }}>
+          <div
+            {...stylex.props(surfaceStyles.popover, styles.card)}
+            style={{ top: cardTop }}
+          >
             <span {...stylex.props(styles.cardTitle)}>{preview.title}</span>
             {preview.snippet && (
               <span {...stylex.props(styles.cardSnippet)}>
@@ -427,10 +432,10 @@ const styles = stylex.create({
     // Inset from the panel edge; the comb grows rightward from here.
     left: "8px",
     height: "2px",
-    borderRadius: "1px",
+    borderRadius: radius.hairline,
     backgroundColor: tokens.inkFaint,
     opacity: 0.55,
-    transition: "width 90ms ease, opacity 90ms ease",
+    transition: `width ${motion.fast} ${motion.ease}, opacity ${motion.fast} ${motion.ease}`,
     pointerEvents: "none",
   },
   tickVisible: {
@@ -449,19 +454,13 @@ const styles = stylex.create({
     flexDirection: "column",
     gap: "6px",
     padding: "12px 14px",
-    backgroundColor: tokens.tray,
-    borderWidth: "1px",
-    borderStyle: "solid",
-    borderColor: tokens.rule,
-    borderRadius: "12px",
-    boxShadow: "0 8px 24px rgb(0 0 0 / 0.25)",
     pointerEvents: "none",
   },
   cardTitle: {
     fontFamily: tokens.fontSerif,
-    fontSize: "14px",
+    fontSize: fontSize.reading,
     lineHeight: "19px",
-    fontWeight: 600,
+    fontWeight: fontWeight.semibold,
     color: tokens.ink,
     display: "-webkit-box",
     WebkitLineClamp: 2,
@@ -470,7 +469,7 @@ const styles = stylex.create({
   },
   cardSnippet: {
     fontFamily: tokens.fontSerif,
-    fontSize: "13px",
+    fontSize: fontSize.ui,
     lineHeight: "18px",
     color: tokens.inkMuted,
     display: "-webkit-box",

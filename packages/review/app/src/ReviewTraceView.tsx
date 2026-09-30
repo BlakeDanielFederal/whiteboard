@@ -1,3 +1,9 @@
+import { Button } from "@canvas/ui/button";
+import { Chip } from "@canvas/ui/chip";
+import { EmptyState } from "@canvas/ui/empty-state";
+import { surfaceStyles } from "@canvas/ui/surface";
+import { textStyles } from "@canvas/ui/text";
+import { fieldStyles } from "@canvas/ui/text-field";
 import { type ReviewAgentTraceSession } from "@dev.fast/review-protocol";
 import * as stylex from "@stylexjs/stylex";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -18,10 +24,15 @@ import { type TraceListState, useTraceList } from "./use-trace-list";
 export function ReviewTraceView({
   selection,
   onSelect,
+  storage = null,
+  onSelectStorage,
   storedList: providedList,
 }: {
   selection?: TraceSelection;
   onSelect: (selection: TraceSelection) => void;
+  /** Read override only; capture and consent are unchanged. */
+  storage?: AgentTraceStorage | null;
+  onSelectStorage: (storage: AgentTraceStorage | null) => void;
   storedList?: TraceListState;
 }) {
   const session = useReviewSession();
@@ -32,10 +43,6 @@ export function ReviewTraceView({
 
   const [pickerOpen, setPickerOpen] = useState(false);
   const pickerRef = useRef<HTMLDivElement | null>(null);
-
-  // Read override only; capture and consent are unchanged.
-  const [storageOverride, setStorageOverride] =
-    useState<AgentTraceStorage | null>(null);
 
   useEffect(() => {
     if (!pickerOpen) return;
@@ -57,7 +64,7 @@ export function ReviewTraceView({
     return () => document.removeEventListener("mousedown", handleOutsideClick);
   }, [pickerOpen]);
 
-  const storedList = useTraceList(storageOverride, providedList);
+  const storedList = useTraceList(storage, providedList);
 
   const list: TraceListState = useMemo(() => {
     const retained = [
@@ -153,7 +160,7 @@ export function ReviewTraceView({
   const detail = useAgentTrace(
     activeTarget?.sessionId,
     activeTarget?.trace,
-    storageOverride,
+    storage,
   );
 
   // Keep source controls visible during refetch.
@@ -165,7 +172,7 @@ export function ReviewTraceView({
   }, [list]);
 
   const activeSource =
-    storageOverride ?? (list.status === "loaded" ? list.storage : null);
+    storage ?? (list.status === "loaded" ? list.storage : null);
 
   const activeTrace = detail.status === "loaded" ? detail.trace : undefined;
 
@@ -198,14 +205,16 @@ export function ReviewTraceView({
         )}
         {sourceChoices.length > 1 && (
           <label {...stylex.props(styles.source)}>
-            <span {...stylex.props(styles.kicker)}>Trace source</span>
+            <span {...stylex.props(textStyles.eyebrow, styles.kicker)}>
+              Trace source
+            </span>
             <select
-              {...stylex.props(styles.sourceSelect)}
+              {...stylex.props(fieldStyles.box)}
               aria-label="Trace source"
               value={activeSource ?? ""}
               onChange={(event) => {
                 const value = event.currentTarget.value;
-                setStorageOverride(
+                onSelectStorage(
                   value === "s3" || value === "hosted" ? value : null,
                 );
               }}
@@ -220,51 +229,48 @@ export function ReviewTraceView({
         )}
         {list.status === "loaded" &&
           (list.storageError !== null || !list.configured) && (
-            <div {...stylex.props(styles.empty)}>
-              <span {...stylex.props(styles.kicker)}>Agent trace</span>
-              {list.storageError !== null ? (
-                <p {...stylex.props(styles.flush)}>{list.storageError}</p>
-              ) : (
-                <>
-                  <p {...stylex.props(styles.flush)}>
-                    Agent traces are not configured.
-                  </p>
-                  <p {...stylex.props(styles.flush, styles.note)}>
-                    Open Agent Setup in Whiteboard to enable trace capture.
-                  </p>
-                </>
-              )}
-            </div>
+            <EmptyState
+              xstyle={styles.empty}
+              title={
+                list.storageError === null
+                  ? "Agent traces are not configured."
+                  : undefined
+              }
+              message={
+                list.storageError ??
+                "Open Agent Setup in Whiteboard to enable trace capture."
+              }
+            />
           )}
         {list.status === "loaded" &&
           list.configured &&
           list.storageError === null &&
           sessions.length === 0 && (
-            <div {...stylex.props(styles.empty)}>
-              <span {...stylex.props(styles.kicker)}>Agent trace</span>
-              <p {...stylex.props(styles.flush)}>
-                No agent sessions are recorded for this change range.
-              </p>
-              <p {...stylex.props(styles.flush, styles.note)}>
-                Sessions attach automatically through{" "}
-                <code>Agent-Session:</code> commit trailers when an agent
-                commits with repository hooks installed.
-              </p>
-            </div>
+            <EmptyState
+              xstyle={styles.empty}
+              title="No agent sessions are recorded for this change range."
+              message={
+                <>
+                  Sessions attach automatically through{" "}
+                  <code>Agent-Session:</code> commit trailers when an agent
+                  commits with repository hooks installed.
+                </>
+              }
+            />
           )}
         {targets.length > 1 && activeTarget && (
           <div {...stylex.props(styles.picker)} ref={pickerRef}>
-            <button
-              type="button"
-              {...stylex.props(
+            <Button
+              size="large"
+              xstyle={[
                 styles.pickerTrigger,
                 pickerOpen && styles.pickerTriggerOpen,
-              )}
+              ]}
               aria-haspopup="listbox"
               aria-expanded={pickerOpen}
               onClick={() => setPickerOpen((open) => !open)}
             >
-              <span {...stylex.props(styles.pickerHarness)}>
+              <span {...stylex.props(textStyles.eyebrow, styles.pickerHarness)}>
                 {harnessTag(activeHarness, activeTarget.isSubagent)}
               </span>
               <span {...stylex.props(styles.pickerTitle)}>{activeTitle}</span>
@@ -276,9 +282,12 @@ export function ReviewTraceView({
               >
                 <ChevronIcon />
               </span>
-            </button>
+            </Button>
             {pickerOpen && (
-              <div {...stylex.props(styles.pickerMenu)} role="listbox">
+              <div
+                {...stylex.props(surfaceStyles.popover, styles.pickerMenu)}
+                role="listbox"
+              >
                 {targets.map((target) => {
                   const isActive = target.key === activeKey;
                   const targetHarness = target.harness;
@@ -308,6 +317,7 @@ export function ReviewTraceView({
                       <div {...stylex.props(styles.pickerItemLeft)}>
                         <span
                           {...stylex.props(
+                            textStyles.eyebrow,
                             styles.pickerItemHarness,
                             isActive && styles.pickerItemHarnessActive,
                           )}
@@ -324,9 +334,7 @@ export function ReviewTraceView({
                         </span>
                       </div>
                       {target.notSynced ? (
-                        <span {...stylex.props(styles.pickerItemBadge)}>
-                          not synced
-                        </span>
+                        <Chip xstyle={styles.pickerItemBadge}>not synced</Chip>
                       ) : isActive ? (
                         <span {...stylex.props(styles.pickerItemCheck)}>✓</span>
                       ) : null}
@@ -432,7 +440,9 @@ export function ReviewTraceDocument({
   return (
     <>
       <header {...stylex.props(styles.header)}>
-        <span {...stylex.props(styles.kicker)}>Agent trace</span>
+        <span {...stylex.props(textStyles.eyebrow, styles.kicker)}>
+          Agent trace
+        </span>
         <h2 {...stylex.props(styles.title)}>
           {trace.title ??
             firstCommitSubject(session) ??
