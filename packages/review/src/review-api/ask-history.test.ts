@@ -100,6 +100,11 @@ it("keeps what the panel showed, and what each agent offered", () => {
     history.saveEntries("thread", entries);
     expect(history.get("thread")).toEqual({ ...saved, entries });
     expect(history.list("review")[0]).not.toHaveProperty("entries");
+    history.rename("thread", "Generic agent title");
+    expect(history.list("review")[0]).toMatchObject({
+      title: "Generic agent title",
+      question: "Is this safe?",
+    });
     expect(new AskHistory(db).get("thread")?.entries).toEqual(entries);
 
     // What an agent offered last, for picking before it starts.

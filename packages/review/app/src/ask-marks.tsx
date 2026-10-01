@@ -499,7 +499,34 @@ export function AskThreadMarks({
     };
   }, [article, marks]);
 
-  const activeRange = marks.find((mark) => mark.key === active)?.range;
+  const revealRequest = history?.revealRequest;
+
+  useEffect(() => {
+    if (!article || !revealRequest) return;
+    const target = revealRequest.selection.target;
+
+    if (target?.kind !== "text" || !target.anchor) return;
+    const at = resolveAskAnchor(article, target.anchor);
+    const node = at?.range.startContainer;
+    const element = node instanceof Element ? node : node?.parentElement;
+    element
+      ?.closest(".review-section--collapsed")
+      ?.dispatchEvent(new CustomEvent("review-section-expand"));
+
+    const frame = requestAnimationFrame(() =>
+      element?.scrollIntoView({ block: "center" }),
+    );
+
+    return () => cancelAnimationFrame(frame);
+  }, [article, revealRequest, revision]);
+
+  const historyId = history?.previewId ?? (active ? null : revealRequest?.id);
+
+  const activeRange = marks.find((mark) =>
+    historyId
+      ? mark.entries.some((entry) => entry.id === historyId)
+      : mark.key === active,
+  )?.range;
 
   useEffect(() => {
     const api = article && highlights(article.ownerDocument);
