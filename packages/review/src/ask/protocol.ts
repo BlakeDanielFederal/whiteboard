@@ -87,6 +87,9 @@ const choiceCategories = new Map<AskChoiceKind, string>([
   ["effort", "thought_level"],
 ]);
 
+// Agents name some efforts by their value.
+const effortNames = new Map([["xhigh", "Extra high"]]);
+
 /** What the agent offers of each choice, from its session config options,
  * with the config option that sets it. */
 export function choicesOf(options: SessionConfigOption[] | null | undefined) {
@@ -114,9 +117,12 @@ export function choicesOf(options: SessionConfigOption[] | null | undefined) {
         current: option.currentValue,
         options: choices
           .flatMap((choice) => ("group" in choice ? choice.options : [choice]))
-          .map(({ value, name, description }) =>
-            description ? { value, name, description } : { value, name },
-          ),
+          .map(({ value, name: offered, description }) => {
+            const name =
+              (kind === "effort" && effortNames.get(value)) || offered;
+
+            return description ? { value, name, description } : { value, name };
+          }),
       },
     });
   }
