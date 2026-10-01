@@ -178,6 +178,7 @@ export async function smokeTelemetryDelivery({
 
     const throwInWindow = async (message) => {
       let timer;
+
       try {
         await Promise.race([
           page.evaluate(
@@ -342,10 +343,12 @@ export async function smokeTelemetryDelivery({
   } catch (error) {
     console.error(`Received batches: ${JSON.stringify(capture.batches)}`);
     const queueDir = path.join(reviewHome, "telemetry", "events");
+
     for (const name of await readdir(queueDir).catch(() => [])) {
       if (!name.endsWith(".json")) continue;
       console.error(`Queued ${name}: ${await readFile(path.join(queueDir, name), "utf8").catch(() => "(unavailable)")}`);
     }
+
     console.error(await readFile(logPath, "utf8").catch(() => "(no app log)"));
     throw error;
   } finally {
