@@ -98,8 +98,6 @@ export const ReviewRuntimeConfigSchema = z.strictObject({
 
 export type ReviewRuntimeConfig = z.infer<typeof ReviewRuntimeConfigSchema>;
 
-export type ReviewHost = ReviewRuntimeConfig["host"];
-
 export type ReviewTheme = ReviewRuntimeConfig["theme"];
 
 export type ReviewDiffSide = z.infer<typeof reviewDiffSideSchema>;
@@ -808,8 +806,6 @@ export type ReviewRepositoryIdentity = z.infer<
   typeof ReviewRepositoryIdentitySchema
 >;
 
-export type ReviewRepositoryKind = ReviewRepositoryIdentity["kind"];
-
 export const ReviewStatusSchema = z.enum([
   "draft",
   "awaiting-review",
@@ -833,19 +829,11 @@ export const ReviewAgentSessionRoleSchema = z.enum([
   "question",
 ]);
 
-export type ReviewAgentSessionRole = z.infer<
-  typeof ReviewAgentSessionRoleSchema
->;
-
 export const ReviewAgentSessionAttributionSchema = z.strictObject({
   roles: z.array(ReviewAgentSessionRoleSchema),
   firstSeenAt: requiredString,
   lastSeenAt: requiredString,
 });
-
-export type ReviewAgentSessionAttribution = z.infer<
-  typeof ReviewAgentSessionAttributionSchema
->;
 
 export const ReviewCommitSummarySchema = z.strictObject({
   commit: z
@@ -870,18 +858,12 @@ export const AuthoringAgentSessionSchema = z.strictObject({
   sessionId: requiredString,
 });
 
-export type AuthoringAgentSessionWire = z.infer<
-  typeof AuthoringAgentSessionSchema
->;
-
 export const ReviewErrorResponseSchema = z.strictObject({
   ok: z.literal(false),
   error: requiredString,
   code: requiredString.optional(),
   retryable: z.boolean().optional(),
 });
-
-export type ReviewErrorResponse = z.infer<typeof ReviewErrorResponseSchema>;
 
 /** Managed tutorials use the native JSON canvas and stay out of Home. */
 export const ReviewTutorialOpenResponseSchema = z.strictObject({
@@ -1080,10 +1062,6 @@ export const ReviewDiffFilesRequestSchema = z.strictObject({
     .optional(),
 });
 
-export type ReviewDiffFilesRequest = z.infer<
-  typeof ReviewDiffFilesRequestSchema
->;
-
 export const ReviewDiffFilesResponseSchema = z.discriminatedUnion("ok", [
   z.strictObject({
     ok: z.literal(true),
@@ -1148,8 +1126,6 @@ export const ReviewOpenEditorSchema = z.strictObject({
   scheme: requiredString,
 });
 
-export type ReviewOpenEditorWire = z.infer<typeof ReviewOpenEditorSchema>;
-
 export const ReviewEditorSelectionSchema = z.strictObject({
   path: requiredString,
   startLine: positiveInteger,
@@ -1158,17 +1134,11 @@ export const ReviewEditorSelectionSchema = z.strictObject({
   endColumn: positiveInteger,
 });
 
-export type ReviewEditorSelectionWire = z.infer<
-  typeof ReviewEditorSelectionSchema
->;
-
 export const ReviewDesktopStateSchema = z.strictObject({
   openEditors: z.array(ReviewOpenEditorSchema),
   activeEditor: ReviewOpenEditorSchema.nullable(),
   selection: ReviewEditorSelectionSchema.nullable(),
 });
-
-export type ReviewDesktopState = z.infer<typeof ReviewDesktopStateSchema>;
 
 const revealArgsSchema = z
   .strictObject({
@@ -1229,7 +1199,6 @@ export const ReviewVerbRequestSchema = z.discriminatedUnion("name", [
     }),
   }),
   z.strictObject({ name: z.literal("reveal"), args: revealArgsSchema }),
-  z.strictObject({ name: z.literal("focusCanvas"), args: z.strictObject({}) }),
   z.strictObject({ name: z.literal("focusWindow"), args: z.strictObject({}) }),
   z.strictObject({
     name: z.literal("captureScreenshot"),
