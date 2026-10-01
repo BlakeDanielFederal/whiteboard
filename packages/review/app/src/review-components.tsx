@@ -490,6 +490,8 @@ function AskHost() {
   const popOutTooltip = useTooltip("Pop out");
   const [node] = useState(() => document.createElement("div"));
 
+  const [header, setHeader] = useState<HTMLDivElement | null>(null);
+
   const [presence, setPresence] = useState<AskPresence>({
     agentName: "Ask",
     status: "New question",
@@ -518,6 +520,7 @@ function AskHost() {
               ask.view.type === "saved" ? ask.view.threadId : undefined
             }
             onPresence={setPresence}
+            header={header}
           />
         ),
         node,
@@ -526,6 +529,9 @@ function AskHost() {
         <ReviewPanelFrame
           tray
           label="Ask"
+          titleAccessory={
+            <div ref={setHeader} {...stylex.props(panelStyles.title)} />
+          }
           onClose={closeAsk}
           closeLabel="Close Ask"
           headerActions={
@@ -547,7 +553,12 @@ function AskHost() {
           <AskSlot node={node} />
         </ReviewPanelFrame>
       ) : shown === "window" ? (
-        <AskWindow actions={actions}>
+        <AskWindow
+          actions={actions}
+          titleAccessory={
+            <div ref={setHeader} {...stylex.props(panelStyles.title)} />
+          }
+        >
           <AskSlot node={node} />
         </AskWindow>
       ) : (

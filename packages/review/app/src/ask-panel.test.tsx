@@ -78,6 +78,9 @@ function working(container: HTMLElement) {
 it("asks the chosen agent, streams its answer, relays a decision, and closes the agent when the panel goes", async () => {
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
   const session = testReviewSession();
+  const header = document.createElement("div");
+
+  document.body.append(header);
   // Each watch request opens a new stream; `push` writes to the newest.
   let push!: (update: AskUpdate) => void;
   let watches = 0;
@@ -126,7 +129,7 @@ it("asks the chosen agent, streams its answer, relays a decision, and closes the
     await act(async () =>
       root.render(
         <ReviewSessionProvider session={session}>
-          <AskPanelContent selection={selection} />
+          <AskPanelContent selection={selection} header={header} />
         </ReviewSessionProvider>,
       ),
     );
@@ -134,7 +137,7 @@ it("asks the chosen agent, streams its answer, relays a decision, and closes the
     const textarea = container.querySelector("textarea")!;
 
     const picker = () =>
-      container.querySelector<HTMLButtonElement>(
+      header.querySelector<HTMLButtonElement>(
         'button[aria-haspopup="menu"]:not([aria-label])',
       )!;
 
@@ -202,7 +205,8 @@ it("asks the chosen agent, streams its answer, relays a decision, and closes the
     );
 
     expect(container.textContent).toContain("Replicas replay the index build.");
-    expect(picker().disabled).toBe(true);
+    expect(picker()).toBeNull();
+    expect(header.textContent).toBe("Codex");
 
     const allow = [...container.querySelectorAll("button")].find(
       (button) => button.textContent === "Allow once",
@@ -243,6 +247,7 @@ it("asks the chosen agent, streams its answer, relays a decision, and closes the
   } finally {
     await act(async () => root.unmount());
     container.remove();
+    header.remove();
     vi.restoreAllMocks();
     vi.unstubAllGlobals();
   }
