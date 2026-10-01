@@ -83,7 +83,7 @@ export class DiffEditorItemTemplate extends Disposable implements IPooledObject<
 		this.maxScroll = derived(this, reader => {
 			const scroll1 = this._modifiedContentWidth.read(reader) - this._modifiedWidth.read(reader);
 			const scroll2 = this._originalContentWidth.read(reader) - this._originalWidth.read(reader);
-			if (scroll1 > scroll2) {
+			if (this._scrollsModified(scroll1, scroll2)) {
 				return { maxScroll: scroll1, width: this._modifiedWidth.read(reader) };
 			} else {
 				return { maxScroll: scroll2, width: this._originalWidth.read(reader) };
@@ -177,8 +177,19 @@ export class DiffEditorItemTemplate extends Disposable implements IPooledObject<
 		}));
 	}
 
+	/**
+	 * Which editor the shared horizontal scrollbar drives. Side by side it is
+	 * the one with more overflow. Inline, the original editor is laid out a few
+	 * pixels wide and never shown, so its overflow is always the larger one and
+	 * the scrollbar would move text nobody can see; inline always scrolls the
+	 * modified editor.
+	 */
+	private _scrollsModified(modifiedOverflow: number, originalOverflow: number): boolean {
+		return !this.editor.renderSideBySide || modifiedOverflow > originalOverflow;
+	}
+
 	public setScrollLeft(left: number): void {
-		if (this._modifiedContentWidth.get() - this._modifiedWidth.get() > this._originalContentWidth.get() - this._originalWidth.get()) {
+		if (this._scrollsModified(this._modifiedContentWidth.get() - this._modifiedWidth.get(), this._originalContentWidth.get() - this._originalWidth.get())) {
 			this.editor.getModifiedEditor().setScrollLeft(left);
 		} else {
 			this.editor.getOriginalEditor().setScrollLeft(left);
