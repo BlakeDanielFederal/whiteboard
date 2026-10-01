@@ -269,7 +269,7 @@ button {
 }
 
 ::highlight(ask-thread-active) {
-  background: color-mix(in srgb, var(--accent) 30%, transparent);
+  background: var(--marker-glow);
 }
 
 /* The software map's React Flow layers: edges under the cards, edge labels

@@ -16,6 +16,7 @@ import { useOptionalReviewPanelStore } from "./review-panel";
 import { fontSize, radius } from "./scale.stylex";
 import { withClass } from "./stylex-props";
 import { tokens } from "./tokens.stylex";
+import { useTooltip } from "./use-tooltip";
 
 /** The CSS highlight that washes each passage a conversation is about. */
 const ASK_HIGHLIGHT = "ask-thread";
@@ -380,7 +381,6 @@ export function AskThreadMarks({
   const history = useAskHistory();
   const entries = history?.entries;
   const reportOutdated = history?.reportOutdated;
-  const panels = useOptionalReviewPanelStore();
   const [article, setArticle] = useState<HTMLElement | null>(null);
 
   const [{ marks, rows }, setPlaced] = useState<{
@@ -530,66 +530,17 @@ export function AskThreadMarks({
             translate: `min(0px, calc(${row.room}px - 100%))`,
           }}
         >
-          {row.marks.map((mark) => {
-            const [newest] = mark.entries;
-            const count = mark.entries.length;
-
-            const label =
-              count === 1
-                ? `Open the conversation about “${mark.quote.slice(0, 60)}”`
-                : `${count} conversations about “${mark.quote.slice(0, 60)}”`;
-
-            return (
-              <button
-                key={mark.key}
-                type="button"
-                // Marker class: the pointer on a pin is not on its words.
-                {...withClass("ask-mark-pin", styles.pin)}
-                data-active={mark.key === active || undefined}
-                aria-label={label}
-                title={count === 1 ? newest?.title : label}
-                onPointerEnter={() => setActive(mark.key)}
-                onPointerLeave={() => setActive(null)}
-                onFocus={() => setActive(mark.key)}
-                onBlur={() => setActive(null)}
-                onClick={() =>
-                  newest &&
-                  panels?.getState().openAskView(
-                    count === 1
-                      ? {
-                          type: "saved",
-                          threadId: newest.id,
-                          selection: newest.selection,
-                          agent: newest.agent,
-                        }
-                      : {
-                          type: "history",
-                          passage: {
-                            quote: mark.quote,
-                            threadIds: mark.entries.map((entry) => entry.id),
-                          },
-                        },
-                  )
-                }
-              >
-                {/* Each agent asked, newest first. */}
-                {[...new Set(mark.entries.map((entry) => entry.agent))].map(
-                  (agent) => (
-                    <span key={agent} {...stylex.props(styles.logoSlot)}>
-                      {AGENT_LOGOS[agent]({ xstyle: styles.logo })}
-                    </span>
-                  ),
-                )}
-                {/* One conversation needs no count. */}
-                {count > 1 ? (
-                  <span {...stylex.props(styles.count)}>{count}</span>
-                ) : null}
-              </button>
-            );
-          })}
+          {row.marks.map((mark) => (
+            <AskPin
+              key={mark.key}
+              mark={mark}
+              active={mark.key === active}
+              onActive={setActive}
+            />
+          ))}
         </div>
       )),
-    [active, rows, panels],
+    [active, rows],
   );
 
   if (!article || !marks.length) return null;
@@ -602,8 +553,69 @@ export function AskThreadMarks({
   );
 }
 
-// The pin paired with the pointer's passage, or with focus.
-const pinActive = `color-mix(in srgb, ${tokens.accent} 16%, ${tokens.bg})`;
+/** A passage's pin: its agents, newest first, and how many conversations. */
+function AskPin({
+  mark,
+  active,
+  onActive,
+}: {
+  mark: AskMark;
+  active: boolean;
+  onActive: (key: string | null) => void;
+}): ReactElement {
+  const panels = useOptionalReviewPanelStore();
+  const [newest] = mark.entries;
+  const count = mark.entries.length;
+
+  const label =
+    count === 1
+      ? `Open the conversation about “${mark.quote.slice(0, 60)}”`
+      : `${count} conversations about “${mark.quote.slice(0, 60)}”`;
+
+  const tooltip = useTooltip(count === 1 && newest ? newest.title : label);
+
+  return (
+    <button
+      ref={tooltip}
+      type="button"
+      // Marker class: the pointer on a pin is not on its words.
+      {...withClass("ask-mark-pin", styles.pin)}
+      data-active={active || undefined}
+      aria-label={label}
+      onPointerEnter={() => onActive(mark.key)}
+      onPointerLeave={() => onActive(null)}
+      onFocus={() => onActive(mark.key)}
+      onBlur={() => onActive(null)}
+      onClick={() =>
+        newest &&
+        panels?.getState().openAskView(
+          count === 1
+            ? {
+                type: "saved",
+                threadId: newest.id,
+                selection: newest.selection,
+                agent: newest.agent,
+              }
+            : {
+                type: "history",
+                passage: {
+                  quote: mark.quote,
+                  threadIds: mark.entries.map((entry) => entry.id),
+                },
+              },
+        )
+      }
+    >
+      {[...new Set(mark.entries.map((entry) => entry.agent))].map((agent) => (
+        <span key={agent} {...stylex.props(styles.logoSlot)}>
+          {AGENT_LOGOS[agent]({ xstyle: styles.logo })}
+        </span>
+      ))}
+      {/* One conversation needs no count. */}
+      {count > 1 ? <span {...stylex.props(styles.count)}>{count}</span> : null}
+    </button>
+  );
+}
 
 const styles = stylex.create({
   layer: {
@@ -632,11 +644,11 @@ const styles = stylex.create({
       ":is([data-active])": tokens.accent,
       ":focus-visible": tokens.accent,
     },
-    borderRadius: radius.surface,
+    borderRadius: radius.control,
     backgroundColor: {
       default: tokens.raised,
-      ":is([data-active])": pinActive,
-      ":focus-visible": pinActive,
+      ":is([data-active])": tokens.accentSoft,
+      ":focus-visible": tokens.accentSoft,
     },
     color: tokens.ink,
     fontFamily: tokens.fontMono,
@@ -644,7 +656,8 @@ const styles = stylex.create({
     lineHeight: "14px",
     whiteSpace: "nowrap",
     cursor: "pointer",
-    outline: { default: null, ":focus-visible": "none" },
+    outline: { default: null, ":focus-visible": `1px solid ${tokens.accent}` },
+    outlineOffset: { default: null, ":focus-visible": "1px" },
   },
   logoSlot: {
     display: "flex",
