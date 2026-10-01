@@ -223,9 +223,15 @@ export function AskHistoryList({
                   <button
                     type="button"
                     {...stylex.props(styles.historyOpen)}
-                    onPointerEnter={() => history?.preview(entry.id)}
+                    onPointerEnter={() => {
+                      history?.preview(entry.id);
+                      history?.reveal(entry);
+                    }}
                     onPointerLeave={() => history?.preview(null)}
-                    onFocus={() => history?.preview(entry.id)}
+                    onFocus={() => {
+                      history?.preview(entry.id);
+                      history?.reveal(entry);
+                    }}
                     onBlur={() => history?.preview(null)}
                     onClick={() => {
                       history?.reveal(entry);

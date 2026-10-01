@@ -634,7 +634,7 @@ function HistoryDocument() {
   );
 }
 
-it("previews a history passage without scrolling and reveals it on activation", async () => {
+it("scrolls to a history passage on hover, keyboard focus, and activation", async () => {
   const quote = "built concurrently";
 
   const [anchor] = await anchorsIn(
@@ -697,14 +697,18 @@ it("previews a history passage without scrolling and reveals it on activation", 
         quote,
       ),
     );
-    expect(scroll.scrollTop).toBe(0);
+    await vi.waitFor(() => expect(scroll.scrollTop).toBeGreaterThan(500));
+    scroll.scrollTop = 0;
     await act(async () => userEvent.click(button()));
     await vi.waitFor(() => expect(scroll.scrollTop).toBeGreaterThan(500));
     expect(view).toMatchObject({ type: "saved", threadId: "question" });
+    await act(async () => button().blur());
     scroll.scrollTop = 0;
     await act(async () => {
       button().focus();
     });
+    await vi.waitFor(() => expect(scroll.scrollTop).toBeGreaterThan(500));
+    scroll.scrollTop = 0;
     await act(async () => userEvent.keyboard("{Enter}"));
     await vi.waitFor(() => expect(scroll.scrollTop).toBeGreaterThan(500));
 
