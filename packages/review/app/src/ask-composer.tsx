@@ -620,7 +620,7 @@ export function AskComposer({
               disabled={disabled || images.length >= IMAGES_MAX}
               onClick={() => picker.current?.click()}
             >
-              <ImageIcon xstyle={controlStyles.chromeIcon} />
+              <ImageIcon xstyle={styles.attachIcon} />
             </IconButton>
           </>
         ) : null}
@@ -680,6 +680,10 @@ function AttachedImage({
 }
 
 const styles = stylex.create({
+  attachIcon: {
+    width: "20px",
+    height: "20px",
+  },
   dock: {
     display: "flex",
     flex: "0 0 auto",
