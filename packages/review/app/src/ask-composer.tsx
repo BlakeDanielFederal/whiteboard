@@ -200,6 +200,7 @@ export function AskComposer({
   findFiles,
   permissions,
   settings,
+  onCyclePermissions,
   onAsk,
 }: {
   inputRef: RefObject<HTMLTextAreaElement | null>;
@@ -222,6 +223,7 @@ export function AskComposer({
   permissions?: ReactNode;
   /** The agent's model and effort, ending the row below. */
   settings?: ReactNode;
+  onCyclePermissions?: () => void;
   /** Resolves true once the question is sent, to clear it. */
   onAsk: (question: AskQuestion) => Promise<boolean>;
 }): ReactElement {
@@ -415,6 +417,11 @@ export function AskComposer({
     if (event.key === "Enter" && !event.shiftKey) {
       event.preventDefault();
       void submit();
+    }
+
+    if (event.key === "Tab" && event.shiftKey && onCyclePermissions) {
+      event.preventDefault();
+      onCyclePermissions();
     }
   };
 

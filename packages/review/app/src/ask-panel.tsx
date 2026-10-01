@@ -462,32 +462,33 @@ export function AskPanelContent({
 
   // Below the composer, as in the agents' own apps: what the agent may do,
   // then its model and effort.
-  const permissions =
-    chosen?.bypass && (thread || savedThreadId === undefined) ? (
-      <AskChoicePicker
-        label="Permissions"
-        select={permissionsSelect(bypass)}
-        current={bypass ? "bypass" : "ask"}
-        disabled={settingsDisabled}
-        quiet
-        icon={readOnly ? <LockIcon xstyle={controlStyles.inlineIcon} /> : null}
-        onPick={(value) => permit(value === "bypass")}
-      />
-    ) : (
-      <TooltipLabel
-        tooltip={modeTitle}
-        xstyle={[styles.mode, styles.settingsLabel]}
-      >
-        {readOnly ? (
-          <>
-            <LockIcon xstyle={controlStyles.inlineIcon} />
-            Read-only
-          </>
-        ) : (
-          "Not read-only"
-        )}
-      </TooltipLabel>
-    );
+  const canBypass = chosen?.bypass && (thread || savedThreadId === undefined);
+
+  const permissions = canBypass ? (
+    <AskChoicePicker
+      label="Permissions"
+      select={permissionsSelect(bypass)}
+      current={bypass ? "bypass" : "ask"}
+      disabled={settingsDisabled}
+      quiet
+      icon={readOnly ? <LockIcon xstyle={controlStyles.inlineIcon} /> : null}
+      onPick={(value) => permit(value === "bypass")}
+    />
+  ) : (
+    <TooltipLabel
+      tooltip={modeTitle}
+      xstyle={[styles.mode, styles.settingsLabel]}
+    >
+      {readOnly ? (
+        <>
+          <LockIcon xstyle={controlStyles.inlineIcon} />
+          Read-only
+        </>
+      ) : (
+        "Not read-only"
+      )}
+    </TooltipLabel>
+  );
 
   const settings = (
     <>
@@ -645,6 +646,9 @@ export function AskPanelContent({
         acceptsImages={(thread?.accepts ?? offered?.accepts)?.image === true}
         findFiles={findFiles}
         permissions={permissions}
+        onCyclePermissions={
+          canBypass && !settingsDisabled ? () => permit(!bypass) : undefined
+        }
         settings={settings}
         onAsk={ask}
         usage={thread?.usage}
