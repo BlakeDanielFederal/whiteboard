@@ -105,6 +105,11 @@ const askMentionsSchema = z.object({
   thread: z.string().optional(),
 });
 
+const askOfferQuerySchema = z.object({
+  /** The model picked for a question not yet asked. */
+  model: askPicksSchema.shape.model,
+});
+
 /** How many files a mention picker shows. */
 const MENTION_LIMIT = 20;
 
@@ -1190,20 +1195,42 @@ export function createReviewApi(
     );
 
     // What an agent offers: what it said last, else what a session
-    // started in the review's checkout says.
+    // started in the review's checkout says. With another model it offers,
+    // what it said last with that model, else what such a session says once
+    // it has the model: the efforts on offer depend on it.
     app.get("/:id/ask/agents/:agent/offer", async (context) => {
       const agent = z.enum(askAgentIds).parse(context.req.param("agent"));
+      const { model } = askOfferQuerySchema.parse(context.req.query());
       const stored = store.askHistory.offer(agent);
 
-      if (stored) return context.json({ offer: stored });
+      // An offer of nothing to choose was saved before the agent's
+      // settings were known; the agent says again.
+      const last =
+        stored && Object.keys(stored.choices).length ? stored : undefined;
+
+      const models = last?.choices.model;
+
+      const another =
+        model !== undefined &&
+        model !== models?.current &&
+        (!models || models.options.some((option) => option.value === model));
+
+      const known = another ? store.askHistory.offer(agent, model) : last;
+
+      if (known) return context.json({ offer: known });
 
       const checkout = await data.agentCheckout(
         readReview(context.req.param("id")),
       );
 
-      const offer = await ask.threads.offered(agent, checkout.rootPath);
+      const offer = await ask.threads.offered(
+        agent,
+        checkout.rootPath,
+        another ? model : undefined,
+      );
 
-      store.askHistory.saveOffer(agent, offer);
+      if (last) store.askHistory.saveModelOffer(agent, offer);
+      else store.askHistory.saveOffer(agent, offer);
 
       return context.json({ offer });
     });

@@ -16,8 +16,10 @@ import { ReviewSessionProvider } from "./host/review-session";
 import { ReviewPanelProvider, useReviewPanel } from "./review-panel";
 import { testReviewSession } from "./review-session-test-utils";
 
-// jsdom lays nothing out, so nothing resizes.
+// jsdom lays nothing out, so nothing resizes. Each test starts without the
+// agent, model and effort another chose.
 beforeEach(() => {
+  localStorage.clear();
   vi.stubGlobal(
     "ResizeObserver",
     class {
@@ -57,7 +59,9 @@ Element.prototype.scrollTo = () => {};
 function buttonNamed(container: HTMLElement, name: string) {
   return (
     [...container.querySelectorAll<HTMLButtonElement>("button")].find(
-      (button) => button.textContent?.trim() === name,
+      (button) =>
+        (button.getAttribute("aria-label") ?? button.textContent?.trim()) ===
+        name,
     ) ?? null
   );
 }
@@ -606,6 +610,7 @@ it("asks with the model and effort the reviewer picks, and switches them between
       options: [
         { value: "default", name: "Default", description: "Opus 5" },
         { value: "sonnet", name: "Sonnet" },
+        { value: "haiku", name: "Haiku" },
       ],
     },
     effort: {
@@ -615,6 +620,18 @@ it("asks with the model and effort the reviewer picks, and switches them between
         { value: "high", name: "High" },
       ],
     },
+  };
+
+  // Like the real agents: which efforts are offered depends on the model.
+  const offerWith = (model: string) => {
+    const current = { ...choices.model, current: model };
+
+    return {
+      choices:
+        model === "haiku"
+          ? { model: current }
+          : { model: current, effort: choices.effort },
+    };
   };
 
   const fetch = vi
@@ -627,6 +644,11 @@ it("asks with the model and effort the reviewer picks, and switches them between
 
       if (endpoint === "/ask/agents/codex/offer")
         return Response.json({ offer: { choices } });
+
+      if (String(endpoint).startsWith("/ask/agents/codex/offer?model="))
+        return Response.json({
+          offer: offerWith(String(endpoint).split("=")[1]!),
+        });
 
       if (endpoint === "/ask") return Response.json({ threadId: "thread" });
 
@@ -688,7 +710,12 @@ it("asks with the model and effort the reviewer picks, and switches them between
         ),
       ].map((picker) => picker.textContent),
     ).toEqual(["Default", "Medium"]);
+
+    // A model without efforts offers none; one with them offers them again.
+    await pick("Model", "Haiku");
+    expect(container.querySelector('[aria-label^="Effort:"]')).toBeNull();
     await pick("Model", "Sonnet");
+    expect(container.querySelector('[aria-label^="Effort:"]')).not.toBeNull();
     await pick("Effort", "High");
 
     const textarea = container.querySelector("textarea")!;
@@ -723,6 +750,7 @@ it("asks with the model and effort the reviewer picks, and switches them between
         }),
       }),
     );
+
     await pick("Effort", "Medium");
     expect(bodies("/ask/thread/choice")).toEqual([
       { kind: "effort", value: "medium" },
@@ -1117,8 +1145,8 @@ it("stops a conversation while it reopens, and takes no answer to a permission o
       }),
     );
 
-    // Loading the conversation can be stopped like an answer.
-    await act(async () => buttonNamed(container, "Stop")!.click());
+    // Loading the conversation shows it connecting, and can be stopped.
+    await act(async () => buttonNamed(container, "Stop connecting")!.click());
     expect(
       fetch.mock.calls.filter(([called]) => called === "/ask/saved/cancel"),
     ).toHaveLength(1);
