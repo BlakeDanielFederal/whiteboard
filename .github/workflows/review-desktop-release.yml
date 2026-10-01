@@ -418,13 +418,12 @@ jobs:
       matrix:
         include:
           - target: darwin-arm64
-            runner: macos-15-xlarge
-            timeout: 90
+            node-arch: arm64
+          # x64 Node runs under Rosetta, so every arch probe and native build targets x64.
           - target: darwin-x64
-            runner: macos-15-large
-            timeout: 150
-    runs-on: ${{ matrix.runner }}
-    timeout-minutes: ${{ matrix.timeout }}
+            node-arch: x64
+    runs-on: macos-15-xlarge
+    timeout-minutes: 90
     env:
       RELEASE_VERSION: ${{ needs.tag.outputs.version }}
       RELEASE_COMMIT: ${{ needs.tag.outputs.commit }}
@@ -454,6 +453,7 @@ jobs:
         uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
           node-version-file: .nvmrc
+          architecture: ${{ matrix.node-arch }}
           cache: pnpm
 
       - name: Install monorepo dependencies
@@ -466,6 +466,7 @@ jobs:
         uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
           node-version-file: apps/review-desktop/code-oss/.nvmrc
+          architecture: ${{ matrix.node-arch }}
           cache: npm
           cache-dependency-path: apps/review-desktop/code-oss/**/package-lock.json
 
