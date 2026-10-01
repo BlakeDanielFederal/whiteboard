@@ -15,6 +15,7 @@ import { logos } from "./ask-agent-picker";
 import { controlStyles } from "./controls-styles";
 import { useReviewDebugSettings } from "./debug-settings";
 import { ChatIcon, CloseIcon, DockIcon, GripIcon, MinusIcon } from "./icons";
+import { appMarker } from "./markers.stylex";
 import { useReviewPanel, useReviewPanelStore } from "./review-panel";
 import type { AskAnchor } from "./review-panel-model";
 import { useReviewContainer } from "./review-root-context";
@@ -550,6 +551,8 @@ function AskLayer({ children }: { children: ReactNode }): ReactElement {
     <div
       {...withClass(
         `review-app--theme-${theme}`,
+        appMarker,
+        themeStyles.vars,
         theme === "light" && themeStyles.light,
         styles.layer,
       )}

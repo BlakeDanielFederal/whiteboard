@@ -296,7 +296,7 @@ export function AgentSelectionProvider({
                 // The toolbar starts at the selection, after a lead that
                 // gives way so it never runs past the container's edge.
                 <div
-                  {...stylex.props(styles.lane)}
+                  {...stylex.props(themeStyles.vars, styles.lane)}
                   style={{ top: selection.anchor?.y }}
                 >
                   <span
