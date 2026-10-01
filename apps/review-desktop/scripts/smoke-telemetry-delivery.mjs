@@ -176,6 +176,12 @@ export async function smokeTelemetryDelivery({
 
     if (!page) throw new Error("The app opened no window to drive.");
 
+    // Fresh profiles reload after keymap seeding; the notice waits for that reload.
+    await page.getByText(
+      "Whiteboard sends anonymous usage data. You can change this in Settings.",
+      { exact: true },
+    ).waitFor({ state: "attached", timeout: timeoutMs });
+
     const throwInWindow = async (message) => {
       let timer;
 
