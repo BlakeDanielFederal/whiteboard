@@ -111,6 +111,12 @@ export function AskPanelContent({
   const [bypassPick, setBypassPick] = useState<boolean>();
   const { thread, lost } = useThread(session, threadId);
 
+  const loadingConversation =
+    savedThreadId !== undefined &&
+    !requestError &&
+    !lost &&
+    (!thread || (thread.status === "starting" && !thread.entries.length));
+
   useShowOpenThread(threadId ?? savedThreadId ?? null);
 
   const offered = useOffer(
@@ -166,7 +172,7 @@ export function AskPanelContent({
     };
   }, [latestSession, savedThreadId, requestedAgent]);
 
-  useEffect(() => composer.current?.focus(), [agent]);
+  useEffect(() => composer.current?.focus(), [agent, loadingConversation]);
 
   // The server saves a conversation once the agent starts it and dates it
   // by its last turn, so the document's marks and the history follow.
@@ -447,6 +453,33 @@ export function AskPanelContent({
     presence.tone,
   ]);
 
+  if (loadingConversation) {
+    return (
+      <div {...stylex.props(askPanelStyles.body)} aria-busy="true">
+        <div {...stylex.props(askPanelStyles.page)} role="status">
+          <EmptyState
+            xstyle={styles.loading}
+            message={`Loading the conversation from ${agentName}…`}
+            action={
+              <>
+                <span
+                  {...stylex.props(styles.loadingLine, askPanelStyles.sweep)}
+                />
+                <span
+                  {...stylex.props(
+                    styles.loadingLine,
+                    askPanelStyles.sweep,
+                    styles.loadingLineShort,
+                  )}
+                />
+              </>
+            }
+          />
+        </div>
+      </div>
+    );
+  }
+
   // Until the agent says, what its kind of agent does: a starting thread
   // has not yet been put in its read-only mode.
   const readOnly =
@@ -554,30 +587,6 @@ export function AskPanelContent({
                   thread.entries.findLast((entry) => entry.kind === "user")?.id
                 }
                 thread={thread}
-              />
-            ) : null}
-
-            {connecting && !thread?.entries.length ? (
-              <EmptyState
-                xstyle={styles.loading}
-                message={`Loading the conversation from ${agentName}…`}
-                action={
-                  <>
-                    <span
-                      {...stylex.props(
-                        styles.loadingLine,
-                        askPanelStyles.sweep,
-                      )}
-                    />
-                    <span
-                      {...stylex.props(
-                        styles.loadingLine,
-                        askPanelStyles.sweep,
-                        styles.loadingLineShort,
-                      )}
-                    />
-                  </>
-                }
               />
             ) : null}
 
