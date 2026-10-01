@@ -10,14 +10,15 @@ import {
 } from "react";
 
 import { useAskHistory } from "./ask-history";
-import { AskTrashIcon, askIconSizes } from "./ask-icons";
 import { controlStyles } from "./controls-styles";
+import { TrashIcon } from "./icons";
 import { useOptionalReviewPanelStore } from "./review-panel";
 import { fontSize, radius } from "./scale.stylex";
 import type { StyleArg } from "./stylex-props";
 import { useToast } from "./toast";
 import { tokens } from "./tokens.stylex";
 import { IconButton } from "./ui/button";
+import { useTooltip } from "./use-tooltip";
 
 /** How long a first click keeps a delete armed. */
 const ARMED_MS = 4_000;
@@ -68,6 +69,7 @@ export function AskDeleteButton({
   onDelete: () => void;
 }): ReactElement {
   const [armed, setArmed] = useState(false);
+  const tooltip = useTooltip(armed ? "Click again to delete" : label);
 
   useEffect(() => {
     if (!armed) return;
@@ -78,10 +80,10 @@ export function AskDeleteButton({
 
   return (
     <IconButton
+      ref={tooltip}
       size="large"
       xstyle={[xstyle, armed && styles.armed]}
       aria-label={armed ? `Confirm: ${label}` : label}
-      title={armed ? "Click again to delete" : label}
       onClick={() => {
         if (!armed) {
           setArmed(true);
@@ -94,7 +96,7 @@ export function AskDeleteButton({
       }}
       onBlur={() => setArmed(false)}
     >
-      <AskTrashIcon xstyle={[controlStyles.inertIcon, askIconSizes.header]} />
+      <TrashIcon xstyle={[controlStyles.inertIcon, controlStyles.chromeIcon]} />
       {armed ? <span>Delete</span> : null}
     </IconButton>
   );
@@ -141,7 +143,7 @@ const styles = stylex.create({
     width: "auto",
     padding: "0 8px",
     borderRadius: radius.control,
-    backgroundColor: `color-mix(in srgb, ${tokens.changeRemoved} 12%, transparent)`,
+    backgroundColor: tokens.diffRemovedBg,
     color: tokens.changeRemoved,
     fontFamily: tokens.fontMono,
     fontSize: fontSize.small,
