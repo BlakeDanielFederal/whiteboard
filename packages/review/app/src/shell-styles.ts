@@ -150,11 +150,11 @@ export const shellStyles = stylex.create({
   peekResizer: {
     height: "100%",
     borderColor: tokens.transparent,
-    backgroundImage: `linear-gradient(${tokens.surface} calc(${tokens.reviewHeaderHeight} - 1px), ${tokens.rule} 0 ${tokens.reviewHeaderHeight}, transparent 0)`,
+    backgroundImage: `linear-gradient(${tokens.surface} calc(${tokens.reviewHeaderHeight} - 1px), ${tokens.rule} 0 ${tokens.reviewHeaderHeight}, ${tokens.transparent} 0)`,
   },
   peekResizerTray: {
     backgroundColor: tokens.tray,
-    backgroundImage: `linear-gradient(transparent calc(${tokens.reviewHeaderHeight} - 1px), ${tokens.rule} 0 ${tokens.reviewHeaderHeight}, transparent 0)`,
+    backgroundImage: `linear-gradient(${tokens.transparent} calc(${tokens.reviewHeaderHeight} - 1px), ${tokens.rule} 0 ${tokens.reviewHeaderHeight}, ${tokens.transparent} 0)`,
   },
   // Horizontal twin of the divider for the narrow-layout bottom sheet: it
   // drags the sheet height. Hidden on wide layouts, where the vertical

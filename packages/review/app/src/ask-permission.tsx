@@ -5,7 +5,11 @@ import type { ReactElement } from "react";
 import { permissionSubject } from "./ask-turn";
 import { fontSize, radius } from "./scale.stylex";
 import { tokens } from "./tokens.stylex";
+import { Button } from "./ui/button";
 import { textStyles } from "./ui/text";
+import { useTooltip } from "./use-tooltip";
+
+type PermissionEntry = Extract<AskEntry, { kind: "permission" }>;
 
 const actions = new Map([
   ["execute", "run a command"],
@@ -36,10 +40,11 @@ export function AskPermission({
   thread,
   onDecide,
 }: {
-  entry: Extract<AskEntry, { kind: "permission" }>;
+  entry: PermissionEntry;
   thread: AskThreadState;
   onDecide: (permissionId: string, optionId: string) => void;
 }): ReactElement {
+  const placeTooltip = useTooltip<HTMLSpanElement>(thread.cwd);
   const command = entry.toolKind === "execute";
 
   const options = entry.options.toSorted(
@@ -75,43 +80,67 @@ export function AskPermission({
           {permissionSubject(entry, thread.cwd)}
         </code>
         <span
+          ref={placeTooltip}
           {...stylex.props(permissionStyles.targetPlace)}
-          title={thread.cwd}
         >
           in {shortPath(thread.cwd)}@{thread.head.slice(0, 7)}
         </span>
       </div>
       <div {...stylex.props(permissionStyles.options)}>
         {options.map((option, index) => (
-          <button
+          <PermissionOption
             key={option.optionId}
-            type="button"
-            title={option.name}
+            option={option}
+            label={named ? option.name : optionLabels[option.kind]}
+            // Denials sit apart, at the far end.
+            apart={
+              option.kind.startsWith("reject") &&
+              Boolean(options[index - 1]?.kind.startsWith("allow"))
+            }
             // A thread that stopped no longer waits on the answer.
             disabled={thread.status !== "waiting"}
-            {...stylex.props(
-              permissionStyles.option,
-              option.kind === "allow_once" && permissionStyles.allowOnce,
-              option.kind.startsWith("reject") && permissionStyles.reject,
-              // Denials sit apart, at the far end.
-              option.kind.startsWith("reject") &&
-                options[index - 1]?.kind.startsWith("allow") &&
-                permissionStyles.apart,
-            )}
             onClick={() => onDecide(entry.id, option.optionId)}
-          >
-            {named ? option.name : optionLabels[option.kind]}
-          </button>
+          />
         ))}
       </div>
     </section>
   );
 }
 
-const hairline = {
-  borderWidth: "1px",
-  borderStyle: "solid",
-} as const;
+function PermissionOption({
+  option,
+  label,
+  apart,
+  disabled,
+  onClick,
+}: {
+  option: PermissionEntry["options"][number];
+  label: string;
+  apart: boolean;
+  disabled: boolean;
+  onClick: () => void;
+}): ReactElement {
+  const tooltip = useTooltip(option.name);
+
+  return (
+    <Button
+      ref={tooltip}
+      size="large"
+      variant={
+        option.kind === "allow_once"
+          ? "warning"
+          : option.kind.startsWith("reject")
+            ? "ghost"
+            : "secondary"
+      }
+      xstyle={apart && permissionStyles.apart}
+      disabled={disabled}
+      onClick={onClick}
+    >
+      {label}
+    </Button>
+  );
+}
 
 const permissionStyles = stylex.create({
   card: {
@@ -119,8 +148,9 @@ const permissionStyles = stylex.create({
     flexDirection: "column",
     gap: "14px",
     padding: "16px",
-    ...hairline,
-    borderColor: tokens.warningFocus,
+    borderWidth: "1px",
+    borderStyle: "solid",
+    borderColor: tokens.warningOutline,
     borderRadius: radius.surface,
     backgroundColor: tokens.warningWash,
   },
@@ -147,7 +177,8 @@ const permissionStyles = stylex.create({
     flexDirection: "column",
     gap: "4px",
     padding: "10px 12px",
-    ...hairline,
+    borderWidth: "1px",
+    borderStyle: "solid",
     borderColor: tokens.rule,
     borderRadius: radius.surface,
     backgroundColor: tokens.bg,
@@ -174,35 +205,6 @@ const permissionStyles = stylex.create({
     flexWrap: "wrap",
     alignItems: "center",
     gap: "8px",
-  },
-  option: {
-    padding: "6px 12px",
-    ...hairline,
-    borderColor: tokens.ruleSoft,
-    borderRadius: radius.surface,
-    backgroundColor: {
-      default: tokens.transparent,
-      ":hover": tokens.surfaceRaised,
-    },
-    color: tokens.ink,
-    fontFamily: tokens.fontMono,
-    fontSize: fontSize.small,
-    lineHeight: "14px",
-    cursor: "pointer",
-  },
-  allowOnce: {
-    borderColor: tokens.changeModified,
-    backgroundColor: {
-      default: tokens.changeModified,
-      ":hover": `color-mix(in srgb, ${tokens.changeModified} 88%, white)`,
-    },
-    color: tokens.onWarning,
-  },
-  reject: {
-    paddingInline: "4px",
-    borderColor: tokens.transparent,
-    backgroundColor: tokens.transparent,
-    color: { default: tokens.inkMuted, ":hover": tokens.ink },
   },
   apart: {
     marginLeft: "auto",
