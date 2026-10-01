@@ -410,11 +410,7 @@ export function DatabaseLens(block: DatabaseLensProps) {
   const { closeOverlayTour: closeTour, moveOverlayTour: changeTourAnchor } =
     panelStore.getState();
 
-  const {
-    overlayRef,
-    portalTarget,
-    paneResize: tourPaneResize,
-  } = useDiagramTourShell(tourOpen, closeTour);
+  const { portalTarget } = useDiagramTourShell(tourOpen, closeTour);
 
   // database-lens is a marker: the tutorial and document-embed-scroll.ts find it.
   const renderLensFigure = (stage: boolean) => (
@@ -495,9 +491,6 @@ export function DatabaseLens(block: DatabaseLensProps) {
               tour={activeTour}
               activeAnchor={tourState.anchor}
               revealRequest={tourState.revealRequest}
-              paneWidth={tourPaneResize.width}
-              separatorProps={tourPaneResize.separatorProps}
-              overlayRef={overlayRef}
               onActiveAnchorChange={changeTourAnchor}
               onClose={closeTour}
             >
@@ -1197,7 +1190,7 @@ const narrow = "@container review-content (max-width: 760px)";
 
 const styles = stylex.create({
   // Inline it sits centered on the prose column, no narrower than the
-  // prose measure; the tour stage fills the overlay without card chrome.
+  // block measure; the tour stage fills the overlay without card chrome.
   figure: {
     display: "grid",
     gridTemplateColumns: "minmax(0, 1fr)",
@@ -1212,7 +1205,7 @@ const styles = stylex.create({
     },
     minWidth: {
       default: null,
-      [inDocument()]: `min(${tokens.reviewProseMaxWidth}, calc(100cqi - ${tokens.reviewDocumentPaddingInline} - ${tokens.reviewDocumentPaddingInline}))`,
+      [inDocument()]: `min(${tokens.reviewBlockMaxWidth}, calc(100cqi - ${tokens.reviewDocumentPaddingInline} - ${tokens.reviewDocumentPaddingInline}))`,
     },
     maxWidth: {
       default: "100%",

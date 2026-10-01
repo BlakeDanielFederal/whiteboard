@@ -4,6 +4,7 @@ import { textStyles } from "@canvas/ui/text";
 import {
   type ReviewCanvasRange,
   type ReviewCommitSummary,
+  type ReviewDocumentWidthChoice,
 } from "@dev.fast/review-protocol";
 import {
   type SoftwareMapTopologyDiff,
@@ -169,6 +170,9 @@ export interface RenderedReviewDocument {
   tocEntries?: import("./review-document-headings").ReviewTocEntry[];
   /** True while the document has no blocks at all, as right after creation. */
   empty?: boolean;
+  header: boolean;
+  databaseLens: boolean;
+  width?: ReviewDocumentWidthChoice;
 }
 
 /** A commit-scoped diff stays "commit"; otherwise it follows the reader's
@@ -303,6 +307,26 @@ function ReviewLayoutContent({
   const panelMotion = useReviewPanel((state) => state.motion);
   const activeView = useReviewPanel((state) => state.view);
   const diffScope = useReviewPanel((state) => state.diffScope);
+
+  // The full diff stays mounted while another view shows, at the width it
+  // had when it was hidden: following the column through a side peek's
+  // resize would lay out every editor in it on each step. Shown, it fills the
+  // column again and lays out once.
+  const diffHostRef = useRef<HTMLDivElement | null>(null);
+  const diffPreloaded = activeView !== "diff" || diffScope !== null;
+  const [frozenDiffWidth, setFrozenDiffWidth] = useState<number>();
+
+  useLayoutEffect(() => {
+    const width = diffHostRef.current?.getBoundingClientRect().width;
+
+    setFrozenDiffWidth(diffPreloaded && width ? width : undefined);
+  }, [diffPreloaded]);
+
+  const frozenDiffStyle =
+    diffPreloaded && frozenDiffWidth
+      ? { right: "auto", width: `${frozenDiffWidth}px` }
+      : undefined;
+
   const traceSelection = useReviewPanel((state) => state.traceSelection);
   const traceStorage = useReviewPanel((state) => state.traceStorage);
   const mapFocus = useReviewPanel((state) => state.mapFocus);
@@ -315,6 +339,7 @@ function ReviewLayoutContent({
     defaultWidth: DEFAULT_SIDE_PEEK_WIDTH,
     minWidth: MIN_SIDE_PEEK_WIDTH,
     maxWidth: MAX_SIDE_PEEK_WIDTH,
+    maxContainerFraction: 0.5,
     minMainWidth: MIN_DOCUMENT_WIDTH,
     separatorWidth: 10,
     label: "Resize side peek",
@@ -454,7 +479,9 @@ function ReviewLayoutContent({
       )}
       style={appStyle}
       data-peek-open={rightPanelOpen || undefined}
-      data-resizing={sidePeekResize.isResizing || undefined}
+      data-document-header={document.header || undefined}
+      data-database-lens={document.databaseLens || undefined}
+      data-document-width={document.width}
     >
       <main
         ref={shellRef}
@@ -642,8 +669,11 @@ function ReviewLayoutContent({
             </div>
           ) : null}
           {activeView === "review" && (
-            // Every document but the scratchpad opens with a review header.
-            <ReviewToc entries={tocEntries} besideHeader={!scratchpad} />
+            <ReviewToc
+              entries={tocEntries}
+              besideHeader={document.header}
+              documentWidth={document.width}
+            />
           )}
           <section
             ref={scrollRegionRef}
@@ -742,12 +772,13 @@ function ReviewLayoutContent({
               />
             )}
             <div
-              aria-hidden={activeView !== "diff" || diffScope !== null}
+              ref={diffHostRef}
+              aria-hidden={diffPreloaded}
               {...stylex.props(
                 shellStyles.diffView,
-                (activeView !== "diff" || diffScope !== null) &&
-                  shellStyles.diffViewPreloaded,
+                diffPreloaded && shellStyles.diffViewPreloaded,
               )}
+              style={frozenDiffStyle}
             >
               <ReviewDiffView />
             </div>
@@ -788,7 +819,9 @@ function ReviewLayoutContent({
           {...stylex.props(
             shellStyles.resizer,
             shellStyles.peekResizer,
+            shellStyles.resizerGrabPanel,
             askDocked && shellStyles.peekResizerTray,
+            sidePeekResize.isResizing && shellStyles.peekResizerActive,
           )}
           {...sidePeekResize.separatorProps}
         />

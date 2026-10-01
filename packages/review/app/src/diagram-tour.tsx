@@ -1,11 +1,5 @@
 import * as stylex from "@stylexjs/stylex";
-import type {
-  CSSProperties,
-  HTMLAttributes,
-  ReactElement,
-  ReactNode,
-  Ref,
-} from "react";
+import type { CSSProperties, ReactElement, ReactNode } from "react";
 import { useEffect, useRef } from "react";
 
 import { useReviewDebugSettings } from "./debug-settings";
@@ -32,9 +26,6 @@ export function DiagramTourOverlay({
   tour,
   activeAnchor,
   revealRequest,
-  paneWidth,
-  separatorProps,
-  overlayRef,
   onActiveAnchorChange,
   onClose,
   children,
@@ -44,9 +35,6 @@ export function DiagramTourOverlay({
   tour: GuidedTour;
   activeAnchor: string;
   revealRequest: number;
-  paneWidth: number;
-  separatorProps: HTMLAttributes<HTMLDivElement>;
-  overlayRef: Ref<HTMLDivElement>;
   onActiveAnchorChange: (anchor: string, options: { reveal: boolean }) => void;
   onClose: () => void;
   children: ReactNode;
@@ -55,12 +43,27 @@ export function DiagramTourOverlay({
   // element the theme modifier lives on. Carrying the modifier here keeps the
   // light theme's token overrides in scope for the stage and the panel.
   const { theme } = useReviewDebugSettings();
+  const overlayRef = useRef<HTMLDivElement | null>(null);
+
+  // Here, not in the diagram that opens the tour: each resize step re-renders
+  // only the overlay, and the stage it was handed stays put.
+  const paneResize = useRightPanelResize({
+    stateKey: "diagram-tour-pane-width",
+    defaultWidth: 594,
+    minWidth: 360,
+    maxWidth: 760,
+    maxContainerFraction: 0.5,
+    minMainWidth: 480,
+    separatorWidth: 10,
+    label: "Resize tour pane",
+    containerRef: overlayRef,
+  });
 
   // SAFETY: `--diagram-tour-pane-width` is a CSS custom property, which React
   // forwards to style.setProperty; the CSSProperties typings only omit custom
   // names.
   const overlayStyle = {
-    "--diagram-tour-pane-width": `${paneWidth}px`,
+    "--diagram-tour-pane-width": `${paneResize.width}px`,
   } as CSSProperties;
 
   return (
@@ -81,8 +84,12 @@ export function DiagramTourOverlay({
         {children}
       </div>
       <div
-        {...stylex.props(shellStyles.resizer, styles.resizer)}
-        {...separatorProps}
+        {...stylex.props(
+          shellStyles.resizer,
+          shellStyles.resizerGrabPanel,
+          styles.resizer,
+        )}
+        {...paneResize.separatorProps}
       />
       <div {...stylex.props(styles.panel)}>
         <GuidedTourPanel
@@ -100,25 +107,12 @@ export function DiagramTourOverlay({
 
 /**
  * Chrome every fullscreen diagram tour shares: the canvas-root portal
- * target, Escape-to-close, the canvas scroll lock, and the resizable pane
- * width (one persisted width across diagram kinds).
+ * target, Escape-to-close and the canvas scroll lock.
  */
 export function useDiagramTourShell(open: boolean, onClose: () => void) {
-  const overlayRef = useRef<HTMLDivElement | null>(null);
   // The desktop build wraps every canvas rule in @scope (.review-canvas-root),
   // so the overlay must portal INSIDE the canvas root or it renders unstyled.
   const portalTarget = useReviewContainer();
-
-  const paneResize = useRightPanelResize({
-    stateKey: "diagram-tour-pane-width",
-    defaultWidth: 594,
-    minWidth: 360,
-    maxWidth: 760,
-    minMainWidth: 480,
-    separatorWidth: 10,
-    label: "Resize tour pane",
-    containerRef: overlayRef,
-  });
 
   useEffect(() => {
     if (!open) return;
@@ -134,7 +128,7 @@ export function useDiagramTourShell(open: boolean, onClose: () => void) {
 
   useCanvasScrollLock(open);
 
-  return { overlayRef, portalTarget, paneResize };
+  return { portalTarget };
 }
 
 // A terminal split can leave the canvas too narrow for both tour columns: the

@@ -238,7 +238,7 @@ const styles = stylex.create({
     },
     width: {
       default: null,
-      [inDocumentBlock()]: `min(100%, ${tokens.reviewProseMaxWidth})`,
+      [inDocumentBlock()]: `min(100%, ${tokens.reviewBlockMaxWidth})`,
     },
     marginInline: {
       default: null,

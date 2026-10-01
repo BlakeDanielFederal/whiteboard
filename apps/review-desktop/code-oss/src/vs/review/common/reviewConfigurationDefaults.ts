@@ -34,6 +34,8 @@ export const REVIEW_OPEN_FILES_IN_SETTING = 'review.openFilesIn';
 export const REVIEW_OPEN_FILES_IN_CHOICES = ['whiteboard', 'vscode', 'cursor', 'zed'] as const;
 export const REVIEW_READY_NOTIFICATION_SETTING = 'review.notifications.reviewReady';
 export const REVIEW_READY_NOTIFICATION_CHOICES = ['notificationAndBadge', 'notification', 'off'] as const;
+export const REVIEW_DOCUMENT_WIDTH_SETTING = 'review.documentWidth';
+export const REVIEW_DOCUMENT_WIDTH_CHOICES = ['standard', 'wide', 'full'] as const;
 
 export const reviewConfigurationDefaults = {
 	[REVIEW_SOFTWARE_MAP_SETTING]: false,

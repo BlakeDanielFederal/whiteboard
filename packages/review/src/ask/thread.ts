@@ -507,6 +507,7 @@ export class AskThread {
 
     const launched = await this.launch(this.start.agent, this.start.cwd, {
       bypass: this.state.bypass,
+      mcpServers: this.mcpServers,
     });
 
     // Closed, stopped or given up on while the process started.
@@ -713,9 +714,13 @@ export class AskThread {
     }
   }
 
-  /** Tells the host what the agent offers now. */
+  /** Tells the host what the agent offers now, once its settings are
+   * known: a reopening agent lists its commands first, and what it says
+   * then must not stand as an offer of no model. */
   private announce() {
-    const { choices = {}, commands, accepts } = this.state;
+    const { choices, commands, accepts } = this.state;
+
+    if (!choices) return;
     const offer: AskOffer = { choices };
 
     if (commands) offer.commands = commands;

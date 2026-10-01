@@ -236,6 +236,13 @@ describe("useRightPanelResize folding", () => {
     expect(width()).toBe("392");
   });
 
+  it("keeps the grabbed point of the divider under the pointer", () => {
+    mountPanel("grab-panel", { side: "left" });
+    pointer("pointerdown", 365);
+    pointer("pointermove", 425);
+    expect(width()).toBe("420");
+  });
+
   it("folds from the keyboard at the minimum and stays folded after a remount", () => {
     mountPanel("folding-panel", { side: "left", collapsedWidth: 42 });
     key("ArrowLeft");
@@ -245,4 +252,83 @@ describe("useRightPanelResize folding", () => {
     mountPanel("folding-panel", { side: "left", collapsedWidth: 42 });
     expect(width()).toBe("42");
   });
+});
+
+function HalfPanel({ containerWidth }: { containerWidth: number }) {
+  const containerRef = useRef<HTMLElement | null>(null);
+
+  const resize = useRightPanelResize({
+    stateKey: `half-panel-${containerWidth}`,
+    defaultWidth: 594,
+    minWidth: 360,
+    maxWidth: 760,
+    maxContainerFraction: 0.5,
+    minMainWidth: 480,
+    separatorWidth: 10,
+    label: "Resize half panel",
+    containerRef,
+  });
+
+  return (
+    <section ref={containerRef} style={{ width: containerWidth }}>
+      <div {...stylex.props(shellStyles.resizer)} {...resize.separatorProps} />
+    </section>
+  );
+}
+
+it.each([
+  { containerWidth: 1600, widest: "800" },
+  { containerWidth: 1300, widest: "760" },
+])(
+  "grows a panel to half a $containerWidth px container, never below maxWidth",
+  ({ containerWidth, widest }) => {
+    host = document.createElement("div");
+    document.body.append(host);
+    root = createRoot(host);
+    act(() => {
+      root?.render(
+        <ReviewSessionProvider session={session}>
+          <HalfPanel containerWidth={containerWidth} />
+        </ReviewSessionProvider>,
+      );
+    });
+
+    for (let step = 0; step < 30; step++) widenWithKeyboard();
+
+    expect(separator().getAttribute("aria-valuenow")).toBe(widest);
+    expect(separator().getAttribute("aria-valuemax")).toBe(widest);
+  },
+);
+
+it("grabs past the separator into the panel, never over the scrollbar beside it", () => {
+  host = document.createElement("div");
+  document.body.append(host);
+  root = createRoot(host);
+  act(() => {
+    root?.render(
+      <div style={{ display: "flex", height: 200 }}>
+        <div
+          data-testid="scroller"
+          style={{ flex: "1 1 0", overflowY: "scroll" }}
+        >
+          <div style={{ height: 2000 }} />
+        </div>
+        <div
+          role="separator"
+          {...stylex.props(shellStyles.resizer, shellStyles.resizerGrabPanel)}
+        />
+        <div style={{ flex: "1 1 0" }}>panel</div>
+      </div>,
+    );
+  });
+
+  const box = separator().getBoundingClientRect();
+  const y = box.top + box.height / 2;
+  const scroller = host.querySelector('[data-testid="scroller"]');
+
+  expect(document.elementFromPoint(box.right + 6, y)).toBe(separator());
+  expect(document.elementFromPoint(box.right + 12, y)).not.toBe(separator());
+  expect(scroller?.contains(document.elementFromPoint(box.left - 2, y))).toBe(
+    true,
+  );
 });

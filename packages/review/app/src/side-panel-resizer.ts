@@ -15,6 +15,8 @@ type RightPanelResizeOptions = {
   defaultWidth: number;
   minWidth: number;
   maxWidth: number;
+  /** Lets the panel grow past `maxWidth` to this share of its container. */
+  maxContainerFraction?: number;
   minMainWidth: number;
   separatorWidth?: number;
   /** Dragging past `minWidth` folds the panel to this width. */
@@ -187,6 +189,7 @@ export function useRightPanelResize({
   defaultWidth,
   minWidth,
   maxWidth,
+  maxContainerFraction = 0,
   minMainWidth,
   separatorWidth = 0,
   collapsedWidth,
@@ -212,6 +215,8 @@ export function useRightPanelResize({
   const collapsed = foldedWidth !== undefined;
   // Unfolding restores the width from before the drag.
   const dragStartWidth = useRef(requestedWidth);
+  // Keeps the grabbed point of the divider under the pointer.
+  const grabOffset = useRef(0);
 
   const [isResizing, setIsResizing] = useState(false);
   const [, setLayoutRevision] = useState(0);
@@ -239,7 +244,7 @@ export function useRightPanelResize({
       const { width: containerWidth } = containerMetrics();
 
       const availableMax = Math.min(
-        maxWidth,
+        Math.max(maxWidth, containerWidth * maxContainerFraction),
         containerWidth - minMainWidth - separatorWidth,
       );
 
@@ -248,7 +253,14 @@ export function useRightPanelResize({
         Math.max(minWidth, availableMax),
       );
     },
-    [containerMetrics, maxWidth, minMainWidth, minWidth, separatorWidth],
+    [
+      containerMetrics,
+      maxContainerFraction,
+      maxWidth,
+      minMainWidth,
+      minWidth,
+      separatorWidth,
+    ],
   );
 
   const width = constrainWidth(requestedWidth);
@@ -288,10 +300,18 @@ export function useRightPanelResize({
     };
   }, [containerRef]);
 
-  const resizeFromClientX = useCallback(
+  const pointerWidth = useCallback(
     (clientX: number) => {
       const { left, right } = containerMetrics();
-      const nextWidth = side === "left" ? clientX - left : right - clientX;
+
+      return side === "left" ? clientX - left : right - clientX;
+    },
+    [containerMetrics, side],
+  );
+
+  const resizeFromClientX = useCallback(
+    (clientX: number) => {
+      const nextWidth = pointerWidth(clientX) - grabOffset.current;
 
       if (collapsible && nextWidth < minWidth) {
         setCollapsed(true);
@@ -305,12 +325,11 @@ export function useRightPanelResize({
     },
     [
       collapsible,
-      containerMetrics,
       minWidth,
+      pointerWidth,
       setCollapsed,
       setRequestedWidth,
       setWidth,
-      side,
     ],
   );
 
@@ -320,9 +339,10 @@ export function useRightPanelResize({
       event.preventDefault();
       event.currentTarget.setPointerCapture(event.pointerId);
       dragStartWidth.current = requestedWidth;
+      grabOffset.current = pointerWidth(event.clientX) - (foldedWidth ?? width);
       setIsResizing(true);
     },
-    [requestedWidth],
+    [foldedWidth, pointerWidth, requestedWidth, width],
   );
 
   const resize = useCallback(
@@ -362,6 +382,7 @@ export function useRightPanelResize({
 
   const expand = useCallback(() => setCollapsed(false), [setCollapsed]);
   const renderedWidth = foldedWidth ?? width;
+  const widest = Math.round(constrainWidth(Number.POSITIVE_INFINITY));
 
   const separatorProps = useMemo<SeparatorProps>(
     () => ({
@@ -369,7 +390,7 @@ export function useRightPanelResize({
       "aria-label": label,
       "aria-orientation": "vertical",
       "aria-valuemin": collapsedWidth ?? minWidth,
-      "aria-valuemax": maxWidth,
+      "aria-valuemax": widest,
       "aria-valuenow": Math.round(renderedWidth),
       tabIndex: 0,
       onPointerDown: startResize,
@@ -382,13 +403,13 @@ export function useRightPanelResize({
     [
       collapsedWidth,
       label,
-      maxWidth,
       minWidth,
       renderedWidth,
       resize,
       resizeWithKeyboard,
       startResize,
       stopResize,
+      widest,
     ],
   );
 

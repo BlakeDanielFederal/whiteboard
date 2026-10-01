@@ -2,7 +2,7 @@ import { documentType } from "@canvas/document-type.stylex";
 import { fontSize, fontWeight, radius, tracking } from "@canvas/scale.stylex";
 import * as stylex from "@stylexjs/stylex";
 
-import { documentMarker, proseMarker } from "./markers.stylex";
+import { appMarker, documentMarker, proseMarker } from "./markers.stylex";
 import { tokens } from "./tokens.stylex";
 
 // The review document: the article column and the prose it renders. Prose
@@ -34,9 +34,29 @@ const narrow = "@media (max-width: 720px)";
 
 const compact = "@container review-content (max-width: 1080px)";
 
-const withHeader = ":has([data-review-document-header])";
+// Not :has(): it restyled the whole document on every node insertion.
+const withHeader = () =>
+  stylex.when.ancestor(":is([data-document-header])", appMarker);
 
-const withLens = ":has(.database-lens)";
+const withLens = () =>
+  stylex.when.ancestor(":is([data-database-lens])", appMarker);
+
+// Wide and full keep prose at a reading measure but let code, diagrams and
+// lenses fill the article. A shell too narrow for 900px prose keeps the
+// standard layout.
+const widened = () =>
+  stylex.when.ancestor(
+    ':is([data-document-width="wide"], [data-document-width="full"])',
+    appMarker,
+  );
+
+const wide = () =>
+  stylex.when.ancestor(':is([data-document-width="wide"])', appMarker);
+
+const full = () =>
+  stylex.when.ancestor(':is([data-document-width="full"])', appMarker);
+
+const roomy = "@container review-content (min-width: 1181px)";
 
 const proseColumn = `min(100%, ${tokens.reviewProseMaxWidth})`;
 
@@ -45,7 +65,10 @@ const proseMaxWidth = `calc(100cqi - 2 * ${tokens.reviewDocumentPaddingInline})`
 export const documentStyles = stylex.create({
   article: {
     position: "relative",
-    "--review-inline-diagram-max-width": "1120px",
+    "--review-inline-diagram-max-width": {
+      default: "1120px",
+      [widened()]: { default: null, [roomy]: "100%" },
+    },
     "--review-document-padding-inline": {
       default: "clamp(20px, calc((100cqi - 720px) * 0.122 + 20px), 64px)",
       [narrow]: "clamp(12px, 4vw, 20px)",
@@ -55,17 +78,28 @@ export const documentStyles = stylex.create({
       default: "72px",
       [narrow]: "48px",
     },
-    "--review-prose-max-width": { default: "720px", [withHeader]: "760px" },
+    "--review-prose-max-width": {
+      default: "720px",
+      [withHeader()]: "760px",
+      [widened()]: { default: null, [roomy]: "900px" },
+    },
+    "--review-block-max-width": {
+      default: tokens.reviewProseMaxWidth,
+      [widened()]: { default: null, [roomy]: "100%" },
+    },
     flex: { default: "1 1 860px", [compact]: "0 1 auto" },
     width: {
       default: "100%",
-      [withLens]: "min(1360px, calc(100% - 32px))",
+      [withLens()]: "min(1360px, calc(100% - 32px))",
+      [full()]: { default: null, [roomy]: "100%" },
       [narrow]: "100%",
     },
     maxWidth: {
       default: "860px",
-      [withHeader]: "900px",
-      [narrow]: { default: "none", [withHeader]: "900px" },
+      [withHeader()]: "900px",
+      [wide()]: { default: null, [roomy]: "1360px" },
+      [full()]: { default: null, [roomy]: "1800px" },
+      [narrow]: { default: "none", [withHeader()]: "900px" },
     },
     minWidth: 0,
     margin: {
@@ -86,18 +120,23 @@ export const documentStyles = stylex.create({
   // Beside an open side peek the column narrows its inline diagrams, and a
   // database lens keeps a smaller gutter.
   articlePeekOpen: {
-    "--review-inline-diagram-max-width": "1000px",
+    "--review-inline-diagram-max-width": {
+      default: "1000px",
+      [widened()]: { default: null, [roomy]: "100%" },
+    },
     width: {
       default: "100%",
-      [withLens]: "calc(100% - 24px)",
+      [withLens()]: "calc(100% - 24px)",
       [narrow]: "100%",
     },
     maxWidth: {
       default: "860px",
-      [withHeader]: "900px",
+      [withHeader()]: "900px",
+      [wide()]: { default: null, [roomy]: "1360px" },
+      [full()]: { default: null, [roomy]: "1800px" },
       [narrow]: {
         default: "none",
-        [withHeader]: { default: "900px", [withLens]: "none" },
+        [withHeader()]: { default: "900px", [withLens()]: "none" },
       },
     },
   },

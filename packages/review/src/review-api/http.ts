@@ -10,6 +10,7 @@ import type { AskAgentStatus } from "@review/ask/agents.js";
 import { checkoutFiles, mentionableFiles } from "@review/ask/checkout-files.js";
 import { parseFileRef, resolveFileRefs } from "@review/ask/file-refs.js";
 import {
+  type AskAgentId,
   askAgentIds,
   askChoiceKinds,
   askPicksSchema,
@@ -102,6 +103,11 @@ const askMentionsSchema = z.object({
   query: z.string().max(400).default(""),
   /** A conversation's checkout, which can be an earlier version's. */
   thread: z.string().optional(),
+});
+
+const askOfferQuerySchema = z.object({
+  /** The model picked for a question not yet asked. */
+  model: askPicksSchema.shape.model,
 });
 
 /** How many files a mention picker shows. */
@@ -1152,26 +1158,35 @@ export function createReviewApi(
     /** What an agent reads before a session's first question: the review,
      * the checkout, and the selection. */
     const askContext = async (
+      agent: AskAgentId,
       snapshot: Snapshot,
       checkout: { head: string; live: boolean },
       selection: AgentSelection,
       version: number | undefined,
-    ) =>
-      [
+    ) => {
+      const reach = await ask.threads.reach(agent);
+      const { reviewId } = snapshot;
+
+      return [
         `A reviewer is reading "${snapshot.title}" in Whiteboard and has a question about a selection.`,
         checkout.live
           ? "Your working directory is the repository the review describes."
           : `Your working directory is a checkout of the review's head commit, ${checkout.head}. Answer from this code, not from other branches.`,
         "Answer the question.",
         "Name files by their path from the checkout root, with a line where it helps, as in `src/app.ts:42`; the reviewer can open them from your answer.",
-        ...(ask.threads.providesMcp
+        ...(reach?.kind === "mcp"
           ? [
-              `The whiteboard MCP tools read and change this review: its sessionId is "${snapshot.reviewId}". Read it with session_get. If the reviewer asks you to change the review, edit it with session_edit; do not write files to do it.`,
+              `The whiteboard MCP tools read and change this review: its sessionId is "${reviewId}". Read it with session_get. If the reviewer asks you to change the review, edit it with session_edit; do not write files to do it.`,
             ]
-          : []),
+          : reach?.kind === "cli"
+            ? [
+                `Whiteboard's CLI reads and changes this review from your shell: its sessionId is "${reviewId}". Read it with \`${reach.command} api session_get '{"sessionId":"${reviewId}"}'\`. If the reviewer asks you to change the review, edit it with \`${reach.command} api session_edit '<json>'\`; do not write files to do it. \`${reach.command} api tools\` lists each tool's input.`,
+              ]
+            : []),
         "",
-        await selectionContext(snapshot.reviewId, selection, version),
+        await selectionContext(reviewId, selection, version),
       ].join("\n");
+    };
 
     // Each agent with the models and efforts it offered last; none until
     // it has run.
@@ -1180,20 +1195,42 @@ export function createReviewApi(
     );
 
     // What an agent offers: what it said last, else what a session
-    // started in the review's checkout says.
+    // started in the review's checkout says. With another model it offers,
+    // what it said last with that model, else what such a session says once
+    // it has the model: the efforts on offer depend on it.
     app.get("/:id/ask/agents/:agent/offer", async (context) => {
       const agent = z.enum(askAgentIds).parse(context.req.param("agent"));
+      const { model } = askOfferQuerySchema.parse(context.req.query());
       const stored = store.askHistory.offer(agent);
 
-      if (stored) return context.json({ offer: stored });
+      // An offer of nothing to choose was saved before the agent's
+      // settings were known; the agent says again.
+      const last =
+        stored && Object.keys(stored.choices).length ? stored : undefined;
+
+      const models = last?.choices.model;
+
+      const another =
+        model !== undefined &&
+        model !== models?.current &&
+        (!models || models.options.some((option) => option.value === model));
+
+      const known = another ? store.askHistory.offer(agent, model) : last;
+
+      if (known) return context.json({ offer: known });
 
       const checkout = await data.agentCheckout(
         readReview(context.req.param("id")),
       );
 
-      const offer = await ask.threads.offered(agent, checkout.rootPath);
+      const offer = await ask.threads.offered(
+        agent,
+        checkout.rootPath,
+        another ? model : undefined,
+      );
 
-      store.askHistory.saveOffer(agent, offer);
+      if (last) store.askHistory.saveModelOffer(agent, offer);
+      else store.askHistory.saveOffer(agent, offer);
 
       return context.json({ offer });
     });
@@ -1269,7 +1306,13 @@ export function createReviewApi(
           title: input.selection.title,
           quote: target.kind === "text" ? target.quote : undefined,
         },
-        context: await askContext(snapshot, checkout, input.selection, version),
+        context: await askContext(
+          input.agent,
+          snapshot,
+          checkout,
+          input.selection,
+          version,
+        ),
         question: input.question,
       });
 
@@ -1318,6 +1361,7 @@ export function createReviewApi(
         resume: { sessionId: record.sessionId, entries: record.entries },
         // For a new session, should the agent no longer have this one.
         context: await askContext(
+          record.agent,
           snapshot,
           checkout,
           record.selection,

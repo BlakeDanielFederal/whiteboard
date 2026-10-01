@@ -307,11 +307,7 @@ export function SequenceDiagram(block: SequenceDiagramProps) {
   const { closeOverlayTour: closeTour, moveOverlayTour: changeTourAnchor } =
     panelStore.getState();
 
-  const {
-    overlayRef,
-    portalTarget,
-    paneResize: tourPaneResize,
-  } = useDiagramTourShell(tourOpen, closeTour);
+  const { portalTarget } = useDiagramTourShell(tourOpen, closeTour);
 
   return (
     <>
@@ -328,9 +324,6 @@ export function SequenceDiagram(block: SequenceDiagramProps) {
               tour={tour}
               activeAnchor={tourState.anchor}
               revealRequest={tourState.revealRequest}
-              paneWidth={tourPaneResize.width}
-              separatorProps={tourPaneResize.separatorProps}
-              overlayRef={overlayRef}
               onActiveAnchorChange={changeTourAnchor}
               onClose={closeTour}
             >
@@ -1022,8 +1015,8 @@ const inApp = () => stylex.when.ancestor(":is(*)", appMarker);
 const labelHover = `0 0 0 2px ${tokens.accentShadow}, 0 6px 14px ${tokens.shadowColorStrong}`;
 
 const styles = stylex.create({
-  // Inline, a sequence reads as part of the prose: the text column's measure,
-  // lanes spreading to fill it. The fullscreen tour is the escape hatch.
+  // Inline, a sequence takes the document's block measure, lanes spreading to
+  // fill it. The fullscreen tour is the escape hatch.
   figure: {
     position: "relative",
     display: "grid",
@@ -1038,7 +1031,7 @@ const styles = stylex.create({
     minWidth: 0,
     maxWidth: {
       default: "100%",
-      [inDocument()]: `min(${tokens.reviewProseMaxWidth}, calc(100cqi - ${tokens.reviewDocumentPaddingInline} - ${tokens.reviewDocumentPaddingInline}))`,
+      [inDocument()]: `min(${tokens.reviewBlockMaxWidth}, calc(100cqi - ${tokens.reviewDocumentPaddingInline} - ${tokens.reviewDocumentPaddingInline}))`,
     },
     // Natural height; the document scrolls, not the diagram. The body
     // scrolls only past about forty steps.

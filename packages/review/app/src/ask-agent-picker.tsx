@@ -122,11 +122,13 @@ const offeredSchema = z.object({ offer: askOfferSchema });
 
 /** What the agent offers, for a question not yet asked: its choices, its
  * commands and whether it reads images. Asked again each time: a
- * conversation can teach the server something newer. */
+ * conversation can teach the server something newer. And again for each
+ * model picked: the efforts on offer depend on it. */
 export function useOffer(
   session: ReviewSession,
   agent: AskAgentId | undefined,
   wanted: boolean,
+  model?: string,
 ): AskOffer | undefined {
   const [offered, setOffered] = useState<{
     agent: AskAgentId;
@@ -138,7 +140,9 @@ export function useOffer(
     let current = true;
 
     void session
-      .fetch(`/ask/agents/${agent}/offer`)
+      .fetch(
+        `/ask/agents/${agent}/offer${model ? `?${new URLSearchParams({ model })}` : ""}`,
+      )
       .then(async (response) => {
         if (!response.ok) return;
         const { offer } = offeredSchema.parse(await response.json());
@@ -151,7 +155,7 @@ export function useOffer(
     return () => {
       current = false;
     };
-  }, [session, agent, wanted]);
+  }, [session, agent, wanted, model]);
 
   return offered && offered.agent === agent ? offered.offer : undefined;
 }
@@ -283,8 +287,7 @@ export const choiceLabels = new Map<AskChoiceKind, string>([
   ["effort", "Effort"],
 ]);
 
-/** "Answer with": every agent Ask knows, with the uninstalled ones disabled.
- * Closes on a pointer down outside `within` or on Escape. */
+/** "Answer with": the agents installed on this machine. Closes on a pointer down outside `within` or on Escape. */
 export function AskAgentMenu({
   agents,
   current,
@@ -341,37 +344,31 @@ export function AskAgentMenu({
       >
         Answer with
       </div>
-      {agents.map((candidate) => (
-        <button
-          key={candidate.id}
-          type="button"
-          role="menuitemradio"
-          aria-checked={candidate.id === current}
-          {...stylex.props(
-            menuStyles.item,
-            candidate.id === current && menuStyles.itemChecked,
-          )}
-          disabled={!candidate.available}
-          onClick={() => onPick(candidate.id)}
-        >
-          <span
+      {agents
+        .filter((candidate) => candidate.available)
+        .map((candidate) => (
+          <button
+            key={candidate.id}
+            type="button"
+            role="menuitemradio"
+            aria-checked={candidate.id === current}
             {...stylex.props(
-              menuStyles.logo,
-              !candidate.available && menuStyles.logoUnavailable,
+              menuStyles.item,
+              candidate.id === current && menuStyles.itemChecked,
             )}
+            onClick={() => onPick(candidate.id)}
           >
-            {logos[candidate.id]({})}
-          </span>
-          <span {...stylex.props(menuStyles.name)}>{candidate.name}</span>
-          <span {...stylex.props(menuStyles.trail)}>
-            {candidate.id === current ? (
-              <AskCheckIcon xstyle={menuStyles.check} />
-            ) : candidate.available ? null : (
-              "Not installed"
-            )}
-          </span>
-        </button>
-      ))}
+            <span {...stylex.props(menuStyles.logo)}>
+              {logos[candidate.id]({})}
+            </span>
+            <span {...stylex.props(menuStyles.name)}>{candidate.name}</span>
+            <span {...stylex.props(menuStyles.trail)}>
+              {candidate.id === current ? (
+                <AskCheckIcon xstyle={menuStyles.check} />
+              ) : null}
+            </span>
+          </button>
+        ))}
     </div>
   );
 }
@@ -524,7 +521,9 @@ export function AskChoicePicker({
         <span {...stylex.props(pickerStyles.choiceName)}>
           {chosen?.name ?? current}
         </span>
-        <AskChevronIcon xstyle={pickerStyles.chevron} />
+        {/* Under the composer it reads as text; pointing at it shows it
+            opens. */}
+        {quiet ? null : <AskChevronIcon xstyle={pickerStyles.chevron} />}
       </button>
       {open ? (
         <div
@@ -881,9 +880,6 @@ const menuStyles = stylex.create({
     display: "flex",
     flex: "0 0 16px",
     justifyContent: "center",
-  },
-  logoUnavailable: {
-    opacity: 0.45,
   },
   name: {
     flex: "1 1 0",

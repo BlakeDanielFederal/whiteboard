@@ -391,8 +391,8 @@ export interface ReviewCanvasOnboarding {
 
 // The workbench owns the theme and the keymap; the canvas only names a choice.
 // These lists mirror the workbench side (`reviewThemeChoice.ts`, and
-// `REVIEW_KEYMAPS`, `REVIEW_CTRL_TAB_CHOICES` and `REVIEW_OPEN_FILES_IN_CHOICES`
-// in `reviewConfigurationDefaults.ts`).
+// `REVIEW_KEYMAPS`, `REVIEW_CTRL_TAB_CHOICES`, `REVIEW_DOCUMENT_WIDTH_CHOICES` and
+// `REVIEW_OPEN_FILES_IN_CHOICES` in `reviewConfigurationDefaults.ts`).
 export const REVIEW_THEME_CHOICES = ["dark", "light", "system"] as const;
 
 export type ReviewThemeChoice = (typeof REVIEW_THEME_CHOICES)[number];
@@ -413,6 +413,8 @@ export type ReviewOpenFilesInChoice =
   | "vscode"
   | "cursor"
   | "zed";
+
+export type ReviewDocumentWidthChoice = "standard" | "wide" | "full";
 
 export type ReviewReadyNotificationChoice =
   | "notificationAndBadge"
@@ -523,6 +525,10 @@ export interface ReviewCanvasSettingsContent {
   setOpenFilesIn(
     choice: ReviewOpenFilesInChoice,
   ): Promise<ReviewOpenFilesInChoice>;
+  documentWidth: ReviewDocumentWidthChoice;
+  setDocumentWidth(
+    choice: ReviewDocumentWidthChoice,
+  ): Promise<ReviewDocumentWidthChoice>;
   readyNotification: ReviewReadyNotificationChoice;
   setReadyNotification(
     choice: ReviewReadyNotificationChoice,
@@ -650,6 +656,7 @@ export type ReviewCanvasContent =
       setTutorial?(enabled: boolean): void;
       structuralDiffEnabled?: boolean;
       softwareMapEnabled?: boolean;
+      documentWidth?: ReviewDocumentWidthChoice;
       reviewId: string;
       version?: number;
       bridge: ReviewCanvasBridge;

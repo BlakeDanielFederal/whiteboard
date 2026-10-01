@@ -75,10 +75,7 @@ export function FlowDiagram({
 
   const { closeOverlayTour: close, moveOverlayTour } = panelStore.getState();
 
-  const { overlayRef, portalTarget, paneResize } = useDiagramTourShell(
-    selection !== null,
-    close,
-  );
+  const { portalTarget } = useDiagramTourShell(selection !== null, close);
 
   const selectedKey = stops.find(
     (stop) => stop.anchor.id === selection?.anchor,
@@ -167,9 +164,6 @@ export function FlowDiagram({
               tour={tour}
               activeAnchor={selection.anchor}
               revealRequest={selection.revealRequest}
-              paneWidth={paneResize.width}
-              separatorProps={paneResize.separatorProps}
-              overlayRef={overlayRef}
               onClose={close}
               onActiveAnchorChange={moveOverlayTour}
             >

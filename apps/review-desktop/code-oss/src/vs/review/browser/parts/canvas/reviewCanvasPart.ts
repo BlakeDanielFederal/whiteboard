@@ -46,6 +46,7 @@ import {
 	REVIEW_CTRL_TAB_SETTING,
 	REVIEW_OPEN_FILES_IN_CHOICES,
 	REVIEW_OPEN_FILES_IN_SETTING,
+	REVIEW_DOCUMENT_WIDTH_SETTING,
 	REVIEW_KEYMAP_SETTING,
 	REVIEW_KEYMAPS,
 	REVIEW_READY_NOTIFICATION_SETTING,
@@ -68,6 +69,7 @@ import type {
 	ReviewCliInstallStatus,
 	ReviewCtrlTabChoice,
 	ReviewOpenFilesInChoice,
+	ReviewDocumentWidthChoice,
 	ReviewKeymapChoice,
 	ReviewReadyNotificationChoice,
 	ReviewRuntimeConfig,
@@ -253,7 +255,8 @@ export class ReviewCanvasEditorPane extends EditorPane {
 			configurationService.onDidChangeConfiguration((event) => {
 				if (
 					!event.affectsConfiguration(REVIEW_SOFTWARE_MAP_SETTING) &&
-					!event.affectsConfiguration(REVIEW_STRUCTURAL_DIFF_SETTING)
+					!event.affectsConfiguration(REVIEW_STRUCTURAL_DIFF_SETTING) &&
+					!event.affectsConfiguration(REVIEW_DOCUMENT_WIDTH_SETTING)
 				)
 					return;
 				if (this.apiContent) {
@@ -261,6 +264,7 @@ export class ReviewCanvasEditorPane extends EditorPane {
 						...this.apiContent,
 						structuralDiffEnabled: this.currentStructuralDiffEnabled(),
 						softwareMapEnabled: this.currentSoftwareMapEnabled(),
+						documentWidth: this.currentDocumentWidth(),
 					};
 					this.canvas.value?.update(this.apiContent);
 					return;
@@ -416,6 +420,7 @@ export class ReviewCanvasEditorPane extends EditorPane {
 						reviewId,
 						structuralDiffEnabled: this.currentStructuralDiffEnabled(),
 						softwareMapEnabled: this.currentSoftwareMapEnabled(),
+						documentWidth: this.currentDocumentWidth(),
 						setTitle: (title) => input.setApiTitle(title),
 						setSourceView: (selection, next) => {
 							sourceSelection = selection;
@@ -804,6 +809,15 @@ export class ReviewCanvasEditorPane extends EditorPane {
 				await this.configurationService.updateValue(REVIEW_OPEN_FILES_IN_SETTING, choice, ConfigurationTarget.USER);
 				return this.currentOpenFilesIn();
 			},
+			documentWidth: this.currentDocumentWidth(),
+			setDocumentWidth: async (choice) => {
+				this.reviewTelemetryService.capture("setting_changed", {
+					setting: "document_width",
+					enabled: choice !== "standard",
+				});
+				await this.configurationService.updateValue(REVIEW_DOCUMENT_WIDTH_SETTING, choice, ConfigurationTarget.USER);
+				return this.currentDocumentWidth();
+			},
 			readyNotification: this.currentReadyNotification(),
 			setReadyNotification: async (choice) => {
 				this.reviewTelemetryService.capture("setting_changed", {
@@ -871,6 +885,11 @@ export class ReviewCanvasEditorPane extends EditorPane {
 	private currentOpenFilesIn(): ReviewOpenFilesInChoice {
 		const value = this.configurationService.getValue<ReviewOpenFilesInChoice>(REVIEW_OPEN_FILES_IN_SETTING);
 		return REVIEW_OPEN_FILES_IN_CHOICES.includes(value) ? value : "whiteboard";
+	}
+
+	private currentDocumentWidth(): ReviewDocumentWidthChoice {
+		const choice = this.configurationService.getValue<ReviewDocumentWidthChoice>(REVIEW_DOCUMENT_WIDTH_SETTING);
+		return choice === "wide" || choice === "full" ? choice : "standard";
 	}
 
 	private currentReadyNotification(): ReviewReadyNotificationChoice {

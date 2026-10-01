@@ -3,10 +3,12 @@ import { fontSize, fontWeight, motion } from "@canvas/scale.stylex";
 import { IconButton } from "@canvas/ui/button";
 import { surfaceStyles } from "@canvas/ui/surface";
 import { textStyles } from "@canvas/ui/text";
+import type { ReviewDocumentWidthChoice } from "@dev.fast/review-protocol";
 import * as stylex from "@stylexjs/stylex";
 import { type ReactElement, useEffect, useState } from "react";
 
 import { ContentsIcon } from "./icons";
+import { tocEntryMarker } from "./markers.stylex";
 import type { ReviewTocEntry } from "./review-document-headings";
 import {
   cssIdentifier,
@@ -28,9 +30,15 @@ interface NumberedReviewTocEntry extends ReviewTocEntry {
  * Narrowest shell that fits the rail beside the prose: the 720px prose
  * measure sits centered, so each gutter is (shell - 720) / 2, and the rail
  * needs left offset (24) + card (up to ~286 with padding) + breathing room
- * before the text starts — a ~320px gutter, so a 1360px shell.
+ * before the text starts — a ~320px gutter, so a 1360px shell. A wide
+ * document needs the same gutter beside its 1232px block column; a full one
+ * leaves none, so its contents stay a pill.
  */
-const TOC_RAIL_MIN_SHELL_WIDTH = 1360;
+const TOC_RAIL_MIN_SHELL_WIDTH: Record<ReviewDocumentWidthChoice, number> = {
+  standard: 1360,
+  wide: 1872,
+  full: Infinity,
+};
 
 /**
  * Room to leave above the last heading once it is scrolled to the top, so
@@ -44,6 +52,7 @@ const TAIL_CSS_PROPERTY = "--review-toc-tail";
 export function ReviewToc({
   entries,
   besideHeader = false,
+  documentWidth = "standard",
 }: {
   entries: readonly ReviewTocEntry[];
   /** The document opens with a review header: the rail lines up with the
@@ -51,6 +60,7 @@ export function ReviewToc({
    * which restyled every element on each change anywhere in it, such as
    * each keystroke in a text field. */
   besideHeader?: boolean;
+  documentWidth?: ReviewDocumentWidthChoice;
 }): ReactElement | null {
   const roots = useReviewRoots();
   const shellRef = roots?.shellRef;
@@ -70,7 +80,7 @@ export function ReviewToc({
     if (!shell) return;
 
     const updateWidth = () => {
-      setIsWide(shell.clientWidth >= TOC_RAIL_MIN_SHELL_WIDTH);
+      setIsWide(shell.clientWidth >= TOC_RAIL_MIN_SHELL_WIDTH[documentWidth]);
     };
 
     updateWidth();
@@ -78,7 +88,7 @@ export function ReviewToc({
     resizeObserver.observe(shell);
 
     return () => resizeObserver.disconnect();
-  }, [shellRef]);
+  }, [shellRef, documentWidth]);
 
   useEffect(() => {
     if (isWide) setIsDrawerOpen(false);
@@ -287,6 +297,10 @@ export function ReviewToc({
         showList && styles.tocOpen,
         showRail && styles.tocRail,
         showRail && besideHeader && styles.tocRailBesideHeader,
+        showRail &&
+          besideHeader &&
+          documentWidth === "wide" &&
+          styles.tocRailBesideWideHeader,
       )}
       aria-label="Contents"
       onKeyDown={(event) => {
@@ -342,10 +356,11 @@ export function ReviewToc({
             >
               <button
                 type="button"
+                aria-current={active === entry.id ? "location" : undefined}
                 {...stylex.props(
+                  tocEntryMarker,
                   styles.link,
                   showRail && besideHeader && styles.linkRailBesideHeader,
-                  active === entry.id && styles.linkActive,
                 )}
                 onClick={() => scrollTo(entry.id)}
               >
@@ -354,7 +369,6 @@ export function ReviewToc({
                     styles.number,
                     showRail && besideHeader && styles.numberRailBesideHeader,
                     entry.level === "h3" && styles.numberH3,
-                    active === entry.id && styles.numberActive,
                   )}
                 >
                   {entry.number}
@@ -400,6 +414,11 @@ function isVisibleHeadingForActiveTracking(heading: HTMLElement): boolean {
 }
 
 const narrow = "@media (max-width: 720px)";
+
+const currentEntry = ":is([aria-current])";
+
+const inCurrentEntry = () =>
+  stylex.when.ancestor(":is([aria-current])", tocEntryMarker);
 
 const reducedMotion = "@media (prefers-reduced-motion: reduce)";
 
@@ -459,6 +478,10 @@ const styles = stylex.create({
     left: "max(24px, calc((100% - 1320px) / 2))",
     width: "240px",
     padding: "6px 0 0",
+  },
+  // Beside a wide document the page is its block column plus the same gutters.
+  tocRailBesideWideHeader: {
+    left: "max(24px, calc((100% - 1792px) / 2))",
   },
   toggle: {
     position: "absolute",
@@ -543,7 +566,10 @@ const styles = stylex.create({
     borderStyle: "none",
     borderColor: "currentcolor",
     backgroundColor: tokens.transparent,
-    fontWeight: fontWeight.regular,
+    fontWeight: {
+      default: fontWeight.regular,
+      [currentEntry]: fontWeight.semibold,
+    },
     textAlign: "left",
     position: "relative",
     gap: "10px",
@@ -553,11 +579,17 @@ const styles = stylex.create({
       default: tokens.inkMuted,
       ":hover": tokens.ink,
       ":focus-visible": tokens.ink,
+      [currentEntry]: tokens.ink,
     },
     fontFamily: tokens.fontMono,
     fontSize: fontSize.body,
     lineHeight: "18px",
-    outline: { default: null, ":hover": "none", ":focus-visible": "none" },
+    outline: {
+      default: null,
+      ":hover": "none",
+      ":focus-visible": "none",
+      [currentEntry]: "none",
+    },
   },
   linkRailBesideHeader: {
     minHeight: "30px",
@@ -565,14 +597,9 @@ const styles = stylex.create({
     paddingBlock: 0,
     fontSize: fontSize.ui,
   },
-  linkActive: {
-    color: tokens.ink,
-    fontWeight: fontWeight.semibold,
-    outline: "none",
-  },
   number: {
     flex: "0 0 auto",
-    color: tokens.inkFaint,
+    color: { default: tokens.inkFaint, [inCurrentEntry()]: tokens.ink },
     fontFamily: tokens.fontMono,
     minWidth: "22px",
     fontSize: fontSize.small,
@@ -584,9 +611,6 @@ const styles = stylex.create({
   // Fits "5.10".
   numberH3: {
     minWidth: "4ch",
-  },
-  numberActive: {
-    color: tokens.ink,
   },
   text: {
     minWidth: 0,

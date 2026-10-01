@@ -1,4 +1,4 @@
-import { fontSize } from "@canvas/scale.stylex";
+import { fontSize, motion } from "@canvas/scale.stylex";
 import * as stylex from "@stylexjs/stylex";
 
 import { appMarker, topbarActionsMarker } from "./markers.stylex";
@@ -12,8 +12,6 @@ const narrowViewport = "@media (max-width: 720px)";
 const narrowContent = "@container review-content (max-width: 720px)";
 
 const peekOpen = () => stylex.when.ancestor("[data-peek-open]", appMarker);
-
-const peekResizing = () => stylex.when.ancestor("[data-resizing]", appMarker);
 
 const inTopbarActions = () =>
   stylex.when.ancestor(":is(*)", topbarActionsMarker);
@@ -37,9 +35,14 @@ export const shellStyles = stylex.create({
       [narrowViewport]: "minmax(0, 1fr)",
     },
   },
+  // Lit on the separator itself: a condition on the root would restyle the
+  // whole canvas as a drag starts and ends.
+  peekResizerActive: {
+    "::before": { backgroundColor: tokens.inkFaint },
+  },
+  // No inherited cursor or user-select here, for the same reason; the
+  // separator's pointer capture keeps its cursor and blocks selection.
   appResizing: {
-    cursor: "col-resize",
-    userSelect: "none",
     transition: "none",
   },
   appRestoredPanel: {
@@ -95,6 +98,7 @@ export const shellStyles = stylex.create({
     },
     width: "10px",
     minWidth: "10px",
+    zIndex: 1,
     cursor: "col-resize",
     backgroundColor: tokens.transparent,
     ...noBorder,
@@ -109,24 +113,48 @@ export const shellStyles = stylex.create({
       top: 0,
       bottom: 0,
       left: "50%",
-      width: "1px",
+      width: {
+        default: "1px",
+        ":hover": "3px",
+        ":focus-visible": "3px",
+        ":active": "3px",
+      },
       backgroundColor: {
         default: tokens.rule,
         ":hover": tokens.inkFaint,
         ":focus-visible": tokens.inkFaint,
-        [peekResizing()]: tokens.inkFaint,
+        ":active": tokens.inkFaint,
       },
       transform: "translateX(-50%)",
+      transitionProperty: "width, background-color",
+      transitionDuration: motion.fast,
+      // Passing over a divider does not flash it.
+      transitionDelay: { default: motion.instant, ":hover": motion.fast },
       content: "''",
     },
   },
+  // Rule flush left; grabs rightward over the panel's padding, never the
+  // scrollbar.
+  resizerGrabPanel: {
+    "::before": { left: 0, transform: "none" },
+    "::after": {
+      position: "absolute",
+      top: 0,
+      bottom: 0,
+      left: 0,
+      right: "-8px",
+      content: "''",
+    },
+  },
+  // The column continues the panel and its header.
   peekResizer: {
     height: "100%",
     borderColor: tokens.transparent,
+    backgroundImage: `linear-gradient(${tokens.surface} calc(${tokens.reviewHeaderHeight} - 1px), ${tokens.rule} 0 ${tokens.reviewHeaderHeight}, transparent 0)`,
   },
-  // The divider's right half is the panel's, so a tray panel meets the rule.
   peekResizerTray: {
-    backgroundImage: `linear-gradient(to right, transparent 50%, ${tokens.tray} 50%)`,
+    backgroundColor: tokens.tray,
+    backgroundImage: `linear-gradient(transparent calc(${tokens.reviewHeaderHeight} - 1px), ${tokens.rule} 0 ${tokens.reviewHeaderHeight}, transparent 0)`,
   },
   // Horizontal twin of the divider for the narrow-layout bottom sheet: it
   // drags the sheet height. Hidden on wide layouts, where the vertical
