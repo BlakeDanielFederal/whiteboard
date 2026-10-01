@@ -118,10 +118,12 @@ export function AskSlot({ node }: { node: HTMLElement }): ReactElement {
 /** Ask in a window over the canvas, above peeks and fullscreen diagrams. */
 export function AskWindow({
   actions,
+  titleAccessory,
   children,
 }: {
   /** The conversation's own buttons, before dock, minimize and close. */
   actions: ReactNode;
+  titleAccessory?: ReactNode;
   children: ReactNode;
 }): ReactElement {
   const store = useReviewPanelStore();
@@ -268,6 +270,7 @@ export function AskWindow({
             >
               Ask
             </span>
+            {titleAccessory}
           </div>
           <div {...stylex.props(panelStyles.actions)}>
             {actions}

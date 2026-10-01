@@ -406,23 +406,30 @@ export function AskAgentPicker({
   const dismiss = useMenuClose(setOpen, trigger);
   const chosen = agents?.find((candidate) => candidate.id === agent);
 
+  if (locked) {
+    return (
+      <span {...stylex.props(styles.inline)}>
+        {agent ? logos[agent]({}) : null}
+        <span>{chosen?.name ?? agent ?? "Agent"}</span>
+      </span>
+    );
+  }
+
   return (
     <div ref={anchor} {...stylex.props(styles.anchor, styles.whole)}>
-      {/* A native title: the tooltip explains why the button is disabled. */}
       <Button
         ref={trigger}
         variant="secondary"
         size="large"
-        xstyle={[styles.trigger, locked && styles.locked]}
+        xstyle={styles.trigger}
         aria-haspopup="menu"
         aria-expanded={open}
-        disabled={!agents || locked}
-        title={locked ? "Each conversation stays with one agent." : undefined}
+        disabled={!agents}
         onClick={() => setOpen((value) => !value)}
       >
         {agent ? logos[agent]({}) : null}
         <span>{chosen?.name ?? "Choose an agent"}</span>
-        {locked ? null : <ChevronDownIcon />}
+        <ChevronDownIcon />
       </Button>
       {open && agents ? (
         <AskAgentMenu
@@ -492,7 +499,6 @@ export function AskChoicePicker({
 
   return (
     <div ref={anchor} {...stylex.props(styles.anchor)}>
-      {/* A native title: the tooltip explains why the button is disabled. */}
       <Button
         ref={trigger}
         variant={quiet ? "ghost" : "secondary"}
@@ -810,9 +816,15 @@ const styles = stylex.create({
     maxWidth: "100%",
     padding: "0 8px",
   },
-  // A conversation's agent reads as a label, not a disabled control.
-  locked: {
-    opacity: 1,
+  inline: {
+    display: "inline-flex",
+    alignItems: "center",
+    gap: "8px",
+    color: tokens.inkMuted,
+    fontFamily: tokens.fontMono,
+    fontSize: fontSize.body,
+    lineHeight: "16px",
+    whiteSpace: "nowrap",
   },
   choice: {
     maxWidth: "min(150px, 100%)",

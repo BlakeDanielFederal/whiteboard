@@ -18,6 +18,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { createPortal } from "react-dom";
 import { z } from "zod";
 
 import { AgentChatUserMessage } from "./agent-chat";
@@ -89,9 +90,11 @@ export function AskPanelContent({
   agent: requestedAgent,
   savedThreadId,
   onPresence,
+  header,
 }: {
   selection: AgentSelection;
   agent?: AskAgentId;
+  header?: HTMLElement | null;
   /** A saved conversation to reopen instead of asking a new question. */
   savedThreadId?: string;
   /** What the pill says while the conversation is out of sight. */
@@ -512,28 +515,22 @@ export function AskPanelContent({
     </>
   );
 
+  const agentPicker = (
+    <AskAgentPicker
+      agents={agents}
+      agent={agent}
+      locked={threadId !== null || savedThreadId !== undefined}
+      onPick={(picked) => {
+        setAgent(picked);
+        setPicks({});
+        setBypassPick(undefined);
+      }}
+    />
+  );
+
   return (
     <div {...stylex.props(askPanelStyles.body)}>
-      <div {...stylex.props(styles.agentBar)}>
-        <AskAgentPicker
-          agents={agents}
-          agent={agent}
-          locked={threadId !== null || savedThreadId !== undefined}
-          onPick={(picked) => {
-            setAgent(picked);
-            setPicks({});
-            setBypassPick(undefined);
-          }}
-        />
-        {thread ? (
-          <TooltipLabel
-            tooltip={`Commit ${thread.head}`}
-            xstyle={[styles.mode, styles.head]}
-          >
-            {thread.head.slice(0, 7)}
-          </TooltipLabel>
-        ) : null}
-      </div>
+      {header ? createPortal(agentPicker, header) : agentPicker}
 
       <AskFilesProvider key={threadId} threadId={threadId}>
         <div {...stylex.props(styles.threadFrame)}>
@@ -807,20 +804,6 @@ const AskTurns = memo(function AskTurns({
 // Ask: one conversation with a local agent about a selection. The thread
 // scrolls; the composer stays at the bottom.
 const styles = stylex.create({
-  agentBar: {
-    display: "flex",
-    flex: "0 0 auto",
-    alignItems: "center",
-    gap: "8px",
-    padding: "12px 16px",
-    borderBottomWidth: "1px",
-    borderBottomStyle: "solid",
-    borderBottomColor: tokens.rule,
-  },
-  // The commit the agent reads, at the bar's end.
-  head: {
-    marginLeft: "auto",
-  },
   // Level with the pickers beside it.
   settingsLabel: {
     padding: "4px 6px",
