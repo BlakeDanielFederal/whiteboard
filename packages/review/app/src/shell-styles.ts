@@ -1,4 +1,4 @@
-import { fontSize } from "@canvas/scale.stylex";
+import { fontSize, motion } from "@canvas/scale.stylex";
 import * as stylex from "@stylexjs/stylex";
 
 import { appMarker, topbarActionsMarker } from "./markers.stylex";
@@ -98,6 +98,7 @@ export const shellStyles = stylex.create({
     },
     width: "10px",
     minWidth: "10px",
+    zIndex: 1,
     cursor: "col-resize",
     backgroundColor: tokens.transparent,
     ...noBorder,
@@ -112,13 +113,36 @@ export const shellStyles = stylex.create({
       top: 0,
       bottom: 0,
       left: "50%",
-      width: "1px",
+      width: {
+        default: "1px",
+        ":hover": "3px",
+        ":focus-visible": "3px",
+        ":active": "3px",
+      },
       backgroundColor: {
         default: tokens.rule,
         ":hover": tokens.inkFaint,
         ":focus-visible": tokens.inkFaint,
+        ":active": tokens.inkFaint,
       },
       transform: "translateX(-50%)",
+      transitionProperty: "width, background-color",
+      transitionDuration: motion.instant,
+      // Passing over a divider does not flash it.
+      transitionDelay: { default: motion.instant, ":hover": motion.fast },
+      content: "''",
+    },
+  },
+  // Extra grab area over the panel's padding. Rightward only: the scrollbar
+  // beside a divider belongs to the pane on its left. Only for panels with at
+  // least 8px of padding, so it covers no controls.
+  resizerGrabPanel: {
+    "::after": {
+      position: "absolute",
+      top: 0,
+      bottom: 0,
+      left: 0,
+      right: "-8px",
       content: "''",
     },
   },

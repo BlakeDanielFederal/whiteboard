@@ -84,7 +84,11 @@ export function DiagramTourOverlay({
         {children}
       </div>
       <div
-        {...stylex.props(shellStyles.resizer, styles.resizer)}
+        {...stylex.props(
+          shellStyles.resizer,
+          shellStyles.resizerGrabPanel,
+          styles.resizer,
+        )}
         {...paneResize.separatorProps}
       />
       <div {...stylex.props(styles.panel)}>

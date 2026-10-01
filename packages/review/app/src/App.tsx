@@ -812,6 +812,7 @@ function ReviewLayoutContent({
           {...stylex.props(
             shellStyles.resizer,
             shellStyles.peekResizer,
+            shellStyles.resizerGrabPanel,
             askDocked && shellStyles.peekResizerTray,
             sidePeekResize.isResizing && shellStyles.peekResizerActive,
           )}

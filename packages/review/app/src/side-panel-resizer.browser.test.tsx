@@ -292,3 +292,36 @@ it.each([
     expect(separator().getAttribute("aria-valuemax")).toBe(widest);
   },
 );
+
+it("grabs past the separator into the panel, never over the scrollbar beside it", () => {
+  host = document.createElement("div");
+  document.body.append(host);
+  root = createRoot(host);
+  act(() => {
+    root?.render(
+      <div style={{ display: "flex", height: 200 }}>
+        <div
+          data-testid="scroller"
+          style={{ flex: "1 1 0", overflowY: "scroll" }}
+        >
+          <div style={{ height: 2000 }} />
+        </div>
+        <div
+          role="separator"
+          {...stylex.props(shellStyles.resizer, shellStyles.resizerGrabPanel)}
+        />
+        <div style={{ flex: "1 1 0" }}>panel</div>
+      </div>,
+    );
+  });
+
+  const box = separator().getBoundingClientRect();
+  const y = box.top + box.height / 2;
+  const scroller = host.querySelector('[data-testid="scroller"]');
+
+  expect(document.elementFromPoint(box.right + 6, y)).toBe(separator());
+  expect(document.elementFromPoint(box.right + 12, y)).not.toBe(separator());
+  expect(scroller?.contains(document.elementFromPoint(box.left - 2, y))).toBe(
+    true,
+  );
+});
