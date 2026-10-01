@@ -24,6 +24,9 @@ import {
 
 import { AgentSelectionProvider, useAgentSelection } from "./agent-selection";
 import { observeAgentTextSelection } from "./agent-text-selection";
+import { AskHistoryProvider } from "./ask-history";
+import { AskHistoryControl } from "./ask-history-list";
+import { AskThreadMarks } from "./ask-marks";
 import {
   AuthoringActivityBadge,
   ReviewSurfaceLabel,
@@ -72,7 +75,7 @@ import {
   useReviewPanelStore,
   useSuppressPanelMotionOnCanvasResume,
 } from "./review-panel";
-import type { ReviewDiffScope } from "./review-panel-store";
+import { type ReviewDiffScope, askShown } from "./review-panel-store";
 import { ReviewRootsProvider, useReviewContainer } from "./review-root-context";
 import { ReviewStackSelector } from "./review-stack-selector";
 import { ReviewToc } from "./review-toc";
@@ -222,29 +225,31 @@ function ReviewLayout({
             softwareMapEnabled={softwareMapEnabled}
             openTraceSession={panelStore.getState().openTrace}
           >
-            <AgentSelectionProvider revision={documentRevision}>
-              <ReviewLayoutContent
-                appRef={appRef}
-                shellRef={shellRef}
-                scrollRegionRef={scrollRegionRef}
-                articleRef={articleRef}
-                document={document}
-                documentRevision={documentRevision}
-                softwareModels={[
-                  ...(softwareMap.head ? [softwareMap.head] : []),
-                  ...document.documentSoftwareModels,
-                ]}
-                repoSoftwareMap={softwareMap.head ?? null}
-                baseSoftwareMap={softwareMap.base ?? null}
-                softwareMapTopologyDiff={diffSoftwareMaps(
-                  softwareMap.base,
-                  softwareMap.head,
-                )}
-                softwareMapEnabled={softwareMapEnabled}
-                range={range}
-                commits={commits}
-              />
-            </AgentSelectionProvider>
+            <AskHistoryProvider>
+              <AgentSelectionProvider revision={documentRevision}>
+                <ReviewLayoutContent
+                  appRef={appRef}
+                  shellRef={shellRef}
+                  scrollRegionRef={scrollRegionRef}
+                  articleRef={articleRef}
+                  document={document}
+                  documentRevision={documentRevision}
+                  softwareModels={[
+                    ...(softwareMap.head ? [softwareMap.head] : []),
+                    ...document.documentSoftwareModels,
+                  ]}
+                  repoSoftwareMap={softwareMap.head ?? null}
+                  baseSoftwareMap={softwareMap.base ?? null}
+                  softwareMapTopologyDiff={diffSoftwareMaps(
+                    softwareMap.base,
+                    softwareMap.head,
+                  )}
+                  softwareMapEnabled={softwareMapEnabled}
+                  range={range}
+                  commits={commits}
+                />
+              </AgentSelectionProvider>
+            </AskHistoryProvider>
           </ReviewProvider>
         </ReviewDebugSettingsProvider>
       </ReviewFindProvider>
@@ -294,6 +299,7 @@ function ReviewLayoutContent({
   const panelStore = useReviewPanelStore();
   useSuppressPanelMotionOnCanvasResume(appRef);
   const activePanel = useReviewPanel((state) => state.active);
+  const askDocked = useReviewPanel((state) => askShown(state) === "panel");
   const panelMotion = useReviewPanel((state) => state.motion);
   const activeView = useReviewPanel((state) => state.view);
   const diffScope = useReviewPanel((state) => state.diffScope);
@@ -417,7 +423,7 @@ function ReviewLayoutContent({
     [activeSoftwareMapSource, softwareMapTopologyDiff],
   );
 
-  const rightPanelOpen = activePanel !== null;
+  const rightPanelOpen = activePanel !== null || askDocked;
 
   // SAFETY: `--side-peek-width` is a CSS custom property, which React forwards
   // to style.setProperty; the CSSProperties typings only omit custom names.
@@ -585,6 +591,7 @@ function ReviewLayoutContent({
                 />
               </div>
               <ReviewStackSelector />
+              <AskHistoryControl />
               <ShareControl />
               <IconButton
                 xstyle={shellStyles.topbarItem}
@@ -656,27 +663,33 @@ function ReviewLayoutContent({
               )}
               hidden={activeView !== "review"}
             >
-              <article
-                ref={articleRef}
-                {...withClass(
-                  "review-document",
-                  documentStyles.article,
-                  documentMarker,
-                  rightPanelOpen && documentStyles.articlePeekOpen,
-                )}
-                data-kind={scratchpad ? "scratchpad" : undefined}
-              >
-                <ReviewDocumentBoundary
-                  key={documentRevision}
-                  session={session}
-                  revision={documentRevision}
-                  onError={(_revision, error) =>
-                    reportReviewDocumentRenderError(session, error)
-                  }
+              <>
+                <article
+                  ref={articleRef}
+                  {...withClass(
+                    "review-document",
+                    documentStyles.article,
+                    documentMarker,
+                    rightPanelOpen && documentStyles.articlePeekOpen,
+                  )}
+                  data-kind={scratchpad ? "scratchpad" : undefined}
                 >
-                  <document.render />
-                </ReviewDocumentBoundary>
-              </article>
+                  <ReviewDocumentBoundary
+                    key={documentRevision}
+                    session={session}
+                    revision={documentRevision}
+                    onError={(_revision, error) =>
+                      reportReviewDocumentRenderError(session, error)
+                    }
+                  >
+                    <document.render />
+                  </ReviewDocumentBoundary>
+                </article>
+                <AskThreadMarks
+                  articleRef={articleRef}
+                  revision={documentRevision}
+                />
+              </>
             </div>
             {softwareMapEnabled && activeView === "map" && (
               <div
@@ -711,7 +724,7 @@ function ReviewLayoutContent({
                     }
                     height="100%"
                     showChrome={false}
-                    showFloatingActions={!activePanel}
+                    showFloatingActions={!rightPanelOpen}
                     variant="view"
                   />
                   <MapSettingsControl />
@@ -772,7 +785,11 @@ function ReviewLayoutContent({
       </main>
       {rightPanelOpen && (
         <div
-          {...stylex.props(shellStyles.resizer, shellStyles.peekResizer)}
+          {...stylex.props(
+            shellStyles.resizer,
+            shellStyles.peekResizer,
+            askDocked && shellStyles.peekResizerTray,
+          )}
           {...sidePeekResize.separatorProps}
         />
       )}
