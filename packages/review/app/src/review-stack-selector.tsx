@@ -24,8 +24,8 @@ import { useReviewSession } from "./host/review-session";
 import { StackIcon } from "./icons";
 import { shellStyles } from "./shell-styles";
 import { tokens } from "./tokens.stylex";
+import { useAnchoredPopover } from "./use-anchored-popover";
 import { useDismissOnOutside } from "./use-dismiss-on-outside";
-import { useTopbarPopover } from "./use-topbar-popover";
 
 type OpenEvent = Pick<
   MouseEvent,
@@ -39,7 +39,7 @@ export function ReviewStackSelector(): ReactElement | null {
   const review = session.review!;
   const [open, setOpen] = useState(false);
   const container = useRef<HTMLDivElement>(null);
-  const popoverRef = useTopbarPopover(open, container);
+  const popoverRef = useAnchoredPopover(open, container);
 
   useDismissOnOutside(container, open, setOpen);
 

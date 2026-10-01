@@ -1,11 +1,11 @@
 import { type RefObject, useId, useLayoutEffect, useRef } from "react";
 
-export function useTopbarPopover<T extends HTMLElement = HTMLDivElement>(
+export function useAnchoredPopover<T extends HTMLElement = HTMLDivElement>(
   open: boolean,
   control: RefObject<HTMLElement | null>,
 ) {
   const popover = useRef<T>(null);
-  const anchor = `--topbar-${useId().replace(/[^a-zA-Z0-9-]/g, "")}`;
+  const anchor = `--popover-${useId().replace(/[^a-zA-Z0-9-]/g, "")}`;
 
   useLayoutEffect(() => {
     const element = popover.current;
