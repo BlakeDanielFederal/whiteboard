@@ -41,6 +41,23 @@ const withHeader = () =>
 const withLens = () =>
   stylex.when.ancestor(":is([data-database-lens])", appMarker);
 
+// Wide and full keep prose at a reading measure but let code, diagrams and
+// lenses fill the article. A shell too narrow for 900px prose keeps the
+// standard layout.
+const widened = () =>
+  stylex.when.ancestor(
+    ':is([data-document-width="wide"], [data-document-width="full"])',
+    appMarker,
+  );
+
+const wide = () =>
+  stylex.when.ancestor(':is([data-document-width="wide"])', appMarker);
+
+const full = () =>
+  stylex.when.ancestor(':is([data-document-width="full"])', appMarker);
+
+const roomy = "@container review-content (min-width: 1181px)";
+
 const proseColumn = `min(100%, ${tokens.reviewProseMaxWidth})`;
 
 const proseMaxWidth = `calc(100cqi - 2 * ${tokens.reviewDocumentPaddingInline})`;
@@ -48,7 +65,10 @@ const proseMaxWidth = `calc(100cqi - 2 * ${tokens.reviewDocumentPaddingInline})`
 export const documentStyles = stylex.create({
   article: {
     position: "relative",
-    "--review-inline-diagram-max-width": "1120px",
+    "--review-inline-diagram-max-width": {
+      default: "1120px",
+      [widened()]: { default: null, [roomy]: "100%" },
+    },
     "--review-document-padding-inline": {
       default: "clamp(20px, calc((100cqi - 720px) * 0.122 + 20px), 64px)",
       [narrow]: "clamp(12px, 4vw, 20px)",
@@ -58,16 +78,27 @@ export const documentStyles = stylex.create({
       default: "72px",
       [narrow]: "48px",
     },
-    "--review-prose-max-width": { default: "720px", [withHeader()]: "760px" },
+    "--review-prose-max-width": {
+      default: "720px",
+      [withHeader()]: "760px",
+      [widened()]: { default: null, [roomy]: "900px" },
+    },
+    "--review-block-max-width": {
+      default: tokens.reviewProseMaxWidth,
+      [widened()]: { default: null, [roomy]: "100%" },
+    },
     flex: { default: "1 1 860px", [compact]: "0 1 auto" },
     width: {
       default: "100%",
       [withLens()]: "min(1360px, calc(100% - 32px))",
+      [full()]: { default: null, [roomy]: "100%" },
       [narrow]: "100%",
     },
     maxWidth: {
       default: "860px",
       [withHeader()]: "900px",
+      [wide()]: { default: null, [roomy]: "1360px" },
+      [full()]: { default: null, [roomy]: "1800px" },
       [narrow]: { default: "none", [withHeader()]: "900px" },
     },
     minWidth: 0,
@@ -89,7 +120,10 @@ export const documentStyles = stylex.create({
   // Beside an open side peek the column narrows its inline diagrams, and a
   // database lens keeps a smaller gutter.
   articlePeekOpen: {
-    "--review-inline-diagram-max-width": "1000px",
+    "--review-inline-diagram-max-width": {
+      default: "1000px",
+      [widened()]: { default: null, [roomy]: "100%" },
+    },
     width: {
       default: "100%",
       [withLens()]: "calc(100% - 24px)",
@@ -98,6 +132,8 @@ export const documentStyles = stylex.create({
     maxWidth: {
       default: "860px",
       [withHeader()]: "900px",
+      [wide()]: { default: null, [roomy]: "1360px" },
+      [full()]: { default: null, [roomy]: "1800px" },
       [narrow]: {
         default: "none",
         [withHeader()]: { default: "900px", [withLens()]: "none" },

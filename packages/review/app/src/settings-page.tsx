@@ -4,6 +4,7 @@ import type {
   ReviewCanvasSettingsContent,
   ReviewCliInstallStatus,
   ReviewCtrlTabChoice,
+  ReviewDocumentWidthChoice,
   ReviewKeymapChoice,
   ReviewReadyNotificationChoice,
   ReviewThemeChoice,
@@ -37,6 +38,12 @@ const CTRL_TAB_LABELS: Record<ReviewCtrlTabChoice, string> = {
   next: "Next tab",
 };
 
+const DOCUMENT_WIDTH_LABELS: Record<ReviewDocumentWidthChoice, string> = {
+  standard: "Standard",
+  wide: "Wide",
+  full: "Full",
+};
+
 const READY_NOTIFICATION_LABELS: Record<ReviewReadyNotificationChoice, string> =
   {
     notificationAndBadge: "Notification and badge",
@@ -64,6 +71,7 @@ export function SettingsPage({
   const [theme, setTheme] = useState(settings.theme);
   const [keymap, setKeymap] = useState(settings.keymap);
   const [ctrlTab, setCtrlTab] = useState(settings.ctrlTab);
+  const [documentWidth, setDocumentWidth] = useState(settings.documentWidth);
 
   const [readyNotification, setReadyNotification] = useState(
     settings.readyNotification,
@@ -203,6 +211,24 @@ export function SettingsPage({
                 disabled={busy !== null}
                 onChange={(choice) =>
                   void run("theme", () => settings.setTheme(choice), setTheme)
+                }
+              />
+            </Row>
+            <Row
+              label="Document width"
+              description="Wide and Full give diagrams and code more room. Text keeps a reading width."
+            >
+              <Choice
+                label="Document width"
+                value={documentWidth}
+                labels={DOCUMENT_WIDTH_LABELS}
+                disabled={busy !== null}
+                onChange={(choice) =>
+                  void run(
+                    "document-width",
+                    () => settings.setDocumentWidth(choice),
+                    setDocumentWidth,
+                  )
                 }
               />
             </Row>

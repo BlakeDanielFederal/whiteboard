@@ -1,6 +1,7 @@
 import { fontSize } from "@canvas/scale.stylex";
 import {
   type ReviewCanvasContent,
+  type ReviewDocumentWidthChoice,
   parseReviewStackResponse,
   resolveReviewSourceView,
 } from "@dev.fast/review-protocol";
@@ -448,6 +449,7 @@ export function ApiCanvas({
                                 softwareMapEnabled={
                                   content.softwareMapEnabled === true
                                 }
+                                documentWidth={content.documentWidth}
                               />
                             </SaveMarkdown.Provider>
                           </MapEnabled.Provider>
@@ -470,10 +472,12 @@ const CanvasDocument = memo(function CanvasDocument({
   data,
   findHost,
   softwareMapEnabled,
+  documentWidth,
 }: {
   data: ApiDocumentData;
   findHost?: ReviewFindHost;
   softwareMapEnabled: boolean;
+  documentWidth?: ReviewDocumentWidthChoice;
 }) {
   const snapshot = data.snapshot;
 
@@ -491,6 +495,7 @@ const CanvasDocument = memo(function CanvasDocument({
     databaseLens: elements(snapshot.document).some(
       (node) => node.type === "database_lens",
     ),
+    width: documentWidth,
   };
 
   return (

@@ -67,6 +67,7 @@ export const tokens = stylex.defineConsts({
   onAccentWash: "var(--on-accent-wash)",
   onWarning: "var(--on-warning)",
   raised: "var(--raised)",
+  reviewBlockMaxWidth: "var(--review-block-max-width)",
   reviewBottomScrollPadding: "var(--review-bottom-scroll-padding)",
   reviewDebugLayer: "var(--review-debug-layer)",
   reviewDocumentPaddingBlockEnd: "var(--review-document-padding-block-end)",

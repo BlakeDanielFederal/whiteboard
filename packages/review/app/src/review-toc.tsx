@@ -3,6 +3,7 @@ import { fontSize, fontWeight, motion } from "@canvas/scale.stylex";
 import { IconButton } from "@canvas/ui/button";
 import { surfaceStyles } from "@canvas/ui/surface";
 import { textStyles } from "@canvas/ui/text";
+import type { ReviewDocumentWidthChoice } from "@dev.fast/review-protocol";
 import * as stylex from "@stylexjs/stylex";
 import { type ReactElement, useEffect, useState } from "react";
 
@@ -29,9 +30,15 @@ interface NumberedReviewTocEntry extends ReviewTocEntry {
  * Narrowest shell that fits the rail beside the prose: the 720px prose
  * measure sits centered, so each gutter is (shell - 720) / 2, and the rail
  * needs left offset (24) + card (up to ~286 with padding) + breathing room
- * before the text starts — a ~320px gutter, so a 1360px shell.
+ * before the text starts — a ~320px gutter, so a 1360px shell. A wide
+ * document needs the same gutter beside its 1232px block column; a full one
+ * leaves none, so its contents stay a pill.
  */
-const TOC_RAIL_MIN_SHELL_WIDTH = 1360;
+const TOC_RAIL_MIN_SHELL_WIDTH: Record<ReviewDocumentWidthChoice, number> = {
+  standard: 1360,
+  wide: 1872,
+  full: Infinity,
+};
 
 /**
  * Room to leave above the last heading once it is scrolled to the top, so
@@ -45,6 +52,7 @@ const TAIL_CSS_PROPERTY = "--review-toc-tail";
 export function ReviewToc({
   entries,
   besideHeader = false,
+  documentWidth = "standard",
 }: {
   entries: readonly ReviewTocEntry[];
   /** The document opens with a review header: the rail lines up with the
@@ -52,6 +60,7 @@ export function ReviewToc({
    * which restyled every element on each change anywhere in it, such as
    * each keystroke in a text field. */
   besideHeader?: boolean;
+  documentWidth?: ReviewDocumentWidthChoice;
 }): ReactElement | null {
   const roots = useReviewRoots();
   const shellRef = roots?.shellRef;
@@ -71,7 +80,7 @@ export function ReviewToc({
     if (!shell) return;
 
     const updateWidth = () => {
-      setIsWide(shell.clientWidth >= TOC_RAIL_MIN_SHELL_WIDTH);
+      setIsWide(shell.clientWidth >= TOC_RAIL_MIN_SHELL_WIDTH[documentWidth]);
     };
 
     updateWidth();
@@ -79,7 +88,7 @@ export function ReviewToc({
     resizeObserver.observe(shell);
 
     return () => resizeObserver.disconnect();
-  }, [shellRef]);
+  }, [shellRef, documentWidth]);
 
   useEffect(() => {
     if (isWide) setIsDrawerOpen(false);
@@ -288,6 +297,10 @@ export function ReviewToc({
         showList && styles.tocOpen,
         showRail && styles.tocRail,
         showRail && besideHeader && styles.tocRailBesideHeader,
+        showRail &&
+          besideHeader &&
+          documentWidth === "wide" &&
+          styles.tocRailBesideWideHeader,
       )}
       aria-label="Contents"
       onKeyDown={(event) => {
@@ -465,6 +478,10 @@ const styles = stylex.create({
     left: "max(24px, calc((100% - 1320px) / 2))",
     width: "240px",
     padding: "6px 0 0",
+  },
+  // Beside a wide document the page is its block column plus the same gutters.
+  tocRailBesideWideHeader: {
+    left: "max(24px, calc((100% - 1792px) / 2))",
   },
   toggle: {
     position: "absolute",

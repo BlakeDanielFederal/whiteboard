@@ -20,7 +20,7 @@
 import { localize } from '../../nls.js';
 import { Registry } from '../../platform/registry/common/platform.js';
 import { ConfigurationScope, Extensions, type IConfigurationRegistry } from '../../platform/configuration/common/configurationRegistry.js';
-import { REVIEW_CTRL_TAB_CHOICES, REVIEW_CTRL_TAB_SETTING, REVIEW_KEYMAPS, REVIEW_KEYMAP_SETTING, REVIEW_READY_NOTIFICATION_CHOICES, REVIEW_READY_NOTIFICATION_SETTING, REVIEW_SOFTWARE_MAP_SETTING, REVIEW_STRUCTURAL_DIFF_SETTING, REVIEW_TELEMETRY_SETTING, curatedExtensionConfigurationDefaults, reviewConfigurationDefaults } from './reviewConfigurationDefaults.js';
+import { REVIEW_CTRL_TAB_CHOICES, REVIEW_CTRL_TAB_SETTING, REVIEW_DOCUMENT_WIDTH_CHOICES, REVIEW_DOCUMENT_WIDTH_SETTING, REVIEW_KEYMAPS, REVIEW_KEYMAP_SETTING, REVIEW_READY_NOTIFICATION_CHOICES, REVIEW_READY_NOTIFICATION_SETTING, REVIEW_SOFTWARE_MAP_SETTING, REVIEW_STRUCTURAL_DIFF_SETTING, REVIEW_TELEMETRY_SETTING, curatedExtensionConfigurationDefaults, reviewConfigurationDefaults } from './reviewConfigurationDefaults.js';
 
 const configurationRegistry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
 
@@ -45,6 +45,17 @@ configurationRegistry.registerConfiguration({
 			],
 			default: 'recent',
 			description: localize('review.tabs.ctrlTab', "What Ctrl+Tab does."),
+		},
+		[REVIEW_DOCUMENT_WIDTH_SETTING]: {
+			type: 'string',
+			enum: [...REVIEW_DOCUMENT_WIDTH_CHOICES],
+			enumDescriptions: [
+				localize('review.documentWidth.standard', "A reading-width column."),
+				localize('review.documentWidth.wide', "More room for diagrams and code."),
+				localize('review.documentWidth.full', "Diagrams and code use the full width; text keeps a reading measure."),
+			],
+			default: 'standard',
+			description: localize('review.documentWidth', "Width of the whiteboard document."),
 		},
 		[REVIEW_READY_NOTIFICATION_SETTING]: {
 			type: 'string',

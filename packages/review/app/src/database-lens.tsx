@@ -1190,7 +1190,7 @@ const narrow = "@container review-content (max-width: 760px)";
 
 const styles = stylex.create({
   // Inline it sits centered on the prose column, no narrower than the
-  // prose measure; the tour stage fills the overlay without card chrome.
+  // block measure; the tour stage fills the overlay without card chrome.
   figure: {
     display: "grid",
     gridTemplateColumns: "minmax(0, 1fr)",
@@ -1205,7 +1205,7 @@ const styles = stylex.create({
     },
     minWidth: {
       default: null,
-      [inDocument()]: `min(${tokens.reviewProseMaxWidth}, calc(100cqi - ${tokens.reviewDocumentPaddingInline} - ${tokens.reviewDocumentPaddingInline}))`,
+      [inDocument()]: `min(${tokens.reviewBlockMaxWidth}, calc(100cqi - ${tokens.reviewDocumentPaddingInline} - ${tokens.reviewDocumentPaddingInline}))`,
     },
     maxWidth: {
       default: "100%",

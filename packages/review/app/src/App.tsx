@@ -4,6 +4,7 @@ import { textStyles } from "@canvas/ui/text";
 import {
   type ReviewCanvasRange,
   type ReviewCommitSummary,
+  type ReviewDocumentWidthChoice,
 } from "@dev.fast/review-protocol";
 import {
   type SoftwareMapTopologyDiff,
@@ -171,6 +172,7 @@ export interface RenderedReviewDocument {
   empty?: boolean;
   header: boolean;
   databaseLens: boolean;
+  width?: ReviewDocumentWidthChoice;
 }
 
 /** A commit-scoped diff stays "commit"; otherwise it follows the reader's
@@ -479,6 +481,7 @@ function ReviewLayoutContent({
       data-peek-open={rightPanelOpen || undefined}
       data-document-header={document.header || undefined}
       data-database-lens={document.databaseLens || undefined}
+      data-document-width={document.width}
     >
       <main
         ref={shellRef}
@@ -666,7 +669,11 @@ function ReviewLayoutContent({
             </div>
           ) : null}
           {activeView === "review" && (
-            <ReviewToc entries={tocEntries} besideHeader={document.header} />
+            <ReviewToc
+              entries={tocEntries}
+              besideHeader={document.header}
+              documentWidth={document.width}
+            />
           )}
           <section
             ref={scrollRegionRef}
