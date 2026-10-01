@@ -410,11 +410,7 @@ export function DatabaseLens(block: DatabaseLensProps) {
   const { closeOverlayTour: closeTour, moveOverlayTour: changeTourAnchor } =
     panelStore.getState();
 
-  const {
-    overlayRef,
-    portalTarget,
-    paneResize: tourPaneResize,
-  } = useDiagramTourShell(tourOpen, closeTour);
+  const { portalTarget } = useDiagramTourShell(tourOpen, closeTour);
 
   // database-lens is a marker: the tutorial and document-embed-scroll.ts find it.
   const renderLensFigure = (stage: boolean) => (
@@ -495,9 +491,6 @@ export function DatabaseLens(block: DatabaseLensProps) {
               tour={activeTour}
               activeAnchor={tourState.anchor}
               revealRequest={tourState.revealRequest}
-              paneWidth={tourPaneResize.width}
-              separatorProps={tourPaneResize.separatorProps}
-              overlayRef={overlayRef}
               onActiveAnchorChange={changeTourAnchor}
               onClose={closeTour}
             >

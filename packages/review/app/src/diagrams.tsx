@@ -307,11 +307,7 @@ export function SequenceDiagram(block: SequenceDiagramProps) {
   const { closeOverlayTour: closeTour, moveOverlayTour: changeTourAnchor } =
     panelStore.getState();
 
-  const {
-    overlayRef,
-    portalTarget,
-    paneResize: tourPaneResize,
-  } = useDiagramTourShell(tourOpen, closeTour);
+  const { portalTarget } = useDiagramTourShell(tourOpen, closeTour);
 
   return (
     <>
@@ -328,9 +324,6 @@ export function SequenceDiagram(block: SequenceDiagramProps) {
               tour={tour}
               activeAnchor={tourState.anchor}
               revealRequest={tourState.revealRequest}
-              paneWidth={tourPaneResize.width}
-              separatorProps={tourPaneResize.separatorProps}
-              overlayRef={overlayRef}
               onActiveAnchorChange={changeTourAnchor}
               onClose={closeTour}
             >

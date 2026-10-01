@@ -13,8 +13,6 @@ const narrowContent = "@container review-content (max-width: 720px)";
 
 const peekOpen = () => stylex.when.ancestor("[data-peek-open]", appMarker);
 
-const peekResizing = () => stylex.when.ancestor("[data-resizing]", appMarker);
-
 const inTopbarActions = () =>
   stylex.when.ancestor(":is(*)", topbarActionsMarker);
 
@@ -37,9 +35,14 @@ export const shellStyles = stylex.create({
       [narrowViewport]: "minmax(0, 1fr)",
     },
   },
+  // Lit on the separator itself: a condition on the root would restyle the
+  // whole canvas as a drag starts and ends.
+  peekResizerActive: {
+    "::before": { backgroundColor: tokens.inkFaint },
+  },
+  // No inherited cursor or user-select here, for the same reason; the
+  // separator's pointer capture keeps its cursor and blocks selection.
   appResizing: {
-    cursor: "col-resize",
-    userSelect: "none",
     transition: "none",
   },
   appRestoredPanel: {
@@ -114,7 +117,6 @@ export const shellStyles = stylex.create({
         default: tokens.rule,
         ":hover": tokens.inkFaint,
         ":focus-visible": tokens.inkFaint,
-        [peekResizing()]: tokens.inkFaint,
       },
       transform: "translateX(-50%)",
       content: "''",

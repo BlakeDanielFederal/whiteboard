@@ -98,7 +98,6 @@ export const tokens = stylex.defineConsts({
   sequenceWidth: "var(--sequence-width)",
   shadowColorStrong: "var(--shadow-color-strong)",
   sidePanelBottomFraction: "var(--side-panel-bottom-fraction)",
-  sidePeekWidth: "var(--side-peek-width)",
   softwareMapC4CodeCurrentBorderColor:
     "var(--software-map-c4-code-current-border-color)",
   softwareMapC4CodeCurrentBorderWidth:

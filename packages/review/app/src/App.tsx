@@ -305,6 +305,26 @@ function ReviewLayoutContent({
   const panelMotion = useReviewPanel((state) => state.motion);
   const activeView = useReviewPanel((state) => state.view);
   const diffScope = useReviewPanel((state) => state.diffScope);
+
+  // The full diff stays mounted while another view shows, at the width it
+  // had when it was hidden: following the column through a side peek's
+  // resize would lay out every editor in it on each step. Shown, it fills the
+  // column again and lays out once.
+  const diffHostRef = useRef<HTMLDivElement | null>(null);
+  const diffPreloaded = activeView !== "diff" || diffScope !== null;
+  const [frozenDiffWidth, setFrozenDiffWidth] = useState<number>();
+
+  useLayoutEffect(() => {
+    const width = diffHostRef.current?.getBoundingClientRect().width;
+
+    setFrozenDiffWidth(diffPreloaded && width ? width : undefined);
+  }, [diffPreloaded]);
+
+  const frozenDiffStyle =
+    diffPreloaded && frozenDiffWidth
+      ? { right: "auto", width: `${frozenDiffWidth}px` }
+      : undefined;
+
   const traceSelection = useReviewPanel((state) => state.traceSelection);
   const traceStorage = useReviewPanel((state) => state.traceStorage);
   const mapFocus = useReviewPanel((state) => state.mapFocus);
@@ -456,7 +476,6 @@ function ReviewLayoutContent({
       )}
       style={appStyle}
       data-peek-open={rightPanelOpen || undefined}
-      data-resizing={sidePeekResize.isResizing || undefined}
       data-document-header={document.header || undefined}
       data-database-lens={document.databaseLens || undefined}
     >
@@ -745,12 +764,13 @@ function ReviewLayoutContent({
               />
             )}
             <div
-              aria-hidden={activeView !== "diff" || diffScope !== null}
+              ref={diffHostRef}
+              aria-hidden={diffPreloaded}
               {...stylex.props(
                 shellStyles.diffView,
-                (activeView !== "diff" || diffScope !== null) &&
-                  shellStyles.diffViewPreloaded,
+                diffPreloaded && shellStyles.diffViewPreloaded,
               )}
+              style={frozenDiffStyle}
             >
               <ReviewDiffView />
             </div>
@@ -792,6 +812,7 @@ function ReviewLayoutContent({
             shellStyles.resizer,
             shellStyles.peekResizer,
             askDocked && shellStyles.peekResizerTray,
+            sidePeekResize.isResizing && shellStyles.peekResizerActive,
           )}
           {...sidePeekResize.separatorProps}
         />

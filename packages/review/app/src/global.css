@@ -321,3 +321,19 @@ button {
   inherits: false;
   initial-value: -20%;
 }
+
+/* Only the tour overlay's grid reads it; inheriting restyled the whole tour on every resize step. */
+
+@property --diagram-tour-pane-width {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 424px;
+}
+
+/* Only the app root's grid reads it; inheriting restyled the whole document on every resize step. */
+
+@property --side-peek-width {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 560px;
+}
