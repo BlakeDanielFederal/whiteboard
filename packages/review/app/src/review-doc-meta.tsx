@@ -145,8 +145,7 @@ export function ReviewDocumentMetaLine({
   }
 
   return (
-    // The attribute is a marker: the document and the contents read whether
-    // the document has a header.
+    // The attribute is a marker for tests.
     <header
       {...stylex.props(styles.header, drawStyles.blockChild)}
       data-review-document-header

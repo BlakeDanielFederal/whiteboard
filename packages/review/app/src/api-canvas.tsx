@@ -6,6 +6,7 @@ import {
 } from "@dev.fast/review-protocol";
 import type { ActivitySnapshot } from "@review/review-api/activity";
 import { ReviewApiClient, ReviewApiError } from "@review/review-api/client";
+import { elements } from "@review/review-api/document";
 import type { Snapshot } from "@review/review-api/store";
 import * as stylex from "@stylexjs/stylex";
 import {
@@ -22,6 +23,7 @@ import {
   ApiDocument,
   type ApiDocumentData,
   createDocumentLoader,
+  documentHasTitle,
 } from "./api-document";
 import { retainedTrace } from "./api-trace";
 import { App } from "./App";
@@ -484,6 +486,11 @@ const CanvasDocument = memo(function CanvasDocument({
     render: DocumentBody,
     tocEntries: data.headings.entries,
     empty: snapshot.document.length === 0,
+    header:
+      snapshot.kind !== "scratchpad" || documentHasTitle(snapshot.document),
+    databaseLens: elements(snapshot.document).some(
+      (node) => node.type === "database_lens",
+    ),
   };
 
   return (

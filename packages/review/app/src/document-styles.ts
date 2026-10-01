@@ -2,7 +2,7 @@ import { documentType } from "@canvas/document-type.stylex";
 import { fontSize, fontWeight, radius, tracking } from "@canvas/scale.stylex";
 import * as stylex from "@stylexjs/stylex";
 
-import { documentMarker, proseMarker } from "./markers.stylex";
+import { appMarker, documentMarker, proseMarker } from "./markers.stylex";
 import { tokens } from "./tokens.stylex";
 
 // The review document: the article column and the prose it renders. Prose
@@ -34,9 +34,12 @@ const narrow = "@media (max-width: 720px)";
 
 const compact = "@container review-content (max-width: 1080px)";
 
-const withHeader = ":has([data-review-document-header])";
+// Not :has(): it restyled the whole document on every node insertion.
+const withHeader = () =>
+  stylex.when.ancestor(":is([data-document-header])", appMarker);
 
-const withLens = ":has(.database-lens)";
+const withLens = () =>
+  stylex.when.ancestor(":is([data-database-lens])", appMarker);
 
 const proseColumn = `min(100%, ${tokens.reviewProseMaxWidth})`;
 
@@ -55,17 +58,17 @@ export const documentStyles = stylex.create({
       default: "72px",
       [narrow]: "48px",
     },
-    "--review-prose-max-width": { default: "720px", [withHeader]: "760px" },
+    "--review-prose-max-width": { default: "720px", [withHeader()]: "760px" },
     flex: { default: "1 1 860px", [compact]: "0 1 auto" },
     width: {
       default: "100%",
-      [withLens]: "min(1360px, calc(100% - 32px))",
+      [withLens()]: "min(1360px, calc(100% - 32px))",
       [narrow]: "100%",
     },
     maxWidth: {
       default: "860px",
-      [withHeader]: "900px",
-      [narrow]: { default: "none", [withHeader]: "900px" },
+      [withHeader()]: "900px",
+      [narrow]: { default: "none", [withHeader()]: "900px" },
     },
     minWidth: 0,
     margin: {
@@ -89,15 +92,15 @@ export const documentStyles = stylex.create({
     "--review-inline-diagram-max-width": "1000px",
     width: {
       default: "100%",
-      [withLens]: "calc(100% - 24px)",
+      [withLens()]: "calc(100% - 24px)",
       [narrow]: "100%",
     },
     maxWidth: {
       default: "860px",
-      [withHeader]: "900px",
+      [withHeader()]: "900px",
       [narrow]: {
         default: "none",
-        [withHeader]: { default: "900px", [withLens]: "none" },
+        [withHeader()]: { default: "900px", [withLens()]: "none" },
       },
     },
   },

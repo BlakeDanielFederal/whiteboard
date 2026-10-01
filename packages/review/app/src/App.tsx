@@ -169,6 +169,8 @@ export interface RenderedReviewDocument {
   tocEntries?: import("./review-document-headings").ReviewTocEntry[];
   /** True while the document has no blocks at all, as right after creation. */
   empty?: boolean;
+  header: boolean;
+  databaseLens: boolean;
 }
 
 /** A commit-scoped diff stays "commit"; otherwise it follows the reader's
@@ -455,6 +457,8 @@ function ReviewLayoutContent({
       style={appStyle}
       data-peek-open={rightPanelOpen || undefined}
       data-resizing={sidePeekResize.isResizing || undefined}
+      data-document-header={document.header || undefined}
+      data-database-lens={document.databaseLens || undefined}
     >
       <main
         ref={shellRef}
@@ -642,8 +646,7 @@ function ReviewLayoutContent({
             </div>
           ) : null}
           {activeView === "review" && (
-            // Every document but the scratchpad opens with a review header.
-            <ReviewToc entries={tocEntries} besideHeader={!scratchpad} />
+            <ReviewToc entries={tocEntries} besideHeader={document.header} />
           )}
           <section
             ref={scrollRegionRef}

@@ -199,6 +199,11 @@ export function sourceAnchor(
   return { __kind: "db-anchor-ref", id, title, peek: source };
 }
 
+export const documentHasTitle = (document: Snapshot["document"]) =>
+  elements(document).some(
+    (node) => node.type === "markdown" && markdownHasTitle(node.markdown),
+  );
+
 export function ApiDocument({
   data,
   softwareMapEnabled = true,
@@ -209,10 +214,7 @@ export function ApiDocument({
   useHeadingFragments();
 
   const hasTitle = useMemo(
-    () =>
-      elements(data.snapshot.document).some(
-        (node) => node.type === "markdown" && markdownHasTitle(node.markdown),
-      ),
+    () => documentHasTitle(data.snapshot.document),
     [data.snapshot.document],
   );
 
