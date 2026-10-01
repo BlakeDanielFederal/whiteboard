@@ -15,6 +15,8 @@ type RightPanelResizeOptions = {
   defaultWidth: number;
   minWidth: number;
   maxWidth: number;
+  /** Lets the panel grow past `maxWidth` to this share of its container. */
+  maxContainerFraction?: number;
   minMainWidth: number;
   separatorWidth?: number;
   /** Dragging past `minWidth` folds the panel to this width. */
@@ -187,6 +189,7 @@ export function useRightPanelResize({
   defaultWidth,
   minWidth,
   maxWidth,
+  maxContainerFraction = 0,
   minMainWidth,
   separatorWidth = 0,
   collapsedWidth,
@@ -239,7 +242,7 @@ export function useRightPanelResize({
       const { width: containerWidth } = containerMetrics();
 
       const availableMax = Math.min(
-        maxWidth,
+        Math.max(maxWidth, containerWidth * maxContainerFraction),
         containerWidth - minMainWidth - separatorWidth,
       );
 
@@ -248,7 +251,14 @@ export function useRightPanelResize({
         Math.max(minWidth, availableMax),
       );
     },
-    [containerMetrics, maxWidth, minMainWidth, minWidth, separatorWidth],
+    [
+      containerMetrics,
+      maxContainerFraction,
+      maxWidth,
+      minMainWidth,
+      minWidth,
+      separatorWidth,
+    ],
   );
 
   const width = constrainWidth(requestedWidth);
@@ -362,6 +372,7 @@ export function useRightPanelResize({
 
   const expand = useCallback(() => setCollapsed(false), [setCollapsed]);
   const renderedWidth = foldedWidth ?? width;
+  const widest = Math.round(constrainWidth(Number.POSITIVE_INFINITY));
 
   const separatorProps = useMemo<SeparatorProps>(
     () => ({
@@ -369,7 +380,7 @@ export function useRightPanelResize({
       "aria-label": label,
       "aria-orientation": "vertical",
       "aria-valuemin": collapsedWidth ?? minWidth,
-      "aria-valuemax": maxWidth,
+      "aria-valuemax": widest,
       "aria-valuenow": Math.round(renderedWidth),
       tabIndex: 0,
       onPointerDown: startResize,
@@ -382,13 +393,13 @@ export function useRightPanelResize({
     [
       collapsedWidth,
       label,
-      maxWidth,
       minWidth,
       renderedWidth,
       resize,
       resizeWithKeyboard,
       startResize,
       stopResize,
+      widest,
     ],
   );
 

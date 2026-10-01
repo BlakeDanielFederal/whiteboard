@@ -52,6 +52,7 @@ export function DiagramTourOverlay({
     defaultWidth: 594,
     minWidth: 360,
     maxWidth: 760,
+    maxContainerFraction: 0.5,
     minMainWidth: 480,
     separatorWidth: 10,
     label: "Resize tour pane",

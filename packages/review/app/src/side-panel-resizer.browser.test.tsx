@@ -246,3 +246,49 @@ describe("useRightPanelResize folding", () => {
     expect(width()).toBe("42");
   });
 });
+
+function HalfPanel({ containerWidth }: { containerWidth: number }) {
+  const containerRef = useRef<HTMLElement | null>(null);
+
+  const resize = useRightPanelResize({
+    stateKey: `half-panel-${containerWidth}`,
+    defaultWidth: 594,
+    minWidth: 360,
+    maxWidth: 760,
+    maxContainerFraction: 0.5,
+    minMainWidth: 480,
+    separatorWidth: 10,
+    label: "Resize half panel",
+    containerRef,
+  });
+
+  return (
+    <section ref={containerRef} style={{ width: containerWidth }}>
+      <div {...stylex.props(shellStyles.resizer)} {...resize.separatorProps} />
+    </section>
+  );
+}
+
+it.each([
+  { containerWidth: 1600, widest: "800" },
+  { containerWidth: 1300, widest: "760" },
+])(
+  "grows a panel to half a $containerWidth px container, never below maxWidth",
+  ({ containerWidth, widest }) => {
+    host = document.createElement("div");
+    document.body.append(host);
+    root = createRoot(host);
+    act(() => {
+      root?.render(
+        <ReviewSessionProvider session={session}>
+          <HalfPanel containerWidth={containerWidth} />
+        </ReviewSessionProvider>,
+      );
+    });
+
+    for (let step = 0; step < 30; step++) widenWithKeyboard();
+
+    expect(separator().getAttribute("aria-valuenow")).toBe(widest);
+    expect(separator().getAttribute("aria-valuemax")).toBe(widest);
+  },
+);

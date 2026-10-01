@@ -337,6 +337,7 @@ function ReviewLayoutContent({
     defaultWidth: DEFAULT_SIDE_PEEK_WIDTH,
     minWidth: MIN_SIDE_PEEK_WIDTH,
     maxWidth: MAX_SIDE_PEEK_WIDTH,
+    maxContainerFraction: 0.5,
     minMainWidth: MIN_DOCUMENT_WIDTH,
     separatorWidth: 10,
     label: "Resize side peek",
