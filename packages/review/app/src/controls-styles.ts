@@ -95,4 +95,9 @@ export const controlStyles = stylex.create({
     width: tokens.chromeIconSize,
     height: tokens.chromeIconSize,
   },
+  // Icons beside a label, in a button or chip.
+  inlineIcon: {
+    width: "12px",
+    height: "12px",
+  },
 });

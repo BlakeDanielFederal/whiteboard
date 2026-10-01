@@ -94,6 +94,7 @@ export const themeStyles = stylex.create({
     "--well": "#e9ebef",
     "--raised": "#ffffff",
     "--tray": "#f3f4f6",
+    "--tray-raised": "color-mix(in srgb, var(--ink) 6%, var(--tray))",
     "--chevron-down":
       "url(\"data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'><path d='M2.5 4.25 6 8l3.5-3.75' fill='none' stroke='%239AA0AB' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/></svg>\")",
     "--check-mark":
@@ -155,7 +156,7 @@ export const themeStyles = stylex.create({
     "--change-removed": "#d8402c",
     "--change-modified": "#c98a0b",
     "--warning-wash": "rgba(201, 138, 11, 0.1)",
-    "--warning-focus": "rgba(201, 138, 11, 0.24)",
+    "--warning-outline": "rgba(201, 138, 11, 0.24)",
     "--on-warning": "#4a3514",
     "--diff-added": "#1b9a57",
     "--diff-added-bg": "#eef7f2",

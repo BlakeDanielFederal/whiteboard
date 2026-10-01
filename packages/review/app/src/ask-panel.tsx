@@ -11,6 +11,7 @@ import {
 import * as stylex from "@stylexjs/stylex";
 import {
   type ReactElement,
+  type ReactNode,
   memo,
   useCallback,
   useEffect,
@@ -40,25 +41,27 @@ import { useShowOpenThread } from "./ask-delete";
 import { AskFilesProvider } from "./ask-files";
 import { useAskHistory } from "./ask-history";
 import { AskOutdatedNote } from "./ask-history-list";
-import {
-  AskArrowIcon,
-  AskImageIcon,
-  AskLockIcon,
-  askIconSizes,
-} from "./ask-icons";
-import { AskSelectionQuote, askPanelStyles } from "./ask-panel-shared";
+import { AskSelectionQuote } from "./ask-panel-shared";
 import { AskPermission } from "./ask-permission";
 import { AskSetup, AskSignIn } from "./ask-setup";
+import { askPanelStyles } from "./ask-styles";
 import { useLatest, useThread } from "./ask-thread-stream";
 import { AskAgentTurn, AskWorking, turns } from "./ask-turn";
 import type { AskPresence } from "./ask-window";
+import { controlStyles } from "./controls-styles";
 import { useReviewSession } from "./host/review-session";
+import { ArrowUpIcon, ImageIcon, LockIcon } from "./icons";
 import { formatRelativeTime } from "./review-home-view";
 import { useOptionalReviewPanelStore } from "./review-panel";
-import { fontSize, motion, radius } from "./scale.stylex";
+import { fontSize, radius } from "./scale.stylex";
+import type { StyleArg } from "./stylex-props";
 import { tokens } from "./tokens.stylex";
+import { IconButton } from "./ui/button";
+import { Chip } from "./ui/chip";
+import { EmptyState } from "./ui/empty-state";
 import { surfaceStyles } from "./ui/surface";
 import { useFollowLatest } from "./use-follow-latest";
+import { useTooltip } from "./use-tooltip";
 
 /** What the panel sends: a first question, a follow-up, or a decision. */
 type AskRequest =
@@ -467,23 +470,23 @@ export function AskPanelContent({
         current={bypass ? "bypass" : "ask"}
         disabled={settingsDisabled}
         quiet
-        icon={readOnly ? <AskLockIcon /> : null}
+        icon={readOnly ? <LockIcon xstyle={controlStyles.inlineIcon} /> : null}
         onPick={(value) => permit(value === "bypass")}
       />
     ) : (
-      <span
-        {...stylex.props(styles.mode, styles.settingsLabel)}
-        title={modeTitle}
+      <TooltipLabel
+        tooltip={modeTitle}
+        xstyle={[styles.mode, styles.settingsLabel]}
       >
         {readOnly ? (
           <>
-            <AskLockIcon />
+            <LockIcon xstyle={controlStyles.inlineIcon} />
             Read-only
           </>
         ) : (
           "Not read-only"
         )}
-      </span>
+      </TooltipLabel>
     );
 
   const settings = (
@@ -522,12 +525,12 @@ export function AskPanelContent({
           }}
         />
         {thread ? (
-          <span
-            {...stylex.props(styles.mode, styles.head)}
-            title={`Commit ${thread.head}`}
+          <TooltipLabel
+            tooltip={`Commit ${thread.head}`}
+            xstyle={[styles.mode, styles.head]}
           >
             {thread.head.slice(0, 7)}
-          </span>
+          </TooltipLabel>
         ) : null}
       </div>
 
@@ -557,15 +560,27 @@ export function AskPanelContent({
             ) : null}
 
             {connecting && !thread?.entries.length ? (
-              <div {...stylex.props(styles.loading)} role="status">
-                <span {...stylex.props(styles.loadingLabel)}>
-                  Loading the conversation from {agentName}…
-                </span>
-                <span {...stylex.props(styles.loadingLine)} />
-                <span
-                  {...stylex.props(styles.loadingLine, styles.loadingLineShort)}
-                />
-              </div>
+              <EmptyState
+                xstyle={styles.loading}
+                message={`Loading the conversation from ${agentName}…`}
+                action={
+                  <>
+                    <span
+                      {...stylex.props(
+                        styles.loadingLine,
+                        askPanelStyles.sweep,
+                      )}
+                    />
+                    <span
+                      {...stylex.props(
+                        styles.loadingLine,
+                        askPanelStyles.sweep,
+                        styles.loadingLineShort,
+                      )}
+                    />
+                  </>
+                }
+              />
             ) : null}
 
             {thread?.signIn && retry && !requestError ? (
@@ -597,17 +612,7 @@ export function AskPanelContent({
             ) : null}
           </div>
           {latest.atLatest ? null : (
-            <button
-              type="button"
-              {...stylex.props(surfaceStyles.popover, styles.toLatest)}
-              aria-label="Scroll to the latest"
-              title="Scroll to the latest"
-              onClick={() => latest.jump()}
-            >
-              <AskArrowIcon
-                xstyle={[askIconSizes.small, styles.toLatestIcon]}
-              />
-            </button>
+            <ToLatestButton onClick={() => latest.jump()} />
           )}
         </div>
       </AskFilesProvider>
@@ -644,6 +649,40 @@ export function AskPanelContent({
         onAsk={ask}
       />
     </div>
+  );
+}
+
+/** Back to the newest, floating over the thread's foot. */
+function ToLatestButton({ onClick }: { onClick: () => void }): ReactElement {
+  const label = "Scroll to the latest";
+
+  return (
+    <IconButton
+      ref={useTooltip(label)}
+      size="large"
+      xstyle={[surfaceStyles.popover, styles.toLatest]}
+      aria-label={label}
+      onClick={onClick}
+    >
+      <ArrowUpIcon xstyle={[controlStyles.chromeIcon, styles.toLatestIcon]} />
+    </IconButton>
+  );
+}
+
+/** A label whose tooltip says more than it can. */
+function TooltipLabel({
+  tooltip,
+  xstyle,
+  children,
+}: {
+  tooltip: string;
+  xstyle: StyleArg;
+  children: ReactNode;
+}): ReactElement {
+  return (
+    <span ref={useTooltip<HTMLSpanElement>(tooltip)} {...stylex.props(xstyle)}>
+      {children}
+    </span>
   );
 }
 
@@ -696,12 +735,22 @@ function AskUserImages({
     <span {...stylex.props(styles.attachments)}>
       {names.map((name, index) => (
         // An image's name can repeat.
-        <span key={index} {...stylex.props(styles.attachment)} title={name}>
-          <AskImageIcon xstyle={askIconSizes.small} />
-          {name}
-        </span>
+        <AskImageChip key={index} name={name} />
       ))}
     </span>
+  );
+}
+
+function AskImageChip({ name }: { name: string }): ReactElement {
+  return (
+    <Chip
+      ref={useTooltip<HTMLSpanElement>(name)}
+      variant="pill"
+      xstyle={styles.attachment}
+    >
+      <ImageIcon xstyle={controlStyles.inlineIcon} />
+      {name}
+    </Chip>
   );
 }
 
@@ -749,22 +798,6 @@ const AskTurns = memo(function AskTurns({
     </>
   );
 });
-
-const reducedMotion = "@media (prefers-reduced-motion: reduce)";
-
-const loadingSweep = stylex.keyframes({
-  from: { backgroundPosition: "100% 0" },
-  to: { backgroundPosition: "-100% 0" },
-});
-
-// Raised off the panel's tray in either theme; --surface-raised is the
-// workbench's widget color, which matches the tray in light themes.
-const offTray = `color-mix(in srgb, ${tokens.ink} 6%, ${tokens.tray})`;
-
-const hairline = {
-  borderWidth: "1px",
-  borderStyle: "solid",
-} as const;
 
 // Ask: one conversation with a local agent about a selection. The thread
 // scrolls; the composer stays at the bottom.
@@ -815,14 +848,12 @@ const styles = stylex.create({
     position: "absolute",
     bottom: "12px",
     left: "50%",
-    display: "grid",
-    placeItems: "center",
-    width: "28px",
-    height: "28px",
-    padding: 0,
     borderRadius: radius.round,
-    color: { default: tokens.inkMuted, ":hover": tokens.ink },
-    cursor: "pointer",
+    color: {
+      default: tokens.chromeIconFg,
+      ":hover": tokens.chromeFg,
+      ":focus-visible": tokens.chromeFg,
+    },
     transform: "translateX(-50%)",
   },
   toLatestIcon: {
@@ -842,31 +873,21 @@ const styles = stylex.create({
     maxWidth: "88%",
     marginTop: 0,
   },
+  // Raised off the panel's tray in either theme; --surface-raised is the
+  // workbench's widget color, which matches the tray in light themes.
   userBubble: {
     padding: "10px 14px",
-    backgroundColor: offTray,
+    backgroundColor: tokens.trayRaised,
   },
   loading: {
-    display: "flex",
-    flexDirection: "column",
     gap: "10px",
-    padding: "4px 0",
-  },
-  loadingLabel: {
-    color: tokens.inkFaint,
-    fontFamily: tokens.fontMono,
-    fontSize: fontSize.micro,
-    lineHeight: "14px",
+    paddingBlock: "4px",
   },
   loadingLine: {
     height: "12px",
     borderRadius: radius.small,
     backgroundImage: `linear-gradient(90deg, color-mix(in srgb, ${tokens.ink} 5%, transparent) 0%, color-mix(in srgb, ${tokens.ink} 10%, transparent) 50%, color-mix(in srgb, ${tokens.ink} 5%, transparent) 100%)`,
     backgroundSize: "200% 100%",
-    animationName: { default: loadingSweep, [reducedMotion]: "none" },
-    animationDuration: motion.pulse,
-    animationTimingFunction: "ease-in-out",
-    animationIterationCount: "infinite",
   },
   loadingLineShort: {
     width: "62%",
@@ -877,21 +898,16 @@ const styles = stylex.create({
     gap: "6px",
     marginTop: "8px",
   },
+  // Outlined: the pill's well would vanish on the bubble.
   attachment: {
-    display: "inline-flex",
-    alignItems: "center",
     gap: "4px",
     maxWidth: "100%",
-    padding: "2px 6px",
     overflow: "hidden",
-    ...hairline,
+    borderWidth: "1px",
+    borderStyle: "solid",
     borderColor: tokens.ruleSoft,
-    borderRadius: radius.small,
-    color: tokens.inkMuted,
+    backgroundColor: tokens.transparent,
     fontFamily: tokens.fontMono,
-    fontSize: fontSize.small,
-    lineHeight: "14px",
     textOverflow: "ellipsis",
-    whiteSpace: "nowrap",
   },
 });

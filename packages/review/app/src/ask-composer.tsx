@@ -12,6 +12,7 @@ import {
   type ReactElement,
   type ReactNode,
   type RefObject,
+  useCallback,
   useEffect,
   useId,
   useLayoutEffect,
@@ -19,16 +20,18 @@ import {
   useState,
 } from "react";
 
-import {
-  AskArrowIcon,
-  AskCrossIcon,
-  AskImageIcon,
-  askIconSizes,
-} from "./ask-icons";
 import { askMotion } from "./ask-motion.stylex";
-import { fontSize, layer, radius } from "./scale.stylex";
+import { controlStyles } from "./controls-styles";
+import { ArrowUpIcon, CloseIcon, ImageIcon } from "./icons";
+import { fontSize, radius } from "./scale.stylex";
 import { tokens } from "./tokens.stylex";
+import { Button, IconButton } from "./ui/button";
+import { menuStyles } from "./ui/menu";
 import { surfaceStyles } from "./ui/surface";
+import { fieldStyles } from "./ui/text-field";
+import { useAnchoredPopover } from "./use-anchored-popover";
+import { useDismissOnOutside } from "./use-dismiss-on-outside";
+import { useTooltip } from "./use-tooltip";
 
 type ImageType = (typeof askImageTypes)[number];
 
@@ -224,7 +227,15 @@ export function AskComposer({
   // Escape hides the list until the question changes.
   const [dismissed, setDismissed] = useState<string | null>(null);
   const picker = useRef<HTMLInputElement>(null);
+  const form = useRef<HTMLFormElement>(null);
   const listId = useId();
+  const attachTooltip = useTooltip("Attach images");
+
+  const stopTooltip = useTooltip(
+    connecting ? "Connecting… Click to stop." : "Stop",
+  );
+
+  const askTooltip = useTooltip("Ask");
 
   const placeholder = useFittingPlaceholder(
     inputRef,
@@ -264,6 +275,10 @@ export function AskComposer({
 
   const open = options.length > 0;
   const shown = Math.min(active, options.length - 1);
+  const list = useAnchoredPopover(open, form);
+  const dismissList = useCallback(() => setDismissed(draft), [draft]);
+
+  useDismissOnOutside(form, open, dismissList, true);
 
   useEffect(() => setActive(0), [completion?.kind, completion?.query]);
 
@@ -422,7 +437,13 @@ export function AskComposer({
   return (
     <div {...stylex.props(styles.dock)}>
       <form
-        {...stylex.props(styles.composer)}
+        ref={form}
+        {...stylex.props(
+          fieldStyles.box,
+          fieldStyles.shell,
+          fieldStyles.multiline,
+          styles.composer,
+        )}
         onSubmit={(event) => {
           event.preventDefault();
           void submit();
@@ -432,10 +453,17 @@ export function AskComposer({
       >
         {open ? (
           <div
+            ref={list}
+            popover="manual"
             id={listId}
             role="listbox"
             aria-label={completion?.kind === "command" ? "Commands" : "Files"}
-            {...stylex.props(surfaceStyles.popover, styles.list)}
+            {...stylex.props(
+              surfaceStyles.popover,
+              menuStyles.popover,
+              menuStyles.above,
+              styles.list,
+            )}
           >
             {options.map((option, index) => (
               <div
@@ -445,8 +473,9 @@ export function AskComposer({
                 tabIndex={-1}
                 aria-selected={index === shown}
                 {...stylex.props(
+                  menuStyles.item,
                   styles.option,
-                  index === shown && styles.optionActive,
+                  index === shown && menuStyles.itemHighlighted,
                 )}
                 // Picking keeps the question focused.
                 onPointerDown={(event) => event.preventDefault()}
@@ -469,26 +498,15 @@ export function AskComposer({
         {images.length ? (
           <ul {...stylex.props(styles.images)} aria-label="Attached images">
             {images.map((image) => (
-              <li key={image.id} {...stylex.props(styles.image)}>
-                <img
-                  {...stylex.props(styles.thumbnail)}
-                  src={`data:${image.mimeType};base64,${image.data}`}
-                  alt={image.name}
-                />
-                <button
-                  type="button"
-                  {...stylex.props(styles.remove)}
-                  aria-label={`Remove ${image.name}`}
-                  title={`Remove ${image.name}`}
-                  onClick={() =>
-                    setImages((current) =>
-                      current.filter((other) => other.id !== image.id),
-                    )
-                  }
-                >
-                  <AskCrossIcon xstyle={askIconSizes.small} />
-                </button>
-              </li>
+              <AttachedImage
+                key={image.id}
+                image={image}
+                onRemove={() =>
+                  setImages((current) =>
+                    current.filter((other) => other.id !== image.id),
+                  )
+                }
+              />
             ))}
           </ul>
         ) : null}
@@ -517,11 +535,9 @@ export function AskComposer({
           />
           <span {...stylex.props(styles.actions)}>
             {stop ? (
-              <button
-                type="button"
-                {...stylex.props(styles.send, styles.stop)}
+              <IconButton
+                ref={stopTooltip}
                 aria-label={connecting ? "Stop connecting" : "Stop"}
-                title={connecting ? "Connecting… Click to stop." : "Stop"}
                 onClick={stop}
               >
                 <span
@@ -530,19 +546,20 @@ export function AskComposer({
                     connecting ? styles.connecting : styles.stopMark,
                   )}
                 />
-              </button>
+              </IconButton>
             ) : (
-              <button
+              <Button
                 type="submit"
-                {...stylex.props(styles.send, styles.submit)}
+                ref={askTooltip}
+                variant="primary"
                 aria-label="Ask"
-                title="Ask"
+                xstyle={styles.square}
                 disabled={!draft.trim() || !canAsk}
               >
-                <AskArrowIcon
-                  xstyle={[askIconSizes.small, styles.submitIcon]}
+                <ArrowUpIcon
+                  xstyle={[controlStyles.inlineIcon, styles.submitIcon]}
                 />
-              </button>
+              </Button>
             )}
           </span>
         </div>
@@ -564,16 +581,14 @@ export function AskComposer({
                 event.target.value = "";
               }}
             />
-            <button
-              type="button"
-              {...stylex.props(styles.attach)}
+            <IconButton
+              ref={attachTooltip}
               aria-label="Attach images"
-              title="Attach images"
               disabled={disabled || images.length >= IMAGES_MAX}
               onClick={() => picker.current?.click()}
             >
-              <AskImageIcon xstyle={askIconSizes.toolbar} />
-            </button>
+              <ImageIcon xstyle={controlStyles.chromeIcon} />
+            </IconButton>
           </>
         ) : null}
         {permissions}
@@ -586,15 +601,37 @@ export function AskComposer({
 
 const spin = stylex.keyframes({ to: { transform: "rotate(360deg)" } });
 
-const noBorder = {
-  borderWidth: 0,
-  borderStyle: "none",
-} as const;
+const reducedMotion = "@media (prefers-reduced-motion: reduce)";
 
-const hairline = {
-  borderWidth: "1px",
-  borderStyle: "solid",
-} as const;
+function AttachedImage({
+  image,
+  onRemove,
+}: {
+  image: Attached;
+  onRemove: () => void;
+}): ReactElement {
+  const label = `Remove ${image.name}`;
+  const tooltip = useTooltip(label);
+
+  return (
+    <li {...stylex.props(styles.image)}>
+      <img
+        {...stylex.props(styles.thumbnail)}
+        src={`data:${image.mimeType};base64,${image.data}`}
+        alt={image.name}
+      />
+      <IconButton
+        ref={tooltip}
+        size="small"
+        xstyle={styles.remove}
+        aria-label={label}
+        onClick={onRemove}
+      >
+        <CloseIcon xstyle={controlStyles.inlineIcon} />
+      </IconButton>
+    </li>
+  );
+}
 
 const styles = stylex.create({
   dock: {
@@ -604,19 +641,13 @@ const styles = stylex.create({
     gap: "6px",
     margin: "12px 16px 12px",
   },
+  // A field shell: the question inside draws no box of its own.
   composer: {
-    position: "relative",
     display: "flex",
     flexDirection: "column",
     gap: "10px",
     padding: "12px 12px 10px 14px",
-    ...hairline,
-    borderColor: {
-      default: tokens.ruleSoft,
-      ":focus-within": tokens.accentOutline,
-    },
-    borderRadius: radius.surface,
-    backgroundColor: tokens.raised,
+    resize: "none",
   },
   // Quiet, like the agent's own controls under its prompt.
   settings: {
@@ -626,34 +657,17 @@ const styles = stylex.create({
     minWidth: 0,
     paddingInline: "2px",
   },
-  // Opens upward, over the thread.
+  // Opens upward, over the thread, as wide as the composer.
   list: {
-    position: "absolute",
-    right: 0,
-    bottom: "calc(100% + 6px)",
-    left: 0,
-    zIndex: layer.popover,
-    display: "flex",
-    flexDirection: "column",
+    width: "anchor-size(width)",
     maxHeight: "min(280px, 40vh)",
-    padding: "4px",
-    overflowY: "auto",
-    overscrollBehavior: "contain",
   },
   option: {
-    display: "flex",
     flexDirection: "column",
+    alignItems: "stretch",
     gap: "2px",
-    padding: "6px 10px",
-    borderRadius: radius.small,
-    color: tokens.ink,
+    flex: "none",
     fontFamily: tokens.fontMono,
-    fontSize: fontSize.body,
-    lineHeight: "16px",
-    cursor: "pointer",
-  },
-  optionActive: {
-    backgroundColor: tokens.accentWash,
   },
   optionLabel: {
     overflow: "hidden",
@@ -663,7 +677,7 @@ const styles = stylex.create({
   optionDetail: {
     overflow: "hidden",
     color: tokens.inkMuted,
-    fontSize: fontSize.small,
+    fontSize: fontSize.micro,
     lineHeight: "14px",
     textOverflow: "ellipsis",
     whiteSpace: "nowrap",
@@ -684,7 +698,8 @@ const styles = stylex.create({
   thumbnail: {
     width: "100%",
     height: "100%",
-    ...hairline,
+    borderWidth: "1px",
+    borderStyle: "solid",
     borderColor: tokens.ruleSoft,
     borderRadius: radius.small,
     objectFit: "cover",
@@ -693,18 +708,14 @@ const styles = stylex.create({
     position: "absolute",
     top: "-6px",
     right: "-6px",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    width: "18px",
-    height: "18px",
-    padding: 0,
-    ...hairline,
+    borderWidth: "1px",
+    borderStyle: "solid",
     borderColor: tokens.ruleSoft,
     borderRadius: radius.round,
-    backgroundColor: tokens.surfaceRaised,
-    color: tokens.inkMuted,
-    cursor: "pointer",
+    backgroundColor: {
+      default: tokens.surfaceRaised,
+      ":hover:not(:disabled)": tokens.tray,
+    },
   },
   question: {
     flex: "1 1 auto",
@@ -712,7 +723,9 @@ const styles = stylex.create({
     minHeight: "22px",
     maxHeight: "160px",
     padding: 0,
-    ...noBorder,
+    borderWidth: 0,
+    borderStyle: "none",
+    borderColor: "currentcolor",
     resize: "none",
     backgroundColor: tokens.transparent,
     color: tokens.ink,
@@ -720,7 +733,8 @@ const styles = stylex.create({
     fontSize: fontSize.reading,
     lineHeight: "22px",
     fieldSizing: "content",
-    outline: { default: null, ":focus": "none" },
+    // The composer around it shows the focus.
+    outline: "none",
     "::placeholder": {
       color: tokens.inkFaint,
     },
@@ -750,51 +764,13 @@ const styles = stylex.create({
     alignItems: "center",
     gap: "8px",
   },
-  // Pointed at, like the settings beside it.
-  attach: {
-    display: "inline-flex",
-    alignItems: "center",
-    padding: "4px 6px",
-    ...noBorder,
-    borderRadius: radius.surface,
-    backgroundColor: {
-      default: tokens.transparent,
-      ":not(:disabled):hover": tokens.tray,
-    },
-    color: { default: tokens.inkMuted, ":not(:disabled):hover": tokens.ink },
-    cursor: { default: "pointer", ":disabled": "default" },
-    opacity: { default: null, ":disabled": 0.45 },
-  },
-  send: {
-    display: "inline-flex",
-    alignItems: "center",
-    gap: "6px",
-    padding: "4px 10px",
-    ...hairline,
-    borderRadius: radius.surface,
-    fontFamily: tokens.fontMono,
-    fontSize: fontSize.small,
-    lineHeight: "14px",
-    cursor: "pointer",
-  },
   // The arrow alone, square.
-  submit: {
-    padding: "5px",
-    borderColor: tokens.accent,
-    backgroundColor: tokens.accent,
-    color: tokens.onAccent,
-    opacity: { default: null, ":disabled": 0.45 },
-    cursor: { default: "pointer", ":disabled": "default" },
+  square: {
+    width: tokens.chromeControlHeight,
+    padding: 0,
   },
   submitIcon: {
     strokeWidth: "1.4px",
-  },
-  // The mark alone, the size of the arrow it replaces.
-  stop: {
-    padding: "6px",
-    borderColor: tokens.ruleSoft,
-    backgroundColor: tokens.transparent,
-    color: tokens.ink,
   },
   // In Stop's place while the agent starts.
   connecting: {
@@ -806,7 +782,7 @@ const styles = stylex.create({
     borderTopColor: tokens.accent,
     borderRadius: radius.round,
     boxSizing: "border-box",
-    animationName: spin,
+    animationName: { default: spin, [reducedMotion]: "none" },
     animationDuration: askMotion.spin,
     animationTimingFunction: "linear",
     animationIterationCount: "infinite",

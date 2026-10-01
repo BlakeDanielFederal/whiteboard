@@ -24,12 +24,19 @@ import {
 import { z } from "zod";
 
 import { AGENT_LOGOS } from "./agent-logos";
-import { AskCheckIcon, AskChevronIcon, AskSearchIcon } from "./ask-icons";
+import { controlStyles } from "./controls-styles";
 import type { ReviewSession } from "./host/review-session";
-import { fontSize, layer, radius } from "./scale.stylex";
+import { CheckIcon, ChevronDownIcon, SearchIcon } from "./icons";
+import { fontSize } from "./scale.stylex";
 import { tokens } from "./tokens.stylex";
+import { Button } from "./ui/button";
+import { EmptyState } from "./ui/empty-state";
+import { menuStyles } from "./ui/menu";
 import { surfaceStyles } from "./ui/surface";
 import { textStyles } from "./ui/text";
+import { fieldStyles } from "./ui/text-field";
+import { useAnchoredPopover } from "./use-anchored-popover";
+import { useDismissOnOutside } from "./use-dismiss-on-outside";
 
 const agentsSchema = z.object({
   agents: z.array(
@@ -287,7 +294,8 @@ export const choiceLabels = new Map<AskChoiceKind, string>([
   ["effort", "Effort"],
 ]);
 
-/** "Answer with": the agents installed on this machine. Closes on a pointer down outside `within` or on Escape. */
+/** "Answer with": the agents installed on this machine. Opens under `within`
+ * and closes on a pointer down outside it or on Escape. */
 export function AskAgentMenu({
   agents,
   current,
@@ -303,34 +311,29 @@ export function AskAgentMenu({
   onPick: (agent: AskAgentId) => void;
   onDismiss: () => void;
 }): ReactElement {
-  const menu = useRef<HTMLDivElement>(null);
+  const menu = useAnchoredPopover(true, within);
 
-  useEffect(() => {
-    const dismiss = (event: PointerEvent) => {
-      const inside = within.current ?? menu.current;
-
-      if (!inside || !event.composedPath().includes(inside)) onDismiss();
-    };
-
-    window.addEventListener("pointerdown", dismiss, true);
-
-    return () => window.removeEventListener("pointerdown", dismiss, true);
-  }, [within, onDismiss]);
+  useDismissOnOutside(within, true, onDismiss, true);
 
   useEffect(() => {
     if (!autoFocus) return;
     menu.current
       ?.querySelector<HTMLButtonElement>('[aria-checked="true"], button')
       ?.focus();
-  }, [autoFocus]);
+  }, [autoFocus, menu]);
 
   return (
     <div
       ref={menu}
+      popover="manual"
       role="menu"
       tabIndex={-1}
       aria-label="Answer with"
-      {...stylex.props(surfaceStyles.popover, menuStyles.menu)}
+      {...stylex.props(
+        surfaceStyles.popover,
+        menuStyles.popover,
+        styles.agentMenu,
+      )}
       onKeyDown={(event) => {
         if (event.key !== "Escape") return;
         // Escape closes the menu, not the panel behind it.
@@ -354,19 +357,19 @@ export function AskAgentMenu({
             aria-checked={candidate.id === current}
             {...stylex.props(
               menuStyles.item,
-              candidate.id === current && menuStyles.itemChecked,
+              candidate.id === current && menuStyles.itemCurrent,
             )}
             onClick={() => onPick(candidate.id)}
           >
-            <span {...stylex.props(menuStyles.logo)}>
+            <span {...stylex.props(styles.logo)}>
               {logos[candidate.id]({})}
             </span>
-            <span {...stylex.props(menuStyles.name)}>{candidate.name}</span>
-            <span {...stylex.props(menuStyles.trail)}>
-              {candidate.id === current ? (
-                <AskCheckIcon xstyle={menuStyles.check} />
-              ) : null}
-            </span>
+            <span {...stylex.props(styles.name)}>{candidate.name}</span>
+            {candidate.id === current ? (
+              <CheckIcon
+                xstyle={[controlStyles.inlineIcon, menuStyles.check]}
+              />
+            ) : null}
           </button>
         ))}
     </div>
@@ -406,14 +409,13 @@ export function AskAgentPicker({
   const chosen = agents?.find((candidate) => candidate.id === agent);
 
   return (
-    <div
-      ref={anchor}
-      {...stylex.props(pickerStyles.anchor, pickerStyles.whole)}
-    >
-      <button
+    <div ref={anchor} {...stylex.props(styles.anchor, styles.whole)}>
+      {/* A native title: the tooltip explains why the button is disabled. */}
+      <Button
         ref={trigger}
-        type="button"
-        {...stylex.props(pickerStyles.picker, open && pickerStyles.open)}
+        variant="secondary"
+        size="large"
+        xstyle={[styles.trigger, locked && styles.locked]}
         aria-haspopup="menu"
         aria-expanded={open}
         disabled={!agents || locked}
@@ -422,8 +424,8 @@ export function AskAgentPicker({
       >
         {agent ? logos[agent]({}) : null}
         <span>{chosen?.name ?? "Choose an agent"}</span>
-        {locked ? null : <AskChevronIcon xstyle={pickerStyles.chevron} />}
-      </button>
+        {locked ? null : <ChevronDownIcon />}
+      </Button>
       {open && agents ? (
         <AskAgentMenu
           agents={agents}
@@ -466,28 +468,21 @@ export function AskChoicePicker({
 }): ReactElement {
   const [open, setOpen] = useState(false);
   const anchor = useRef<HTMLDivElement>(null);
-  const menu = useRef<HTMLDivElement>(null);
   const trigger = useRef<HTMLButtonElement>(null);
   const dismiss = useMenuClose(setOpen, trigger);
+  const menu = useAnchoredPopover(open, anchor);
   const chosen = select.options.find((option) => option.value === current);
+
+  useDismissOnOutside(anchor, open, dismiss, true);
 
   useEffect(() => {
     if (!open) return;
-
-    const outside = (event: PointerEvent) => {
-      if (anchor.current && !event.composedPath().includes(anchor.current))
-        dismiss();
-    };
-
-    window.addEventListener("pointerdown", outside, true);
     (
       menu.current?.querySelector<HTMLElement>("input") ??
       menu.current?.querySelector<HTMLElement>('[aria-checked="true"]') ??
       menu.current?.querySelector<HTMLElement>("button")
     )?.focus();
-
-    return () => window.removeEventListener("pointerdown", outside, true);
-  }, [open, dismiss]);
+  }, [open, menu]);
 
   const searchable = select.options.length > SEARCH_FROM;
 
@@ -498,16 +493,13 @@ export function AskChoicePicker({
   };
 
   return (
-    <div ref={anchor} {...stylex.props(pickerStyles.anchor)}>
-      <button
+    <div ref={anchor} {...stylex.props(styles.anchor)}>
+      {/* A native title: the tooltip explains why the button is disabled. */}
+      <Button
         ref={trigger}
-        type="button"
-        {...stylex.props(
-          pickerStyles.picker,
-          pickerStyles.choice,
-          quiet && pickerStyles.quiet,
-          open && (quiet ? pickerStyles.quietOpen : pickerStyles.open),
-        )}
+        variant={quiet ? "ghost" : "secondary"}
+        size={quiet ? "default" : "large"}
+        xstyle={[styles.trigger, styles.choice, quiet && styles.quiet]}
         aria-haspopup="menu"
         aria-expanded={open}
         aria-label={`${label}: ${chosen?.name ?? current}`}
@@ -518,26 +510,26 @@ export function AskChoicePicker({
         onClick={() => setOpen((value) => !value)}
       >
         {icon}
-        <span {...stylex.props(pickerStyles.choiceName)}>
+        <span {...stylex.props(styles.choiceName)}>
           {chosen?.name ?? current}
         </span>
         {/* Under the composer it reads as text; pointing at it shows it
             opens. */}
-        {quiet ? null : <AskChevronIcon xstyle={pickerStyles.chevron} />}
-      </button>
+        {quiet ? null : <ChevronDownIcon />}
+      </Button>
       {open ? (
         <div
           ref={menu}
+          popover="manual"
           role="menu"
           tabIndex={-1}
           aria-label={label}
           {...stylex.props(
             surfaceStyles.popover,
-            menuStyles.menu,
-            menuStyles.choices,
-            searchable && menuStyles.searchable,
-            quiet && menuStyles.up,
+            menuStyles.popover,
+            quiet && menuStyles.above,
             end && menuStyles.end,
+            searchable ? styles.searchMenu : styles.choiceMenu,
           )}
           onKeyDown={(event) => {
             if (event.key !== "Escape") return;
@@ -566,7 +558,6 @@ export function AskChoicePicker({
                   key={option.value}
                   option={option}
                   checked={option.value === current}
-                  highlighted={option.value === current}
                   onPick={pick}
                 />
               ))}
@@ -587,14 +578,14 @@ type AskOption = AskSelect["options"][number];
 function AskChoiceItem({
   option,
   checked,
-  highlighted,
+  highlighted = false,
   id,
   onPick,
   onPoint,
 }: {
   option: AskOption;
   checked: boolean;
-  highlighted: boolean;
+  highlighted?: boolean;
   id?: string;
   onPick: (value: string) => void;
   onPoint?: () => void;
@@ -606,21 +597,25 @@ function AskChoiceItem({
       role="menuitemradio"
       aria-checked={checked}
       data-highlighted={highlighted || undefined}
-      {...stylex.props(menuStyles.item, highlighted && menuStyles.itemChecked)}
+      {...stylex.props(
+        menuStyles.item,
+        checked && menuStyles.itemCurrent,
+        highlighted && menuStyles.itemHighlighted,
+      )}
       onPointerMove={onPoint}
       onClick={() => onPick(option.value)}
     >
-      <span {...stylex.props(menuStyles.choiceText)}>
-        <span {...stylex.props(menuStyles.name)}>{option.name}</span>
+      <span {...stylex.props(styles.choiceText)}>
+        <span>{option.name}</span>
         {option.description ? (
           <span {...stylex.props(menuStyles.description)}>
             {option.description}
           </span>
         ) : null}
       </span>
-      <span {...stylex.props(menuStyles.trail)}>
-        {checked ? <AskCheckIcon xstyle={menuStyles.check} /> : null}
-      </span>
+      {checked ? (
+        <CheckIcon xstyle={[controlStyles.inlineIcon, menuStyles.check]} />
+      ) : null}
     </button>
   );
 }
@@ -669,10 +664,12 @@ function AskChoiceSearch({
 
   return (
     <>
-      <label {...stylex.props(menuStyles.search)}>
-        <AskSearchIcon xstyle={menuStyles.searchIcon} />
+      <label
+        {...stylex.props(fieldStyles.box, fieldStyles.shell, styles.search)}
+      >
+        <SearchIcon xstyle={[controlStyles.inlineIcon, styles.searchIcon]} />
         <input
-          {...stylex.props(menuStyles.searchInput)}
+          {...stylex.props(styles.searchInput)}
           value={query}
           placeholder={`Search ${noun}s`}
           aria-label={`Search ${noun}s`}
@@ -710,15 +707,11 @@ function AskChoiceSearch({
             }
           }}
         />
-        <span {...stylex.props(menuStyles.count)}>
+        <span {...stylex.props(textStyles.count, styles.count)}>
           {query ? `${results.length} of ${options.length}` : options.length}
         </span>
       </label>
-      <div
-        ref={list}
-        id={`${ids}-results`}
-        {...stylex.props(menuStyles.results)}
-      >
+      <div ref={list} id={`${ids}-results`} {...stylex.props(styles.results)}>
         {results.length ? (
           results.map((option, index) => (
             <AskChoiceItem
@@ -732,85 +725,56 @@ function AskChoiceSearch({
             />
           ))
         ) : (
-          <p {...stylex.props(menuStyles.empty)}>
-            No {noun} matches “{query.trim()}”
-          </p>
+          <EmptyState
+            message={`No ${noun} matches “${query.trim()}”`}
+            xstyle={styles.empty}
+          />
         )}
       </div>
     </>
   );
 }
 
-const noBorder = {
-  borderWidth: 0,
-  borderStyle: "none",
-} as const;
-
-const hairline = {
-  borderWidth: "1px",
-  borderStyle: "solid",
-} as const;
-
-// "Answer with", and the model and effort menus: shared by the selection
-// toolbar and the panel's pickers.
-const menuStyles = stylex.create({
-  menu: {
-    position: "absolute",
-    top: "calc(100% + 6px)",
-    left: 0,
-    zIndex: layer.popover,
-    display: "flex",
-    flexDirection: "column",
+// "Answer with", the model and effort menus, and the pickers that open them.
+const styles = stylex.create({
+  agentMenu: {
     width: "300px",
-    // OpenCode offers every model of every provider: a long list scrolls
-    // in the menu rather than stretching the panel.
-    maxHeight: "min(420px, 60vh)",
-    padding: "4px",
-    overflowY: "auto",
-    overscrollBehavior: "contain",
-    whiteSpace: "normal",
   },
-  choices: {
+  choiceMenu: {
     width: "max-content",
     minWidth: "160px",
     maxWidth: "260px",
   },
   // A field above results that scroll beneath it, at one width so the menu
   // does not jump as they change.
-  searchable: {
+  searchMenu: {
     width: "320px",
-    minWidth: "320px",
-    maxWidth: "320px",
-    padding: 0,
     overflowY: "hidden",
   },
   search: {
     display: "flex",
     flex: "0 0 auto",
     alignItems: "center",
-    gap: "8px",
-    padding: "10px 14px",
-    borderBottomWidth: "1px",
-    borderBottomStyle: "solid",
-    borderBottomColor: tokens.rule,
+    gap: "6px",
     cursor: "text",
   },
   searchIcon: {
-    width: "12px",
-    height: "12px",
+    flex: "none",
     color: tokens.inkFaint,
   },
   searchInput: {
     flex: "1 1 auto",
+    alignSelf: "stretch",
     minWidth: 0,
     padding: 0,
-    ...noBorder,
+    borderWidth: 0,
+    borderStyle: "none",
+    borderColor: "currentcolor",
     backgroundColor: tokens.transparent,
-    color: tokens.ink,
-    fontFamily: tokens.fontMono,
-    fontSize: fontSize.body,
-    lineHeight: "16px",
-    outline: { default: null, ":focus": "none" },
+    color: "inherit",
+    font: "inherit",
+    // The field around it shows the focus.
+    outline: "none",
     "::placeholder": {
       color: tokens.inkFaint,
     },
@@ -818,63 +782,22 @@ const menuStyles = stylex.create({
   count: {
     flex: "0 0 auto",
     color: tokens.inkFaint,
-    fontFamily: tokens.fontMono,
     fontSize: fontSize.small,
-    lineHeight: "14px",
     whiteSpace: "nowrap",
   },
   results: {
     display: "flex",
     flex: "1 1 auto",
     flexDirection: "column",
+    gap: "2px",
     minHeight: 0,
-    padding: "4px",
     overflowY: "auto",
     overscrollBehavior: "contain",
   },
   empty: {
-    margin: 0,
-    padding: "12px 10px 14px",
-    color: tokens.inkMuted,
-    fontFamily: tokens.fontMono,
-    fontSize: fontSize.body,
-    lineHeight: "16px",
-  },
-  up: {
-    top: "auto",
-    bottom: "calc(100% + 6px)",
-  },
-  end: {
-    left: "auto",
-    right: 0,
-  },
-  label: {
-    padding: "8px 10px 6px",
-    fontFamily: tokens.fontMono,
-    lineHeight: "14px",
-  },
-  item: {
-    display: "flex",
-    alignItems: "center",
-    gap: "10px",
-    padding: "7px 10px",
-    ...noBorder,
-    borderRadius: radius.small,
-    backgroundColor: {
-      default: tokens.transparent,
-      ":not(:disabled):hover": tokens.accentWash,
-      ":focus-visible": tokens.accentWash,
-    },
-    color: { default: tokens.ink, ":disabled": tokens.inkFaint },
-    fontFamily: tokens.fontMono,
-    fontSize: fontSize.body,
-    lineHeight: "16px",
-    textAlign: "left",
-    cursor: { default: "pointer", ":disabled": "default" },
-    outline: { default: null, ":focus-visible": "none" },
-  },
-  itemChecked: {
-    backgroundColor: tokens.accentWash,
+    paddingBlock: "8px",
+    paddingInline: "8px",
+    fontSize: fontSize.small,
   },
   logo: {
     display: "flex",
@@ -892,94 +815,34 @@ const menuStyles = stylex.create({
     gap: "2px",
     minWidth: 0,
   },
-  description: {
-    color: tokens.inkMuted,
-    fontFamily: tokens.fontMono,
-    fontSize: fontSize.small,
-    lineHeight: "14px",
-  },
-  trail: {
-    display: "flex",
-    flex: "0 0 auto",
-    justifyContent: "flex-end",
-    minWidth: "84px",
-    color: tokens.inkMuted,
-    fontSize: fontSize.small,
-    lineHeight: "14px",
-  },
-  check: {
-    color: tokens.accent,
-  },
-});
-
-// The agent, model and effort pickers above the thread.
-const pickerStyles = stylex.create({
   anchor: {
-    position: "relative",
     minWidth: 0,
   },
   // The agent's name stays whole; its settings give way first.
   whole: {
     flexShrink: 0,
   },
-  picker: {
-    display: "inline-flex",
-    alignItems: "center",
-    gap: "8px",
+  trigger: {
     maxWidth: "100%",
-    whiteSpace: "nowrap",
-    padding: "5px 8px 5px 6px",
-    ...hairline,
-    borderColor: {
-      default: tokens.ruleSoft,
-      ":not(:disabled):hover": tokens.accentOutline,
-    },
-    borderRadius: radius.surface,
-    backgroundColor: tokens.raised,
-    color: tokens.ink,
-    fontFamily: tokens.fontMono,
-    fontSize: fontSize.body,
-    lineHeight: "16px",
-    cursor: { default: "pointer", ":disabled": "default" },
-    outline: {
-      default: null,
-      ":focus-visible": `2px solid ${tokens.accentOutline}`,
-    },
-    outlineOffset: { default: null, ":focus-visible": "1px" },
+    padding: "0 8px",
   },
-  open: {
-    borderColor: tokens.accentOutline,
+  // A conversation's agent reads as a label, not a disabled control.
+  locked: {
+    opacity: 1,
   },
   choice: {
     maxWidth: "min(150px, 100%)",
-    paddingLeft: "8px",
   },
   // Like text, until pointed at. Under the composer the row has room, so
   // it truncates only once the row is full.
   quiet: {
     maxWidth: "100%",
-    gap: "6px",
-    padding: "4px 6px",
-    borderColor: tokens.transparent,
-    backgroundColor: {
-      default: tokens.transparent,
-      ":not(:disabled):hover": tokens.tray,
-    },
-    color: { default: tokens.inkMuted, ":not(:disabled):hover": tokens.ink },
-    fontSize: fontSize.ui,
-    lineHeight: "16px",
-  },
-  quietOpen: {
-    backgroundColor: tokens.tray,
-    color: tokens.ink,
+    padding: "0 6px",
   },
   choiceName: {
     minWidth: 0,
     overflow: "hidden",
     textOverflow: "ellipsis",
     whiteSpace: "nowrap",
-  },
-  chevron: {
-    color: tokens.inkMuted,
   },
 });
