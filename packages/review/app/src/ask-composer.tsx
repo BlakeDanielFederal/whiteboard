@@ -1,6 +1,7 @@
 import {
   type AskCommand,
   type AskQuestion,
+  type AskUsage,
   askImageTypes,
 } from "@review/ask/thread-state";
 import { fuzzyRank } from "@review/fuzzy-match";
@@ -23,10 +24,11 @@ import {
 import { askMotion } from "./ask-motion.stylex";
 import { controlStyles } from "./controls-styles";
 import { ArrowUpIcon, CloseIcon, ImageIcon } from "./icons";
-import { fontSize, radius } from "./scale.stylex";
+import { fontSize, motion, radius } from "./scale.stylex";
 import { tokens } from "./tokens.stylex";
 import { Button, IconButton } from "./ui/button";
 import { menuStyles } from "./ui/menu";
+import { ProgressRing } from "./ui/progress-ring";
 import { surfaceStyles } from "./ui/surface";
 import { fieldStyles } from "./ui/text-field";
 import { useAnchoredPopover } from "./use-anchored-popover";
@@ -42,6 +44,9 @@ interface Attached {
   /** Base64, as ACP sends it. */
   data: string;
 }
+
+// The context ring appears once half the window is used.
+const CONTEXT_SHOWN_FROM = 0.5;
 
 const IMAGES_MAX = 4;
 
@@ -191,6 +196,7 @@ export function AskComposer({
   status,
   commands,
   acceptsImages,
+  usage,
   findFiles,
   permissions,
   settings,
@@ -210,6 +216,7 @@ export function AskComposer({
   status: ReactNode;
   commands: AskCommand[] | undefined;
   acceptsImages: boolean;
+  usage: AskUsage | undefined;
   findFiles: (query: string, signal: AbortSignal) => Promise<string[]>;
   /** What the agent may do, starting the row below. */
   permissions?: ReactNode;
@@ -434,6 +441,25 @@ export function AskComposer({
     void attach([...event.dataTransfer.files]);
   };
 
+  const share = usage && usage.size > 0 ? usage.used / usage.size : undefined;
+
+  const usageTooltip = useTooltip<HTMLSpanElement>(
+    share === undefined ? "" : `${Math.round(share * 100)}% context used`,
+    {
+      detail: usage
+        ? `${usage.used.toLocaleString()} of ${usage.size.toLocaleString()} tokens${
+            usage.cost
+              ? ` · ${new Intl.NumberFormat(undefined, {
+                  style: "currency",
+                  currency: usage.cost.currency,
+                  maximumFractionDigits: 2,
+                }).format(usage.cost.amount)}`
+              : ""
+          }`
+        : undefined,
+    },
+  );
+
   return (
     <div {...stylex.props(styles.dock)}>
       <form
@@ -593,6 +619,19 @@ export function AskComposer({
         ) : null}
         {permissions}
         <span {...stylex.props(styles.status)}>{note ?? status}</span>
+        {share === undefined || share < CONTEXT_SHOWN_FROM ? null : (
+          <span
+            ref={usageTooltip}
+            {...stylex.props(styles.usage)}
+            role="progressbar"
+            aria-label="Context used"
+            aria-valuenow={Math.round(share * 100)}
+            aria-valuemin={0}
+            aria-valuemax={100}
+          >
+            <ProgressRing percent={Math.round(share * 100)} size={16} />
+          </span>
+        )}
         {settings}
       </div>
     </div>
@@ -768,6 +807,10 @@ const styles = stylex.create({
   square: {
     width: tokens.chromeControlHeight,
     padding: 0,
+  },
+  usage: {
+    display: "inline-flex",
+    padding: "4px",
   },
   submitIcon: {
     strokeWidth: "1.4px",

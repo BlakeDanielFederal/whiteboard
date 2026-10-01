@@ -647,6 +647,7 @@ export function AskPanelContent({
         permissions={permissions}
         settings={settings}
         onAsk={ask}
+        usage={thread?.usage}
       />
     </div>
   );

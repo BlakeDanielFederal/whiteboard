@@ -51,6 +51,7 @@ import {
 } from "./side-panel-resizer";
 import { withClass } from "./stylex-props";
 import { tokens } from "./tokens.stylex";
+import { ProgressRing } from "./ui/progress-ring";
 import { useTooltip } from "./use-tooltip";
 import { ViewedButton } from "./viewed-button";
 
@@ -663,17 +664,7 @@ function ViewedRing({
       aria-valuemax={100}
       title={title}
     >
-      <svg width="18" height="18" viewBox="0 0 20 20">
-        <circle {...stylex.props(styles.ringTrack)} cx="10" cy="10" r="7" />
-        <circle
-          {...stylex.props(styles.ringTrack, styles.ringValue)}
-          cx="10"
-          cy="10"
-          r="7"
-          pathLength="100"
-          strokeDasharray={`${percent} 100`}
-        />
-      </svg>
+      <ProgressRing percent={percent} size={18} />
       {percent}%
     </span>
   );
@@ -1016,17 +1007,6 @@ const styles = stylex.create({
     alignItems: "center",
     gap: "5px",
     fontVariantNumeric: "tabular-nums",
-  },
-  ringTrack: {
-    fill: "none",
-    stroke: tokens.well,
-    strokeWidth: "2.5",
-  },
-  ringValue: {
-    transform: "rotate(-90deg)",
-    transformOrigin: "10px 10px",
-    stroke: tokens.accent,
-    strokeLinecap: "round",
   },
   cabinets: {
     display: "flex",
