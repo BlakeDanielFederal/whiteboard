@@ -59,7 +59,6 @@ import type { StyleArg } from "./stylex-props";
 import { tokens } from "./tokens.stylex";
 import { IconButton } from "./ui/button";
 import { Chip } from "./ui/chip";
-import { EmptyState } from "./ui/empty-state";
 import { surfaceStyles } from "./ui/surface";
 import { useFollowLatest } from "./use-follow-latest";
 import { useTooltip } from "./use-tooltip";
@@ -453,32 +452,8 @@ export function AskPanelContent({
     presence.tone,
   ]);
 
-  if (loadingConversation) {
-    return (
-      <div {...stylex.props(askPanelStyles.body)} aria-busy="true">
-        <div {...stylex.props(askPanelStyles.page)} role="status">
-          <EmptyState
-            xstyle={styles.loading}
-            message={`Loading the conversation from ${agentName}…`}
-            action={
-              <>
-                <span
-                  {...stylex.props(styles.loadingLine, askPanelStyles.sweep)}
-                />
-                <span
-                  {...stylex.props(
-                    styles.loadingLine,
-                    askPanelStyles.sweep,
-                    styles.loadingLineShort,
-                  )}
-                />
-              </>
-            }
-          />
-        </div>
-      </div>
-    );
-  }
+  if (loadingConversation)
+    return <div {...stylex.props(askPanelStyles.body)} aria-busy="true" />;
 
   // Until the agent says, what its kind of agent does: a starting thread
   // has not yet been put in its read-only mode.
@@ -875,19 +850,6 @@ const styles = stylex.create({
   userBubble: {
     padding: "10px 14px",
     backgroundColor: tokens.trayRaised,
-  },
-  loading: {
-    gap: "10px",
-    paddingBlock: "4px",
-  },
-  loadingLine: {
-    height: "12px",
-    borderRadius: radius.small,
-    backgroundImage: `linear-gradient(90deg, color-mix(in srgb, ${tokens.ink} 5%, transparent) 0%, color-mix(in srgb, ${tokens.ink} 10%, transparent) 50%, color-mix(in srgb, ${tokens.ink} 5%, transparent) 100%)`,
-    backgroundSize: "200% 100%",
-  },
-  loadingLineShort: {
-    width: "62%",
   },
   attachments: {
     display: "flex",
