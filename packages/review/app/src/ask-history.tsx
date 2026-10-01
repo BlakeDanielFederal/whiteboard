@@ -25,6 +25,10 @@ export interface AskHistory {
   refresh: () => void;
   /** Whether it was deleted; a failure lands in `error`. */
   forget: (id: string) => Promise<boolean>;
+  previewId: string | null;
+  preview: (id: string | null) => void;
+  revealRequest: AskHistoryEntry | null;
+  reveal: (entry: AskHistoryEntry) => void;
   /** Conversations whose passage changed in the version on screen: its
    * block is gone, or an edit touched its words. */
   outdated: ReadonlySet<string>;
@@ -45,6 +49,17 @@ export function AskHistoryProvider({
 }): ReactElement {
   const session = useReviewSession();
   const [entries, setEntries] = useState<AskHistoryEntry[] | null>(null);
+  const [previewId, preview] = useState<string | null>(null);
+
+  const [revealRequest, setRevealRequest] = useState<AskHistoryEntry | null>(
+    null,
+  );
+
+  const reveal = useCallback(
+    (entry: AskHistoryEntry) => setRevealRequest({ ...entry }),
+    [],
+  );
+
   const [error, setError] = useState<string | null>(null);
 
   const [outdated, setOutdated] = useState<ReadonlySet<string>>(
@@ -106,8 +121,29 @@ export function AskHistoryProvider({
   );
 
   const value = useMemo(
-    () => ({ entries, error, refresh, forget, outdated, reportOutdated }),
-    [entries, error, refresh, forget, outdated, reportOutdated],
+    () => ({
+      entries,
+      error,
+      refresh,
+      forget,
+      outdated,
+      reportOutdated,
+      previewId,
+      preview,
+      revealRequest,
+      reveal,
+    }),
+    [
+      entries,
+      error,
+      refresh,
+      forget,
+      outdated,
+      reportOutdated,
+      previewId,
+      revealRequest,
+      reveal,
+    ],
   );
 
   return (

@@ -215,10 +215,14 @@ export class AskHistory {
           sessionId: _sessionId,
           version: _version,
           cwd: _cwd,
-          entries: _entries,
+          entries,
           bypass: _bypass,
           ...entry
         } = rowSchema.parse(row);
+
+        const question = entries?.find((entry) => entry.kind === "user")?.text;
+
+        if (question?.trim()) entry.question = question;
 
         return entry;
       });

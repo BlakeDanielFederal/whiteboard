@@ -338,6 +338,8 @@ export const askHistoryEntrySchema = z.object({
   agent: z.enum(askAgentIds),
   /** What the agent calls it, else the first question. */
   title: z.string(),
+  /** The first saved user question, independent of the agent's title. */
+  question: z.string().optional(),
   selection: AgentSelectionSchema,
   /** The commit the agent read. */
   head: z.string(),

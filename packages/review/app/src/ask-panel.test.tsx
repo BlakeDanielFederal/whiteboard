@@ -1143,12 +1143,28 @@ it("stops a conversation while it reopens, and takes no answer to a permission o
         </ReviewSessionProvider>,
       ),
     );
+    expect(container.querySelector('[aria-busy="true"]')).not.toBeNull();
+    expect(container.querySelector("blockquote")).toBeNull();
+    expect(container.querySelector("textarea")).toBeNull();
     await act(async () =>
       push({
         seq: 0,
+        snapshot: state({ id: "saved", status: "starting", entries: [] }),
+      }),
+    );
+    expect(container.querySelector("blockquote")).toBeNull();
+    expect(container.querySelector("textarea")).toBeNull();
+    await act(async () =>
+      push({
+        seq: 1,
         snapshot: state({ id: "saved", status: "starting", entries: saved }),
       }),
     );
+    expect(container.querySelector('[aria-busy="true"]')).toBeNull();
+    expect(container.querySelector("blockquote")).not.toBeNull();
+    expect(container.querySelector("textarea")).not.toBeNull();
+    expect(container.textContent).toContain("Is this safe?");
+    expect(container.textContent).toContain("It is.");
 
     // Loading the conversation shows it connecting, and can be stopped.
     await act(async () => buttonNamed(container, "Stop connecting")!.click());
@@ -1158,7 +1174,7 @@ it("stops a conversation while it reopens, and takes no answer to a permission o
 
     await act(async () =>
       push({
-        seq: 1,
+        seq: 2,
         snapshot: state({
           id: "saved",
           status: "failed",
