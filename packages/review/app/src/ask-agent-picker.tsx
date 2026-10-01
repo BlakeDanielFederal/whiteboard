@@ -235,12 +235,10 @@ export const permissionsSelect = (bypass: boolean): AskSelect => ({
     {
       value: "ask",
       name: "Read-only",
-      description: "Cannot change the checkout; asks before running commands.",
     },
     {
       value: "bypass",
       name: "Bypass permissions",
-      description: "Edits the checkout and runs commands without asking.",
     },
   ],
 });
@@ -605,14 +603,7 @@ function AskChoiceItem({
       onPointerMove={onPoint}
       onClick={() => onPick(option.value)}
     >
-      <span {...stylex.props(styles.choiceText)}>
-        <span>{option.name}</span>
-        {option.description ? (
-          <span {...stylex.props(menuStyles.description)}>
-            {option.description}
-          </span>
-        ) : null}
-      </span>
+      <span {...stylex.props(styles.name)}>{option.name}</span>
       {checked ? (
         <CheckIcon xstyle={[controlStyles.inlineIcon, menuStyles.check]} />
       ) : null}
@@ -742,13 +733,13 @@ const styles = stylex.create({
   },
   choiceMenu: {
     width: "max-content",
-    minWidth: "160px",
+    minWidth: "120px",
     maxWidth: "260px",
   },
   // A field above results that scroll beneath it, at one width so the menu
   // does not jump as they change.
   searchMenu: {
-    width: "320px",
+    width: "240px",
     overflowY: "hidden",
   },
   search: {
@@ -806,13 +797,6 @@ const styles = stylex.create({
   },
   name: {
     flex: "1 1 0",
-    minWidth: 0,
-  },
-  choiceText: {
-    display: "flex",
-    flex: "1 1 auto",
-    flexDirection: "column",
-    gap: "2px",
     minWidth: 0,
   },
   anchor: {

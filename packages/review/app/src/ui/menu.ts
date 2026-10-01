@@ -72,12 +72,6 @@ export const menuStyles = stylex.create({
   itemCurrent: {
     fontWeight: fontWeight.semibold,
   },
-  description: {
-    color: tokens.inkMuted,
-    fontWeight: fontWeight.regular,
-    fontSize: fontSize.micro,
-    lineHeight: "14px",
-  },
   check: {
     flex: "none",
     marginLeft: "auto",
