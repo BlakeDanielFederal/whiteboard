@@ -6,7 +6,7 @@
 import { localize, localize2 } from '../../../nls.js';
 import { Codicon } from '../../../base/common/codicons.js';
 import { getErrorMessage } from '../../../base/common/errors.js';
-import { DisposableStore } from '../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, DisposableStore } from '../../../base/common/lifecycle.js';
 import { isLinux, isMacintosh, isWindows } from '../../../base/common/platform.js';
 import { ThemeIcon } from '../../../base/common/themables.js';
 import { URI } from '../../../base/common/uri.js';
@@ -25,11 +25,13 @@ import { areSameExtensions } from '../../../platform/extensionManagement/common/
 import type { ServicesAccessor } from '../../../platform/instantiation/common/instantiation.js';
 import { IMainProcessService } from '../../../platform/ipc/common/mainProcessService.js';
 import { ILogService } from '../../../platform/log/common/log.js';
-import { INotificationService } from '../../../platform/notification/common/notification.js';
-import { IProgressService, ProgressLocation } from '../../../platform/progress/common/progress.js';
+import { INotificationService, Severity } from '../../../platform/notification/common/notification.js';
+import { IProgressService, ProgressLocation, type IProgress, type IProgressStep } from '../../../platform/progress/common/progress.js';
 import { IQuickInputService, type IQuickPickItem } from '../../../platform/quickinput/common/quickInput.js';
 import { Registry } from '../../../platform/registry/common/platform.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../platform/storage/common/storage.js';
+import { ICodeEditorService } from '../../../editor/browser/services/codeEditorService.js';
+import type { ICodeEditor } from '../../../editor/browser/editorBrowser.js';
 import { LifecyclePhase } from '../../../workbench/services/lifecycle/common/lifecycle.js';
 import {
 	Extensions as WorkbenchExtensions,
@@ -46,27 +48,19 @@ import {
 	installMissingOptionalExtensions,
 	OptionalExtensionInstallError,
 	optionalGroupMemberIds,
-	upgradeOptionalExtensionPins
+	upgradeOptionalExtensionPins,
+	type OptionalExtensionInstallTrigger,
+	type OptionalExtensionInstallPhase
 } from './reviewOptionalExtensionManagement.js';
 
-/**
- * The curated bundled extensions Review materializes, mirroring
- * apps/review-desktop/scripts/curated-extensions.manifest.mjs. A test in
- * curated-extensions.test.mjs keeps the two lists in step.
- *
- * Only bundled extensions that are installed show up as individual rows.
- * Optional groups always show so the user can consent to their download.
- */
 const BUNDLED_EXTENSIONS: readonly { id: string; label: string }[] = [
-	{ id: 'ms-python.python', label: localize('review.curated.python', "Python") },
-	{ id: 'astral-sh.ty', label: localize('review.curated.ty', "Python type checking (ty)") },
-	{ id: 'charliermarsh.ruff', label: localize('review.curated.ruff', "Python lint and format (ruff)") },
 	{ id: 'vscodevim.vim', label: localize('review.curated.vim', "Vim keybindings") },
 	{ id: 'tuttieee.emacs-mcx', label: localize('review.curated.emacs', "Emacs keybindings") },
 	{ id: 'ms-vscode.sublime-keybindings', label: localize('review.curated.sublime', "Sublime Text keybindings") }
 ];
 
 const OPTIONAL_GROUPS: readonly { group: string; label: string; detail?: string }[] = [
+	{ group: 'python', label: localize('review.curated.python', "Python (ty and Ruff)") },
 	{ group: 'rust', label: localize('review.curated.rust', "Rust (rust-analyzer)") },
 	{ group: 'swift', label: localize('review.curated.swift', "Swift") },
 	{
@@ -211,8 +205,12 @@ function findInstalled(installed: readonly ILocalExtension[], id: string): ILoca
 	return installed.find(extension => areSameExtensions(extension.identifier, { id }));
 }
 
+function currentTarget(): string | undefined {
+	return isMacintosh ? `darwin-${process.arch}` : isLinux ? `linux-${process.arch}` : isWindows ? `win32-${process.arch}` : undefined;
+}
+
 function optionalDownloadSize(group: string, installed: readonly ILocalExtension[]): number {
-	const target = isMacintosh ? (process.arch === 'x64' ? 'darwin-x64' : 'darwin-arm64') : isLinux ? 'linux-x64' : isWindows ? 'win32-x64' : undefined;
+	const target = currentTarget();
 	return reviewOptionalExtensionCatalog
 		.filter(extension => extension.group === group && !findInstalled(installed, extension.id))
 		.reduce((total, extension) => {
@@ -246,6 +244,66 @@ async function stageRustAnalyzer(
 	} catch (error) {
 		logService.error(`[Whiteboard extensions] Could not stage rust-analyzer: ${getErrorMessage(error)}`);
 	}
+}
+
+function optionalInstallCallbacks(
+	extensionManagementService: IExtensionManagementService,
+	reviewTelemetryService: IReviewTelemetryService,
+	progress?: IProgress<IProgressStep>
+) {
+	return {
+		download: async (extensionId: string) => {
+			progress?.report({
+				message: localize(
+					'review.curated.downloadingExtension',
+					"Downloading {0}...",
+					optionalExtensionLabel(extensionId)
+				)
+			});
+			return ipcRenderer.invoke(
+				'vscode:reviewDownloadOptionalExtension',
+				extensionId
+			) as Promise<string>;
+		},
+		install: async (extensionId: string, vsixPath: string) => {
+			progress?.report({
+				message: localize(
+					'review.curated.installingExtension',
+					"Installing {0}...",
+					optionalExtensionLabel(extensionId)
+				)
+			});
+			return extensionManagementService.install(URI.file(vsixPath), {
+				donotIncludePackAndDependencies: true,
+				installGivenVersion: true,
+				pinned: true
+			});
+		},
+		rollback: (extension: ILocalExtension) => extensionManagementService.uninstall(extension, {
+			donotIncludePack: true,
+			donotCheckDependents: true
+		}),
+		onInstalled: (extensionId: string, trigger: OptionalExtensionInstallTrigger, durationMs: number) => {
+			reviewTelemetryService.capture('extension_installed', {
+				extension_id: extensionId,
+				trigger,
+				duration_ms: durationMs
+			});
+		},
+		onInstallFailed: (extensionId: string, trigger: OptionalExtensionInstallTrigger, phase: OptionalExtensionInstallPhase) => {
+			reviewTelemetryService.capture('extension_install_failed', {
+				extension_id: extensionId,
+				trigger,
+				phase
+			});
+		},
+		onRolledBack: (extensionId: string) => {
+			reviewTelemetryService.capture('extension_uninstalled', {
+				extension_id: extensionId,
+				trigger: 'rollback'
+			});
+		}
+	};
 }
 
 class ManageCuratedExtensionsAction extends Action2 {
@@ -420,57 +478,7 @@ class ManageCuratedExtensionsAction extends Action2 {
 			}, progress => installMissingOptionalExtensions({
 				groups: selectedOptionalGroups,
 				installedIds: installedBefore,
-				download: async extensionId => {
-					progress.report({
-						message: localize(
-							'review.curated.downloadingExtension',
-							"Downloading {0}...",
-							optionalExtensionLabel(extensionId)
-						)
-					});
-					return ipcRenderer.invoke(
-						'vscode:reviewDownloadOptionalExtension',
-						extensionId
-					) as Promise<string>;
-				},
-				install: async (extensionId, vsixPath) => {
-					progress.report({
-						message: localize(
-							'review.curated.installingExtension',
-							"Installing {0}...",
-							optionalExtensionLabel(extensionId)
-						)
-					});
-					return extensionManagementService.install(URI.file(vsixPath), {
-						donotIncludePackAndDependencies: true,
-						installGivenVersion: true,
-						pinned: true
-					});
-				},
-				rollback: extension => extensionManagementService.uninstall(extension, {
-					donotIncludePack: true,
-					donotCheckDependents: true
-				}),
-				onInstalled: (extensionId, trigger, durationMs) => {
-					reviewTelemetryService.capture('extension_installed', {
-						extension_id: extensionId,
-						trigger,
-						duration_ms: durationMs
-					});
-				},
-				onInstallFailed: (extensionId, trigger, phase) => {
-					reviewTelemetryService.capture('extension_install_failed', {
-						extension_id: extensionId,
-						trigger,
-						phase
-					});
-				},
-				onRolledBack: extensionId => {
-					reviewTelemetryService.capture('extension_uninstalled', {
-						extension_id: extensionId,
-						trigger: 'rollback'
-					});
-				}
+				...optionalInstallCallbacks(extensionManagementService, reviewTelemetryService, progress)
 			}, 'user'));
 		} catch (error) {
 			if (error instanceof OptionalExtensionInstallError) {
@@ -691,40 +699,19 @@ class OptionalExtensionPinUpgrades implements IWorkbenchContribution {
 
 	private async run(): Promise<void> {
 		const installed = await this.extensionManagementService.getInstalled(ExtensionType.User);
+		const callbacks = optionalInstallCallbacks(this.extensionManagementService, this.reviewTelemetryService);
 		await upgradeOptionalExtensionPins({
 			installed: installed.map(extension => ({
 				id: extension.identifier.id,
 				version: extension.manifest.version
 			})),
-			download: extensionId => ipcRenderer.invoke(
-				'vscode:reviewDownloadOptionalExtension',
-				extensionId
-			) as Promise<string>,
-			install: async (_extensionId, vsixPath) => {
-				await this.extensionManagementService.install(URI.file(vsixPath), {
-					donotIncludePackAndDependencies: true,
-					installGivenVersion: true,
-					pinned: true
-				});
-			},
+			...callbacks,
+			install: async (extensionId, vsixPath) => { await callbacks.install(extensionId, vsixPath); },
 			stageRustAnalyzer: () => stageRustAnalyzer(this.mainProcessService, this.logService),
 			logError: (message, error) => {
 				this.logService.error(`[Whiteboard extensions] ${message}: ${getErrorMessage(error)}`);
 			},
-			onInstalled: (extensionId, trigger, durationMs) => {
-				this.reviewTelemetryService.capture('extension_installed', {
-					extension_id: extensionId,
-					trigger,
-					duration_ms: durationMs
-				});
-			},
-			onInstallFailed: (extensionId, trigger, phase) => {
-				this.reviewTelemetryService.capture('extension_install_failed', {
-					extension_id: extensionId,
-					trigger,
-					phase
-				});
-			}
+
 		}, 'auto_upgrade');
 	}
 }
@@ -737,3 +724,88 @@ Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).regi
 	OptionalExtensionPinUpgrades,
 	LifecyclePhase.Eventually
 );
+
+const OPTIONAL_LANGUAGE_IDS = new Set(['python', 'rust', 'go', 'swift', 'csharp']);
+
+class ContextualLanguageSupport extends Disposable implements IWorkbenchContribution {
+	private readonly offered = new Set<string>();
+	private readonly editorListeners = this._register(new DisposableMap<ICodeEditor, DisposableStore>());
+	private readonly installing = new Map<string, Promise<void>>();
+	constructor(
+		@ICodeEditorService private readonly editors: ICodeEditorService,
+		@IExtensionManagementService private readonly extensions: IExtensionManagementService,
+		@IGlobalExtensionEnablementService private readonly enablement: IGlobalExtensionEnablementService,
+		@INotificationService private readonly notifications: INotificationService,
+		@IProgressService private readonly progress: IProgressService,
+		@IDialogService private readonly dialogs: IDialogService,
+		@ICommandService private readonly commands: ICommandService,
+		@IMainProcessService private readonly main: IMainProcessService,
+		@ILogService private readonly log: ILogService,
+		@IReviewTelemetryService private readonly telemetry: IReviewTelemetryService,
+	) {
+		super();
+		this._register(editors.onCodeEditorAdd(editor => this.watchEditor(editor)));
+		this._register(editors.onCodeEditorRemove(editor => { this.editorListeners.deleteAndDispose(editor); }));
+		for (const editor of editors.listCodeEditors()) this.watchEditor(editor);
+		void this.check().catch(error => this.log.error(error));
+	}
+
+	private watchEditor(editor: ICodeEditor): void {
+		const store = new DisposableStore();
+		this.editorListeners.set(editor, store);
+		const check = () => void this.check().catch(error => this.log.error(error));
+		store.add(editor.onDidFocusEditorText(check));
+		store.add(editor.onDidChangeModel(check));
+		store.add(editor.onDidChangeModelLanguage(check));
+	}
+
+	private async check(): Promise<void> {
+		const editor = this.editors.getFocusedCodeEditor();
+		const language = editor?.getModel()?.getLanguageId();
+		const group = language && OPTIONAL_LANGUAGE_IDS.has(language) ? language : undefined;
+		if (!group || this.offered.has(group)) return;
+		const installed = await this.extensions.getInstalled();
+		if (editor !== this.editors.getFocusedCodeEditor()) return;
+		if (this.offered.has(group)) return;
+		const members = optionalGroupMemberIds(group);
+		const absent = members.some(id => !findInstalled(installed, id));
+		const disabled = this.enablement.getDisabledExtensions();
+		if (!absent && members.every(id => !isDisabled(disabled, id))) return;
+		const target = currentTarget();
+		if (reviewOptionalExtensionCatalog.filter(e => e.group === group).some(e => !(('universal' in e.targets) || (target && target in e.targets)))) return;
+		this.offered.add(group);
+		const option = OPTIONAL_GROUPS.find(candidate => candidate.group === group);
+		if (!option) return;
+		const { label, detail = '' } = option;
+		this.notifications.prompt(Severity.Info,
+			absent ? localize('review.language.installOffer', "Add {0} language support ({1})? Files remain readable without it. {2}", label, formatDownloadSize(optionalDownloadSize(group, installed)), detail)
+				: localize('review.language.enableOffer', "Enable {0} language support?", label),
+			[{ label: absent ? localize('review.language.install', "Install support") : localize('review.language.enable', "Enable support"), run: () => this.install(group) }]);
+	}
+
+	private install(group: string): Promise<void> {
+		const current = this.installing.get(group);
+		if (current) return current;
+		const task = this.apply(group).catch(error => {
+			this.notifications.prompt(Severity.Error, localize('review.language.failed', "Could not add language support: {0}", getErrorMessage(error)),
+				[{ label: localize('review.language.retry', "Retry"), run: () => this.install(group) }]);
+		}).finally(() => this.installing.delete(group));
+		this.installing.set(group, task);
+		return task;
+	}
+
+	private async apply(group: string): Promise<void> {
+		const installed = await this.extensions.getInstalled();
+		await this.progress.withProgress({ location: ProgressLocation.Notification, title: localize('review.language.installing', "Adding language support..."), delay: 0 }, () => installMissingOptionalExtensions({
+			groups: [group], installedIds: new Set(installed.map(e => e.identifier.id.toLowerCase())),
+			...optionalInstallCallbacks(this.extensions, this.telemetry),
+		}));
+		for (const id of optionalGroupMemberIds(group)) await this.enablement.enableExtension({ id });
+		if (group === 'rust') await stageRustAnalyzer(this.main, this.log);
+		const reload = await this.dialogs.confirm({ type: 'info', message: localize('review.language.reload', "Language support is ready. Reload Whiteboard to activate it?"), primaryButton: localize('review.language.reloadNow', "Reload"), cancelButton: localize('review.language.later', "Later") });
+		if (reload.confirmed) await this.commands.executeCommand('workbench.action.reloadWindow');
+	}
+}
+
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(ContextualLanguageSupport, LifecyclePhase.Restored);
+

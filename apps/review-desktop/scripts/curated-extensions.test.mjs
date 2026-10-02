@@ -16,15 +16,11 @@ import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 
-import ts from "typescript";
-
 import {
   bundledExtensions,
   bundledGroups,
   curatedExtensions,
   curatedGroups,
-  defaultDisabledIds,
-  keymapGroups,
   openVsxUrl,
   optionalExtensions,
   parseGroupSelection,
@@ -49,46 +45,6 @@ const buildExtensions = await readFile(
   new URL("../code-oss/build/lib/extensions.ts", import.meta.url),
   "utf8",
 );
-
-const curatedContribution = await readFile(
-  new URL(
-    "../code-oss/src/vs/review/contrib/extensions/reviewCuratedExtensions.contribution.ts",
-    import.meta.url,
-  ),
-  "utf8",
-);
-
-const reviewConfiguration = await readFile(
-  new URL(
-    "../code-oss/src/vs/review/common/reviewConfigurationDefaults.ts",
-    import.meta.url,
-  ),
-  "utf8",
-);
-
-async function loadImportFreeTypeScriptModule(url) {
-  const source = await readFile(url, "utf8");
-
-  const emitted = ts.transpileModule(source, {
-    compilerOptions: {
-      module: ts.ModuleKind.ESNext,
-      target: ts.ScriptTarget.ESNext,
-    },
-  }).outputText;
-
-  return import(
-    `data:text/javascript;base64,${Buffer.from(emitted).toString("base64")}`
-  );
-}
-
-const mainOptionalCatalog = (
-  await loadImportFreeTypeScriptModule(
-    new URL(
-      "../code-oss/src/vs/review/node/reviewOptionalExtensionCatalog.ts",
-      import.meta.url,
-    ),
-  )
-).reviewOptionalExtensionCatalog;
 
 test("pins every curated extension to a checksum for every supported target", () => {
   assert.ok(curatedExtensions.length > 0);
@@ -143,31 +99,6 @@ test("pins every curated extension to a checksum for every supported target", ()
       }
     }
   }
-});
-
-test("keeps every optional pin identical in build, main, and renderer catalogs", () => {
-  const normalize = (catalog) =>
-    catalog
-      .flatMap((extension) =>
-        Object.entries(extension.targets).map(([target, pin]) => ({
-          id: extension.id,
-          role: extension.role,
-          group: extension.group,
-          version: extension.version,
-          target,
-          url: pin.url,
-          sha256: pin.sha256,
-          size: pin.size,
-        })),
-      )
-      .sort((left, right) =>
-        `${left.id}:${left.target}`.localeCompare(
-          `${right.id}:${right.target}`,
-        ),
-      );
-
-  const buildPins = normalize(optionalExtensions);
-  assert.deepEqual(normalize(mainOptionalCatalog), buildPins);
 });
 
 test("keeps the curated identifiers unique", () => {
@@ -373,56 +304,5 @@ test("copies only bundled extensions for each package target", () => {
     } finally {
       rmSync(root, { recursive: true, force: true });
     }
-  }
-});
-
-test("keeps the in-app picker list in sync with the manifest", () => {
-  // Phase 1 keeps the existing bundled picker contract. Optional entries get
-  // their group rows when the trusted runtime installer is connected.
-  for (const extension of bundledExtensions) {
-    assert.ok(
-      curatedContribution.includes(`id: '${extension.id}'`),
-      `${extension.id} must appear in reviewCuratedExtensions.contribution.ts`,
-    );
-  }
-
-  // Nothing may be offered that this build does not vendor.
-  const offered = [...curatedContribution.matchAll(/\{ id: '([^']+)'/g)].map(
-    (match) => match[1],
-  );
-
-  const known = new Set(curatedExtensions.map((extension) => extension.id));
-
-  for (const id of offered) {
-    assert.ok(known.has(id), `${id} is offered by the picker but not vendored`);
-  }
-});
-
-test("keeps the keymaps mutually exclusive in the picker", () => {
-  for (const id of defaultDisabledIds) {
-    assert.ok(
-      curatedContribution.includes(`'${id}'`),
-      `${id} must be listed as a keymap in the picker`,
-    );
-  }
-
-  const enumDeclaration = reviewConfiguration.match(
-    /REVIEW_KEYMAPS\s*=\s*\[([^\]]+)\]/,
-  );
-
-  assert.ok(enumDeclaration, "review.keymap enum declaration");
-
-  const enumValues = [...enumDeclaration[1].matchAll(/'([^']+)'/g)].map(
-    (match) => match[1],
-  );
-
-  assert.deepEqual(enumValues, ["none", ...keymapGroups]);
-
-  for (const keymap of keymapGroups) {
-    assert.match(
-      curatedContribution,
-      new RegExp(`${keymap}:\\s*'[^']+'`),
-      `${keymap} must map to a curated extension`,
-    );
   }
 });

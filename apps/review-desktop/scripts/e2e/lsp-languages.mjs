@@ -69,7 +69,8 @@ export const LANGUAGES = {
     hoverText: /saveOrder\(order: OrderRecord\)/,
   },
   python: {
-    extensions: "python",
+    extensions: "none",
+    contextualInstall: true,
     peekFile: "orders.py",
     symbol: "save_order",
     definitionFile: "storage.py",
@@ -345,6 +346,49 @@ export async function runLspJourney(ctx, id) {
       },
     ],
   });
+
+  if (language.contextualInstall) {
+    const editor = review.canvas
+      .locator(`[data-review-inline-editor="${language.peekFile}"]`)
+      .first();
+
+    await editor.locator(".view-line").first().waitFor();
+    await editor
+      .locator(".view-line span", { hasText: language.symbol })
+      .last()
+      .click({ position: { x: 4, y: 8 } });
+
+    const offer = ctx.page
+      .locator(".notification-list-item")
+      .filter({ hasText: "Add Python" });
+
+    await offer.waitFor({ timeout: 30000 });
+    await ctx.page.screenshot({
+      path: path.join(ctx.root, "python-install-offer.png"),
+    });
+    assert.equal(await offer.count(), 1);
+    await offer
+      .getByRole("button", { name: "Install support", exact: true })
+      .click();
+
+    const reload = ctx.page.getByRole("button", {
+      name: "Reload",
+      exact: true,
+    });
+
+    await reload.waitFor({ timeout: 120000 });
+    await ctx.page.screenshot({
+      path: path.join(ctx.root, "python-install-ready.png"),
+    });
+    await reload.click();
+    await review.canvas
+      .locator(`[data-review-inline-editor="${language.peekFile}"] .view-line`)
+      .first()
+      .waitFor({ timeout: 60000 });
+    ctx.check(
+      "python: contextual install CTA downloads support and reload retains the open review",
+    );
+  }
 
   try {
     await hoverAndJump(ctx, id, language, review.canvas, lines, callLine);

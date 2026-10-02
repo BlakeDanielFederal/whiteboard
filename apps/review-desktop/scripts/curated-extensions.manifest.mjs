@@ -217,10 +217,10 @@ export const curatedExtensions = Object.freeze([
     stripExtensionPack: false,
   },
   {
-    // ty and ruff both declare `extensionDependencies: ["ms-python.python"]`,
-    // so the Python extension has to ship alongside them or neither activates.
+    // ty and Ruff require the Python extension for activation.
     id: "ms-python.python",
-    tier: "bundled",
+    tier: "optional",
+    role: "support",
     namespace: "ms-python",
     name: "python",
     version: "2026.4.0",
@@ -228,8 +228,10 @@ export const curatedExtensions = Object.freeze([
     label: "Python",
     targets: {
       universal: {
+        url: "https://open-vsx.org/api/ms-python/python/2026.4.0/file/ms-python.python-2026.4.0.vsix",
         sha256:
           "232aeafb01f069824fdd92d3e628c1c442bbcfa1d3cc945ff97076340bb2b4a6",
+        size: 6826731,
       },
     },
     executables: [],
@@ -242,7 +244,8 @@ export const curatedExtensions = Object.freeze([
   },
   {
     id: "astral-sh.ty",
-    tier: "bundled",
+    tier: "optional",
+    role: "primary",
     namespace: "astral-sh",
     name: "ty",
     version: "2026.64.0",
@@ -256,16 +259,22 @@ export const curatedExtensions = Object.freeze([
         size: 12920723,
       },
       "darwin-arm64": {
+        url: "https://open-vsx.org/api/astral-sh/ty/darwin-arm64/2026.64.0/file/astral-sh.ty-2026.64.0@darwin-arm64.vsix",
         sha256:
           "3ac92b3f4b7ac848ea9a125a787a0b181879835d54b2e136e760161df414b08a",
+        size: 11769087,
       },
       "darwin-x64": {
+        url: "https://open-vsx.org/api/astral-sh/ty/darwin-x64/2026.64.0/file/astral-sh.ty-2026.64.0@darwin-x64.vsix",
         sha256:
           "27d57df17fc3670b8c818b246f08cbb150ceaa2005273a06b23bc4b6241e66c1",
+        size: 12201186,
       },
       "linux-x64": {
+        url: "https://open-vsx.org/api/astral-sh/ty/linux-x64/2026.64.0/file/astral-sh.ty-2026.64.0@linux-x64.vsix",
         sha256:
           "d64fc3104f07c4d47c3122a0fa9f2da3e593937c8b506b5f952b4283d877d212",
+        size: 12848973,
       },
     },
     executables: ["bundled/libs/bin/ty"],
@@ -273,7 +282,8 @@ export const curatedExtensions = Object.freeze([
   },
   {
     id: "charliermarsh.ruff",
-    tier: "bundled",
+    tier: "optional",
+    role: "support",
     namespace: "charliermarsh",
     name: "ruff",
     version: "2026.66.0",
@@ -287,16 +297,22 @@ export const curatedExtensions = Object.freeze([
         size: 12802660,
       },
       "darwin-arm64": {
+        url: "https://open-vsx.org/api/charliermarsh/ruff/darwin-arm64/2026.66.0/file/charliermarsh.ruff-2026.66.0@darwin-arm64.vsix",
         sha256:
           "652cf695fbe11c4bcae85432b3baf70f8bc2520dc13bbc5dd95b3600c8b1f227",
+        size: 11360065,
       },
       "darwin-x64": {
+        url: "https://open-vsx.org/api/charliermarsh/ruff/darwin-x64/2026.66.0/file/charliermarsh.ruff-2026.66.0@darwin-x64.vsix",
         sha256:
           "9c780cad1d6a6f26593ecde22190cb04e4345ac512ca86104b697c04a6b005c1",
+        size: 11787419,
       },
       "linux-x64": {
+        url: "https://open-vsx.org/api/charliermarsh/ruff/linux-x64/2026.66.0/file/charliermarsh.ruff-2026.66.0@linux-x64.vsix",
         sha256:
           "3ed6bc6d6dc9a70cff97698d498844b756110b5c66964689dad5839845f06556",
+        size: 12225917,
       },
     },
     executables: ["bundled/libs/bin/ruff"],

@@ -8,6 +8,8 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { syncOptionalExtensionCatalog } from "./optional-extension-catalog.mjs";
+
 const appDirectory = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
   "..",
@@ -51,8 +53,10 @@ function syncProtocol() {
   }
 }
 
-if (process.argv.length !== 2) {
+if (process.argv.length !== 2 && process.argv[2] !== "--check-catalog") {
   throw new Error("usage: node scripts/protocol-sync.mjs");
 }
 
 syncProtocol();
+
+syncOptionalExtensionCatalog({ check: process.argv[2] === "--check-catalog" });
