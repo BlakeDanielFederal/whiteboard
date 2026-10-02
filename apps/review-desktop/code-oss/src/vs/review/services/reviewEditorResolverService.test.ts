@@ -14,7 +14,7 @@ import { ReviewEditorResolverService } from "./reviewEditorResolverService.js";
 function sourceResolver(t: TestContext, options: { openFilesIn?: string; live?: (side: string | null) => boolean } = {}) {
 	const requests: URL[] = [];
 	const windows: { openables: IWindowOpenable[]; options: IOpenWindowOptions }[] = [];
-	const external: string[] = [];
+	const external: unknown[] = [];
 	const state = { fail: false };
 	t.mock.method(globalThis, "fetch", async (url: string) => {
 		const request = new URL(url);
@@ -26,11 +26,13 @@ function sourceResolver(t: TestContext, options: { openFilesIn?: string; live?: 
 	});
 	const tabs = new ReviewCanvasEditorTabsService(
 		{} as never, { onDidCloseEditor: Event.None } as never, {} as never,
-		{ async getConnection() { return { serverUrl: "http://localhost", token: "test" }; } } as never,
+		{
+			async getConnection() { return { serverUrl: "http://localhost", token: "test" }; },
+			async openInExternalEditor(target: unknown) { external.push(target); },
+		} as never,
 		{ async openWindow(openables: IWindowOpenable[], options: IOpenWindowOptions) { windows.push({ openables, options }); } } as never,
 		{ warn() {} } as never,
 		{ getValue: (key: string) => key === "review.openFilesIn" ? options.openFilesIn : undefined } as never,
-		{ async open(url: string, openOptions: { openExternal?: boolean }) { assert.equal(openOptions.openExternal, true); external.push(url); return true; } } as never,
 	);
 	const resolver = new ReviewEditorResolverService(
 		{ get activeGroup() { throw new Error("Review must not create an editor group"); } } as never,
@@ -89,7 +91,10 @@ test("files in the reader's checkout open in the chosen editor; pinned revisions
 	const base = apiSourceUri({ view, side: "base", file: "nested/my source.ts" });
 	assert.equal(await resolver.resolveEditor({ resource: head, options: { selection: { startLineNumber: 42, startColumn: 3 } } }, undefined), ResolvedStatus.ABORT);
 	assert.equal(await resolver.resolveEditor({ resource: head }, undefined), ResolvedStatus.ABORT);
-	assert.deepEqual(external, ["cursor://file/navigator/head/nested/my%20source.ts:42:3", "cursor://file/navigator/head/nested/my%20source.ts"]);
+	assert.deepEqual(external, [
+		{ editor: "cursor", filePath: "/navigator/head/nested/my source.ts", line: 42, column: 3 },
+		{ editor: "cursor", filePath: "/navigator/head/nested/my source.ts", line: undefined, column: undefined },
+	]);
 	assert.equal(windows.length, 0);
 	await resolver.resolveEditor({ resource: base }, undefined);
 	await resolver.resolveEditor({ original: { resource: base }, modified: { resource: head } }, undefined);

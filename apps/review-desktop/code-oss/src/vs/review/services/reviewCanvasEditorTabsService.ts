@@ -10,7 +10,6 @@ import { IConfigurationService } from "../../platform/configuration/common/confi
 import type { ITextEditorOptions } from "../../platform/editor/common/editor.js";
 import { createDecorator, IInstantiationService } from "../../platform/instantiation/common/instantiation.js";
 import { ILogService } from "../../platform/log/common/log.js";
-import { IOpenerService } from "../../platform/opener/common/opener.js";
 import type { EditorInput } from "../../workbench/common/editor/editorInput.js";
 import { isResourceDiffEditorInput, isResourceEditorInput, type IUntypedEditorInput } from "../../workbench/common/editor.js";
 import { IEditorGroupsService } from "../../workbench/services/editor/common/editorGroupsService.js";
@@ -22,17 +21,11 @@ import {
 } from "../browser/parts/canvas/reviewCanvasEditorInput.js";
 
 import { REVIEW_OPEN_FILES_IN_SETTING } from "../common/reviewConfigurationDefaults.js";
+import { isExternalEditor } from "../common/reviewExternalEditor.js";
 import { reviewSourceQuery, type ReviewSourceSelection } from "../common/reviewProtocol.js";
 import { REVIEW_LANGUAGE_SOURCE_SCHEME } from "../common/reviewReadonlySource.js";
 import { sourceLocation, sourceSelectionIdentity, REVIEW_API_SOURCE_SCHEME } from "../common/reviewSourceView.js";
 import { IReviewDesktopConnectionService, reviewResponseError } from "./reviewDesktopConnectionService.js";
-
-/** URL schemes that open `file/<path>:<line>:<column>` in each `review.openFilesIn` editor. */
-const EXTERNAL_EDITOR_SCHEMES: Readonly<Record<string, string>> = {
-	vscode: "vscode",
-	cursor: "cursor",
-	zed: "zed",
-};
 
 export const IReviewCanvasEditorTabsService = createDecorator<IReviewCanvasEditorTabsService>(
 	"reviewCanvasEditorTabsService",
@@ -70,7 +63,6 @@ export class ReviewCanvasEditorTabsService extends Disposable implements IReview
 		@IHostService private readonly host: IHostService,
 		@ILogService private readonly logService: ILogService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IOpenerService private readonly openerService: IOpenerService,
 	) {
 		super();
 		this._register(
@@ -138,7 +130,7 @@ export class ReviewCanvasEditorTabsService extends Disposable implements IReview
 		const position = selection ? `:${selection.startLineNumber}:${selection.startColumn ?? 1}` : "";
 		// A pinned checkout belongs to Whiteboard and is removed with the review,
 		// so only files the reader owns leave for another editor.
-		if (!diff && destinations[0].external && await this.openExternalEditor(destinations[0].filePath, position)) return true;
+		if (!diff && destinations[0].external && await this.openExternalEditor(destinations[0].filePath, selection)) return true;
 		await this.host.openWindow([
 			{ workspaceUri: destinations[destinations.length - 1].workspaceUri },
 			...destinations.map(({ filePath }) => ({ fileUri: URI.file(`${filePath}${position}`) })),
@@ -146,11 +138,11 @@ export class ReviewCanvasEditorTabsService extends Disposable implements IReview
 		return true;
 	}
 
-	private async openExternalEditor(filePath: string, position: string): Promise<boolean> {
-		const scheme = EXTERNAL_EDITOR_SCHEMES[this.configurationService.getValue<string>(REVIEW_OPEN_FILES_IN_SETTING)];
-		if (!scheme) return false;
-		const encodedPath = URI.file(filePath).path.split("/").map(encodeURIComponent).join("/");
-		return this.openerService.open(`${scheme}://file${encodedPath}${position}`, { openExternal: true });
+	private async openExternalEditor(filePath: string, selection: ITextEditorOptions["selection"]): Promise<boolean> {
+		const editor = this.configurationService.getValue<string>(REVIEW_OPEN_FILES_IN_SETTING);
+		if (!isExternalEditor(editor)) return false;
+		await this.desktopConnection.openInExternalEditor({ editor, filePath, line: selection?.startLineNumber, column: selection?.startColumn });
+		return true;
 	}
 
 	async openSourceReferences(resource: URI, position: { readonly lineNumber: number; readonly column: number }): Promise<boolean> {
