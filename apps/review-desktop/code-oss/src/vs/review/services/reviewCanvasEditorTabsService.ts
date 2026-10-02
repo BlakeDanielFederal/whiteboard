@@ -118,8 +118,8 @@ export class ReviewCanvasEditorTabsService extends Disposable implements IReview
 
 	/**
 	 * Hand source opens to the native workspace before Review creates an editor
-	 * group, or to the `review.openFilesIn` editor when the file is in the
-	 * reader's own checkout.
+	 * group, or to the `review.openFilesIn` editor. A pinned revision opens from
+	 * the checkout Whiteboard keeps for it, so the line matches the review.
 	 */
 	async openSourceEditor(editor: IUntypedEditorInput): Promise<boolean> {
 		const diff = isResourceDiffEditorInput(editor);
@@ -128,8 +128,6 @@ export class ReviewCanvasEditorTabsService extends Disposable implements IReview
 		const destinations = await Promise.all(resources.map(resource => this.sourceDestination(resource)));
 		const selection = !diff ? (editor.options as ITextEditorOptions | undefined)?.selection : undefined;
 		const position = selection ? `:${selection.startLineNumber}:${selection.startColumn ?? 1}` : "";
-		// A pinned checkout belongs to Whiteboard and is removed with the review,
-		// so only files the reader owns leave for another editor.
 		if (!diff && destinations[0].external && await this.openExternalEditor(destinations[0].filePath, selection)) return true;
 		await this.host.openWindow([
 			{ workspaceUri: destinations[destinations.length - 1].workspaceUri },
@@ -174,12 +172,11 @@ export class ReviewCanvasEditorTabsService extends Disposable implements IReview
 		});
 		const filePath = local ? resource.fsPath : result.filePath;
 		if (!filePath) throw new Error("The navigator did not resolve the source file.");
-		// An empty side is a placeholder the navigator writes for native diffs,
-		// and a language target may sit in a prepared dependency tree.
-		return { workspaceUri: URI.file(result.workspacePath), filePath, external: result.live === true && !empty && !local };
+		// An empty side is a placeholder the navigator writes for native diffs.
+		return { workspaceUri: URI.file(result.workspacePath), filePath, external: !empty };
 	}
 
-	private async navigatorWorkspace(reviewId: string, values: Record<string, string | number | undefined>): Promise<{ workspacePath: string; filePath?: string; live?: boolean }> {
+	private async navigatorWorkspace(reviewId: string, values: Record<string, string | number | undefined>): Promise<{ workspacePath: string; filePath?: string }> {
 		const { serverUrl, token } = await this.desktopConnection.getConnection();
 		const query = new URLSearchParams(Object.entries(values).filter(([key, value]) => key !== "reviewId" && value !== undefined).map(([key, value]) => [key, String(value)]));
 		const response = await fetch(`${serverUrl}/reviews-api/${encodeURIComponent(reviewId)}/navigator${query.size ? `?${query}` : ""}`, {

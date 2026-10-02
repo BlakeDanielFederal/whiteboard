@@ -11,7 +11,7 @@ import { REVIEW_LANGUAGE_SOURCE_SCHEME } from "../common/reviewReadonlySource.js
 import { ReviewCanvasEditorTabsService } from "./reviewCanvasEditorTabsService.js";
 import { ReviewEditorResolverService } from "./reviewEditorResolverService.js";
 
-function sourceResolver(t: TestContext, options: { openFilesIn?: string; application?: string; live?: (side: string | null) => boolean } = {}) {
+function sourceResolver(t: TestContext, options: { openFilesIn?: string; application?: string } = {}) {
 	const requests: URL[] = [];
 	const windows: { openables: IWindowOpenable[]; options: IOpenWindowOptions }[] = [];
 	const external: unknown[] = [];
@@ -22,7 +22,7 @@ function sourceResolver(t: TestContext, options: { openFilesIn?: string; applica
 		if (state.fail) return Response.json({ error: "Checkout unavailable" }, { status: 409 });
 		const side = request.searchParams.get("side");
 		const file = request.searchParams.get("file");
-		return Response.json({ workspacePath: `/navigator/${side}.code-workspace`, filePath: file ? `/navigator/${side}/${file}` : undefined, live: options.live?.(side) ?? false });
+		return Response.json({ workspacePath: `/navigator/${side}.code-workspace`, filePath: file ? `/navigator/${side}/${file}` : undefined });
 	});
 	const tabs = new ReviewCanvasEditorTabsService(
 		{} as never, { onDidCloseEditor: Event.None } as never, {} as never,
@@ -85,37 +85,38 @@ test("source tree, selected code, definitions and diffs hand off before creating
 	assert.equal(stock.mock.calls[0].arguments[0], settings);
 });
 
-test("files in the reader's checkout open in the chosen editor; pinned revisions, diffs and dependencies stay in Whiteboard", async (t) => {
-	const { resolver, windows, external } = sourceResolver(t, { openFilesIn: "cursor", live: (side) => side === "head" });
+test("source files, pinned revisions included, open in the chosen editor; diffs and add/delete placeholders stay in Whiteboard", async (t) => {
+	const { resolver, windows, external } = sourceResolver(t, { openFilesIn: "cursor" });
 	const view = { reviewId: "review-a", version: 7 };
 	const head = apiSourceUri({ view, side: "head", file: "nested/my source.ts" });
 	const base = apiSourceUri({ view, side: "base", file: "nested/my source.ts" });
+	const dependency = head.with({ scheme: REVIEW_LANGUAGE_SOURCE_SCHEME, path: "/prepared/node_modules/lib/index.d.ts" });
 	assert.equal(await resolver.resolveEditor({ resource: head, options: { selection: { startLineNumber: 42, startColumn: 3 } } }, undefined), ResolvedStatus.ABORT);
-	assert.equal(await resolver.resolveEditor({ resource: head }, undefined), ResolvedStatus.ABORT);
+	await resolver.resolveEditor({ resource: base }, undefined);
+	await resolver.resolveEditor({ resource: dependency }, undefined);
 	assert.deepEqual(external, [
 		{ editor: "cursor", filePath: "/navigator/head/nested/my source.ts", line: 42, column: 3 },
-		{ editor: "cursor", filePath: "/navigator/head/nested/my source.ts", line: undefined, column: undefined },
+		{ editor: "cursor", filePath: "/navigator/base/nested/my source.ts", line: undefined, column: undefined },
+		{ editor: "cursor", filePath: "/prepared/node_modules/lib/index.d.ts", line: undefined, column: undefined },
 	]);
 	assert.equal(windows.length, 0);
-	await resolver.resolveEditor({ resource: base }, undefined);
 	await resolver.resolveEditor({ original: { resource: base }, modified: { resource: head } }, undefined);
 	await resolver.resolveEditor({ resource: apiSourceUri({ view, side: "head", file: "added.ts" }, true) }, undefined);
-	await resolver.resolveEditor({ resource: head.with({ scheme: REVIEW_LANGUAGE_SOURCE_SCHEME, path: "/prepared/node_modules/lib/index.d.ts" }) }, undefined);
-	assert.equal(external.length, 2);
-	assert.equal(windows.length, 4);
+	assert.equal(external.length, 3);
+	assert.equal(windows.length, 2);
 });
 
-test("a picked application gets checkout files without a line; with none picked they stay in Whiteboard", async (t) => {
+test("a picked application gets the file without a line; with none picked it stays in Whiteboard", async (t) => {
 	const view = { reviewId: "review-a", version: 7 };
 	const head = apiSourceUri({ view, side: "head", file: "src/a.ts" });
 	const selection = { selection: { startLineNumber: 9, startColumn: 1 } };
 
-	const picked = sourceResolver(t, { openFilesIn: "application", application: "/Applications/TextEdit.app", live: () => true });
+	const picked = sourceResolver(t, { openFilesIn: "application", application: "/Applications/TextEdit.app" });
 	await picked.resolver.resolveEditor({ resource: head, options: selection }, undefined);
 	assert.deepEqual(picked.external, [{ application: "/Applications/TextEdit.app", filePath: "/navigator/head/src/a.ts" }]);
 	assert.equal(picked.windows.length, 0);
 
-	const unset = sourceResolver(t, { openFilesIn: "application", live: () => true });
+	const unset = sourceResolver(t, { openFilesIn: "application" });
 	await unset.resolver.resolveEditor({ resource: head, options: selection }, undefined);
 	assert.equal(unset.external.length, 0);
 	assert.equal(unset.windows.length, 1);

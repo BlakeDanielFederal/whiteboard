@@ -57,7 +57,7 @@ configurationRegistry.registerConfiguration({
 				localize('review.openFilesIn.application', "Open files in the application set in `#review.openFilesInApplication#`, without a line."),
 			],
 			default: 'whiteboard',
-			description: localize('review.openFilesIn', "Where Open file sends a file from your checkout. Diffs and files at other revisions always open in Whiteboard."),
+			description: localize('review.openFilesIn', "Where Open file sends a file. A file at a pinned revision opens from the copy Whiteboard keeps for the review. Diffs always open in Whiteboard."),
 		},
 		[REVIEW_OPEN_FILES_IN_APPLICATION_SETTING]: {
 			type: 'string',

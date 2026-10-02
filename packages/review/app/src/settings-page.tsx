@@ -287,7 +287,7 @@ export function SettingsPage({
             </Row>
             <Row
               label="Open files in"
-              description="Where Open file shows a file from your checkout. Diffs and other revisions stay in Whiteboard."
+              description="Where Open file sends a file. Diffs stay in Whiteboard."
             >
               <OpenFilesInSelect
                 value={openFilesIn}
