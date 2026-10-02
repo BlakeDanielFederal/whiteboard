@@ -20,7 +20,7 @@ import {
 	type ReviewCanvasEditorTarget,
 } from "../browser/parts/canvas/reviewCanvasEditorInput.js";
 
-import { REVIEW_OPEN_FILES_IN_SETTING } from "../common/reviewConfigurationDefaults.js";
+import { REVIEW_OPEN_FILES_IN_APPLICATION_SETTING, REVIEW_OPEN_FILES_IN_SETTING } from "../common/reviewConfigurationDefaults.js";
 import { isExternalEditor } from "../common/reviewExternalEditor.js";
 import { reviewSourceQuery, type ReviewSourceSelection } from "../common/reviewProtocol.js";
 import { REVIEW_LANGUAGE_SOURCE_SCHEME } from "../common/reviewReadonlySource.js";
@@ -140,6 +140,13 @@ export class ReviewCanvasEditorTabsService extends Disposable implements IReview
 
 	private async openExternalEditor(filePath: string, selection: ITextEditorOptions["selection"]): Promise<boolean> {
 		const editor = this.configurationService.getValue<string>(REVIEW_OPEN_FILES_IN_SETTING);
+		if (editor === "application") {
+			// An application takes the file alone: only the editors' URLs carry a line.
+			const application = this.configurationService.getValue<string>(REVIEW_OPEN_FILES_IN_APPLICATION_SETTING);
+			if (!application) return false;
+			await this.desktopConnection.openInApplication(application, filePath);
+			return true;
+		}
 		if (!isExternalEditor(editor)) return false;
 		await this.desktopConnection.openInExternalEditor({ editor, filePath, line: selection?.startLineNumber, column: selection?.startColumn });
 		return true;

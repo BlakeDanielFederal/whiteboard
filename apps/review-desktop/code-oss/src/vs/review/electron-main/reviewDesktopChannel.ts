@@ -4,12 +4,25 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from "../../base/common/event.js";
+import { isAbsolute } from "../../base/common/path.js";
 import { IServerChannel } from "../../base/parts/ipc/common/ipc.js";
+import type { IDialogMainService } from "../../platform/dialogs/electron-main/dialogMainService.js";
 import type { IWindowsMainService } from "../../platform/windows/electron-main/windows.js";
 import type { ReviewDesktopConnection } from "../common/reviewDesktopBootstrap.js";
 import { externalEditorUrl, type ReviewExternalEditorTarget } from "../common/reviewExternalEditor.js";
 import type { ReviewDesktopHost } from "./reviewDesktopHost.js";
-import { launchExternalEditorUrl } from "./reviewExternalEditorLauncher.js";
+import { applicationPickerOptions, launchApplication, launchExternalEditorUrl } from "./reviewExternalEditorLauncher.js";
+
+/** How the channel reaches outside Whiteboard; tests replace it. */
+export interface ReviewExternalLauncher {
+  openUrl(url: string): Promise<void>;
+  openInApplication(application: string, filePath: string): Promise<void>;
+}
+
+const externalLauncher: ReviewExternalLauncher = {
+  openUrl: (url) => launchExternalEditorUrl(url),
+  openInApplication: (application, filePath) => launchApplication(application, filePath),
+};
 
 export { REVIEW_DESKTOP_CHANNEL } from "../common/reviewDesktopBootstrap.js";
 
@@ -22,7 +35,8 @@ export class ReviewDesktopChannel implements IServerChannel {
   constructor(
     private readonly host: ReviewDesktopHost,
     private readonly windows: IWindowsMainService,
-    private readonly launchEditorUrl: (url: string) => Promise<void> = launchExternalEditorUrl,
+    private readonly dialogs: Pick<IDialogMainService, "showOpenDialog">,
+    private readonly launcher: ReviewExternalLauncher = externalLauncher,
   ) {}
 
   listen<T>(): Event<T> {
@@ -47,8 +61,20 @@ export class ReviewDesktopChannel implements IServerChannel {
       // file, never the URL or the program that opens it.
       const url = externalEditorUrl((arg ?? {}) as ReviewExternalEditorTarget);
       if (!url) throw new Error("Not a file Whiteboard can open in an external editor.");
-      await this.launchEditorUrl(url);
+      await this.launcher.openUrl(url);
       return undefined as T;
+    }
+    if (command === "openInApplication") {
+      const { application, filePath } = (arg ?? {}) as { application?: unknown; filePath?: unknown };
+      if (typeof application !== "string" || typeof filePath !== "string" || !isAbsolute(application) || !isAbsolute(filePath))
+        throw new Error("Not a file and application Whiteboard can open.");
+      await this.launcher.openInApplication(application, filePath);
+      return undefined as T;
+    }
+    if (command === "chooseApplication") {
+      const parent = this.windows.getFocusedWindow()?.win ?? undefined;
+      const result = await this.dialogs.showOpenDialog(applicationPickerOptions(process.platform), parent);
+      return (result.canceled ? null : result.filePaths[0] ?? null) as T;
     }
     throw new Error(`Unknown Review Desktop channel call: ${command}`);
   }

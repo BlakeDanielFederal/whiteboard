@@ -412,7 +412,17 @@ export type ReviewOpenFilesInChoice =
   | "whiteboard"
   | "vscode"
   | "cursor"
-  | "zed";
+  | "zed"
+  | "application";
+
+/**
+ * Where Open file sends a file. `application` is one the reader picked with
+ * the native picker; `name` is how the page labels it.
+ */
+export interface ReviewOpenFilesIn {
+  choice: ReviewOpenFilesInChoice;
+  application: { path: string; name: string } | null;
+}
 
 export type ReviewDocumentWidthChoice = "standard" | "wide" | "full";
 
@@ -521,10 +531,10 @@ export interface ReviewCanvasSettingsContent {
   setKeymap(choice: ReviewKeymapChoice): Promise<ReviewKeymapChoice>;
   ctrlTab: ReviewCtrlTabChoice;
   setCtrlTab(choice: ReviewCtrlTabChoice): Promise<ReviewCtrlTabChoice>;
-  openFilesIn: ReviewOpenFilesInChoice;
-  setOpenFilesIn(
-    choice: ReviewOpenFilesInChoice,
-  ): Promise<ReviewOpenFilesInChoice>;
+  openFilesIn: ReviewOpenFilesIn;
+  setOpenFilesIn(choice: ReviewOpenFilesInChoice): Promise<ReviewOpenFilesIn>;
+  // Shows the native application picker; a cancelled pick changes nothing.
+  chooseOpenFilesInApplication(): Promise<ReviewOpenFilesIn>;
   documentWidth: ReviewDocumentWidthChoice;
   setDocumentWidth(
     choice: ReviewDocumentWidthChoice,

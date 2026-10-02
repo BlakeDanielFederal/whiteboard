@@ -18,7 +18,7 @@ function channelWith(workspaces: Record<string, unknown>) {
 		openedWorkspace,
 		close: () => closed.push(name),
 	}));
-	const channel = new ReviewDesktopChannel({} as never, { getWindows: () => windows } as never);
+	const channel = new ReviewDesktopChannel({} as never, { getWindows: () => windows } as never, {} as never);
 	return { channel, closed };
 }
 
@@ -46,9 +46,19 @@ test("matches a review by the storage segment the host names its directory with"
 	assert.deepEqual(closed, ["shared"]);
 });
 
+function launchingChannel(picked: string | null = null) {
+	const launched: unknown[] = [];
+	const launcher = {
+		async openUrl(url: string) { launched.push(url); },
+		async openInApplication(application: string, filePath: string) { launched.push({ application, filePath }); },
+	};
+	const dialogs = { async showOpenDialog() { return { canceled: picked === null, filePaths: picked ? [picked] : [] }; } };
+	const channel = new ReviewDesktopChannel({} as never, { getWindows: () => [], getFocusedWindow: () => undefined } as never, dialogs as never, launcher);
+	return { channel, launched };
+}
+
 test("opens only a known editor's file URL from the main process", async () => {
-	const launched: string[] = [];
-	const channel = new ReviewDesktopChannel({} as never, { getWindows: () => [] } as never, async (url) => { launched.push(url); });
+	const { channel, launched } = launchingChannel();
 
 	await channel.call("", "openInExternalEditor", { editor: "cursor", filePath: "/repo/a.ts", line: 3, column: 2 });
 	await assert.rejects(channel.call("", "openInExternalEditor", { editor: "whiteboard", filePath: "/repo/a.ts" }));
@@ -56,4 +66,19 @@ test("opens only a known editor's file URL from the main process", async () => {
 	await assert.rejects(channel.call("", "openInExternalEditor"));
 
 	assert.deepEqual(launched, ["cursor://file/repo/a.ts:3:2"]);
+});
+
+test("opens a file in a picked application only by absolute paths", async () => {
+	const { channel, launched } = launchingChannel();
+
+	await channel.call("", "openInApplication", { application: "/Applications/TextEdit.app", filePath: "/repo/a.ts" });
+	await assert.rejects(channel.call("", "openInApplication", { application: "TextEdit", filePath: "/repo/a.ts" }));
+	await assert.rejects(channel.call("", "openInApplication", { application: "/Applications/TextEdit.app", filePath: "a.ts" }));
+
+	assert.deepEqual(launched, [{ application: "/Applications/TextEdit.app", filePath: "/repo/a.ts" }]);
+});
+
+test("the application picker returns the pick, or null when cancelled", async () => {
+	assert.equal(await launchingChannel("/Applications/TextEdit.app").channel.call("", "chooseApplication"), "/Applications/TextEdit.app");
+	assert.equal(await launchingChannel(null).channel.call("", "chooseApplication"), null);
 });

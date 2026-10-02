@@ -8,7 +8,7 @@ import { EventEmitter } from "node:events";
 import { PassThrough } from "node:stream";
 import test from "node:test";
 
-import { launchExternalEditorUrl } from "./reviewExternalEditorLauncher.js";
+import { launchApplication, launchExternalEditorUrl } from "./reviewExternalEditorLauncher.js";
 
 const whiteboardEnv = {
 	PATH: "/usr/bin:/opt/homebrew/bin",
@@ -64,4 +64,12 @@ test("an opener that stays in the foreground is left running", async () => {
 	const opener = fakeOpener("running");
 	await launchExternalEditorUrl("vscode://file/a.ts", { spawn: opener.spawn, platform: "linux", env: whiteboardEnv, settleMs: 1 });
 	assert.equal(opener.unrefed(), true);
+});
+
+test("a picked application gets the file with the same clean environment", async () => {
+	const opener = fakeOpener({ code: 0 });
+	await launchApplication("/Applications/TextEdit.app", "/repo/my file.ts", { spawn: opener.spawn, platform: "darwin", env: whiteboardEnv });
+
+	assert.deepEqual(opener.calls[0].env, { PATH: "/usr/bin:/opt/homebrew/bin", HOME: "/Users/reader", LANG: "en_US.UTF-8" });
+	assert.deepEqual(opener.calls[0].args.slice(-2), ["/Applications/TextEdit.app", "/repo/my file.ts"]);
 });

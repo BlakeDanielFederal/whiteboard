@@ -1,11 +1,13 @@
 import { Button } from "@canvas/ui/button";
 import { textStyles } from "@canvas/ui/text";
+import { fieldStyles } from "@canvas/ui/text-field";
 import type {
   ReviewCanvasSettingsContent,
   ReviewCliInstallStatus,
   ReviewCtrlTabChoice,
   ReviewDocumentWidthChoice,
   ReviewKeymapChoice,
+  ReviewOpenFilesIn,
   ReviewOpenFilesInChoice,
   ReviewReadyNotificationChoice,
   ReviewThemeChoice,
@@ -39,12 +41,18 @@ const CTRL_TAB_LABELS: Record<ReviewCtrlTabChoice, string> = {
   next: "Next tab",
 };
 
-const OPEN_FILES_IN_LABELS: Record<ReviewOpenFilesInChoice, string> = {
+// The editors open at the selected line; a picked application gets the file.
+const OPEN_FILES_IN_EDITORS: Record<
+  Exclude<ReviewOpenFilesInChoice, "application">,
+  string
+> = {
   whiteboard: "Whiteboard",
   vscode: "VS Code",
   cursor: "Cursor",
   zed: "Zed",
 };
+
+const CHOOSE_APPLICATION = "choose";
 
 const DOCUMENT_WIDTH_LABELS: Record<ReviewDocumentWidthChoice, string> = {
   standard: "Standard",
@@ -281,11 +289,16 @@ export function SettingsPage({
               label="Open files in"
               description="Where Open file shows a file from your checkout. Diffs and other revisions stay in Whiteboard."
             >
-              <Choice
-                label="Open files in"
+              <OpenFilesInSelect
                 value={openFilesIn}
-                labels={OPEN_FILES_IN_LABELS}
                 disabled={busy !== null}
+                onChoose={() =>
+                  void run(
+                    "open-files-in",
+                    () => settings.chooseOpenFilesInApplication(),
+                    setOpenFilesIn,
+                  )
+                }
                 onChange={(choice) =>
                   void run(
                     "open-files-in",
@@ -443,6 +456,50 @@ function Row({
       </div>
       <div {...stylex.props(styles.rowControl)}>{children}</div>
     </div>
+  );
+}
+
+function OpenFilesInSelect({
+  value,
+  disabled,
+  onChoose,
+  onChange,
+}: {
+  value: ReviewOpenFilesIn;
+  disabled: boolean;
+  onChoose: () => void;
+  onChange: (choice: ReviewOpenFilesInChoice) => void;
+}) {
+  return (
+    <select
+      {...stylex.props(fieldStyles.box)}
+      aria-label="Open files in"
+      title={value.application?.path}
+      value={value.choice}
+      disabled={disabled}
+      onChange={(event) => {
+        const next = event.currentTarget.value;
+
+        if (next === CHOOSE_APPLICATION) return onChoose();
+
+        // SAFETY: every other option's value is a ReviewOpenFilesInChoice.
+        onChange(next as ReviewOpenFilesInChoice);
+      }}
+    >
+      {Object.entries(OPEN_FILES_IN_EDITORS).map(([choice, label]) => (
+        <option key={choice} value={choice}>
+          {label}
+        </option>
+      ))}
+      {value.application ? (
+        <option value="application">{value.application.name}</option>
+      ) : null}
+      <option value={CHOOSE_APPLICATION}>
+        {value.application
+          ? "Choose another application…"
+          : "Choose application…"}
+      </option>
+    </select>
   );
 }
 

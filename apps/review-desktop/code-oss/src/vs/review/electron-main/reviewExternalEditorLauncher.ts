@@ -33,6 +33,20 @@ function urlOpener(platform: NodeJS.Platform, url: string): [string, string[]] {
 	return ["xdg-open", [url]];
 }
 
+/** macOS hands the file to an `.app` through LaunchServices; elsewhere the chosen program takes the file as its argument. */
+function applicationOpener(platform: NodeJS.Platform, application: string, filePath: string): [string, string[]] {
+	if (platform === "darwin") return ["/usr/bin/open", ["-a", application, filePath]];
+	return [application, [filePath]];
+}
+
+/** The native picker for "Choose application…": apps on macOS, programs on Windows, any executable on Linux. */
+export function applicationPickerOptions(platform: NodeJS.Platform) {
+	const title = "Choose an application to open files";
+	if (platform === "darwin") return { title, defaultPath: "/Applications", properties: ["openFile" as const], filters: [{ name: "Applications", extensions: ["app"] }] };
+	if (platform === "win32") return { title, properties: ["openFile" as const], filters: [{ name: "Programs", extensions: ["exe"] }] };
+	return { title, defaultPath: "/usr/bin", properties: ["openFile" as const] };
+}
+
 export interface ExternalEditorLaunchOptions {
 	readonly spawn?: typeof cp.spawn;
 	readonly platform?: NodeJS.Platform;
@@ -44,13 +58,23 @@ export interface ExternalEditorLaunchOptions {
 /**
  * Opens an editor URL through the platform opener rather than
  * `shell.openExternal`, which offers no way to choose the environment.
- * `open` returns once the handler has the URL; an opener still running after
- * `settleMs` is left detached, as some `xdg-open` handlers stay in the
- * foreground.
  */
 export function launchExternalEditorUrl(url: string, options: ExternalEditorLaunchOptions = {}): Promise<void> {
-	const { spawn = cp.spawn, platform = process.platform, env = process.env, settleMs = 5_000 } = options;
-	const [command, args] = urlOpener(platform, url);
+	return launchDetached(urlOpener(options.platform ?? process.platform, url), options);
+}
+
+/** Opens a file in an application the reader picked, with the same clean environment. */
+export function launchApplication(application: string, filePath: string, options: ExternalEditorLaunchOptions = {}): Promise<void> {
+	return launchDetached(applicationOpener(options.platform ?? process.platform, application, filePath), options);
+}
+
+/**
+ * `open` returns once the handler has the URL or file; an opener or program
+ * still running after `settleMs` is left detached, as some `xdg-open`
+ * handlers and directly started programs stay in the foreground.
+ */
+function launchDetached([command, args]: [string, string[]], options: ExternalEditorLaunchOptions): Promise<void> {
+	const { spawn = cp.spawn, env = process.env, settleMs = 5_000 } = options;
 	return new Promise((resolve, reject) => {
 		const child = spawn(command, args, { env: externalEditorEnvironment(env), detached: true, stdio: ["ignore", "ignore", "pipe"] });
 		let stderr = "";

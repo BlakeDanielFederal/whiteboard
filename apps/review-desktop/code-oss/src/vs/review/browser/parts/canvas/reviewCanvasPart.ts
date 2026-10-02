@@ -12,6 +12,7 @@ import type { CancellationToken } from "../../../../base/common/cancellation.js"
 import { Emitter } from "../../../../base/common/event.js";
 import { Disposable, DisposableStore, MutableDisposable, toDisposable, type IDisposable } from "../../../../base/common/lifecycle.js";
 import { FileAccess } from "../../../../base/common/network.js";
+import { basename } from "../../../../base/common/path.js";
 import type { ICursorPositionChangedEvent } from "../../../../editor/common/cursorEvents.js";
 import { ICommandService } from "../../../../platform/commands/common/commands.js";
 import { ConfigurationTarget, IConfigurationService } from "../../../../platform/configuration/common/configuration.js";
@@ -44,6 +45,7 @@ import { ILifecycleService } from "../../../../workbench/services/lifecycle/comm
 import { IWorkbenchLayoutService, Parts } from "../../../../workbench/services/layout/browser/layoutService.js";
 import {
 	REVIEW_CTRL_TAB_SETTING,
+	REVIEW_OPEN_FILES_IN_APPLICATION_SETTING,
 	REVIEW_OPEN_FILES_IN_CHOICES,
 	REVIEW_OPEN_FILES_IN_SETTING,
 	REVIEW_DOCUMENT_WIDTH_SETTING,
@@ -68,6 +70,7 @@ import type {
 	ReviewCanvasTutorialBridge,
 	ReviewCliInstallStatus,
 	ReviewCtrlTabChoice,
+	ReviewOpenFilesIn,
 	ReviewOpenFilesInChoice,
 	ReviewDocumentWidthChoice,
 	ReviewKeymapChoice,
@@ -802,6 +805,8 @@ export class ReviewCanvasEditorPane extends EditorPane {
 			},
 			openFilesIn: this.currentOpenFilesIn(),
 			setOpenFilesIn: async (choice) => {
+				// An application choice needs one picked first.
+				if (choice === "application" && !this.currentOpenFilesIn().application) return this.chooseOpenFilesInApplication();
 				this.reviewTelemetryService.capture("setting_changed", {
 					setting: "open_files_in",
 					enabled: true,
@@ -809,6 +814,7 @@ export class ReviewCanvasEditorPane extends EditorPane {
 				await this.configurationService.updateValue(REVIEW_OPEN_FILES_IN_SETTING, choice, ConfigurationTarget.USER);
 				return this.currentOpenFilesIn();
 			},
+			chooseOpenFilesInApplication: () => this.chooseOpenFilesInApplication(),
 			documentWidth: this.currentDocumentWidth(),
 			setDocumentWidth: async (choice) => {
 				this.reviewTelemetryService.capture("setting_changed", {
@@ -882,9 +888,24 @@ export class ReviewCanvasEditorPane extends EditorPane {
 		return this.configurationService.getValue<ReviewCtrlTabChoice>(REVIEW_CTRL_TAB_SETTING) === "next" ? "next" : "recent";
 	}
 
-	private currentOpenFilesIn(): ReviewOpenFilesInChoice {
+	private currentOpenFilesIn(): ReviewOpenFilesIn {
+		const path = this.configurationService.getValue<string>(REVIEW_OPEN_FILES_IN_APPLICATION_SETTING);
+		const application = path ? { path, name: basename(path).replace(/\.(app|exe)$/i, "") } : null;
 		const value = this.configurationService.getValue<ReviewOpenFilesInChoice>(REVIEW_OPEN_FILES_IN_SETTING);
-		return REVIEW_OPEN_FILES_IN_CHOICES.includes(value) ? value : "whiteboard";
+		const choice = REVIEW_OPEN_FILES_IN_CHOICES.includes(value) && (value !== "application" || application) ? value : "whiteboard";
+		return { choice, application };
+	}
+
+	private async chooseOpenFilesInApplication(): Promise<ReviewOpenFilesIn> {
+		const path = await this.desktopConnection.chooseApplication();
+		if (!path) return this.currentOpenFilesIn();
+		this.reviewTelemetryService.capture("setting_changed", {
+			setting: "open_files_in",
+			enabled: true,
+		});
+		await this.configurationService.updateValue(REVIEW_OPEN_FILES_IN_APPLICATION_SETTING, path, ConfigurationTarget.USER);
+		await this.configurationService.updateValue(REVIEW_OPEN_FILES_IN_SETTING, "application", ConfigurationTarget.USER);
+		return this.currentOpenFilesIn();
 	}
 
 	private currentDocumentWidth(): ReviewDocumentWidthChoice {

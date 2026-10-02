@@ -11,7 +11,7 @@ import { REVIEW_LANGUAGE_SOURCE_SCHEME } from "../common/reviewReadonlySource.js
 import { ReviewCanvasEditorTabsService } from "./reviewCanvasEditorTabsService.js";
 import { ReviewEditorResolverService } from "./reviewEditorResolverService.js";
 
-function sourceResolver(t: TestContext, options: { openFilesIn?: string; live?: (side: string | null) => boolean } = {}) {
+function sourceResolver(t: TestContext, options: { openFilesIn?: string; application?: string; live?: (side: string | null) => boolean } = {}) {
 	const requests: URL[] = [];
 	const windows: { openables: IWindowOpenable[]; options: IOpenWindowOptions }[] = [];
 	const external: unknown[] = [];
@@ -29,10 +29,11 @@ function sourceResolver(t: TestContext, options: { openFilesIn?: string; live?: 
 		{
 			async getConnection() { return { serverUrl: "http://localhost", token: "test" }; },
 			async openInExternalEditor(target: unknown) { external.push(target); },
+			async openInApplication(application: string, filePath: string) { external.push({ application, filePath }); },
 		} as never,
 		{ async openWindow(openables: IWindowOpenable[], options: IOpenWindowOptions) { windows.push({ openables, options }); } } as never,
 		{ warn() {} } as never,
-		{ getValue: (key: string) => key === "review.openFilesIn" ? options.openFilesIn : undefined } as never,
+		{ getValue: (key: string) => ({ "review.openFilesIn": options.openFilesIn, "review.openFilesInApplication": options.application })[key] } as never,
 	);
 	const resolver = new ReviewEditorResolverService(
 		{ get activeGroup() { throw new Error("Review must not create an editor group"); } } as never,
@@ -102,4 +103,20 @@ test("files in the reader's checkout open in the chosen editor; pinned revisions
 	await resolver.resolveEditor({ resource: head.with({ scheme: REVIEW_LANGUAGE_SOURCE_SCHEME, path: "/prepared/node_modules/lib/index.d.ts" }) }, undefined);
 	assert.equal(external.length, 2);
 	assert.equal(windows.length, 4);
+});
+
+test("a picked application gets checkout files without a line; with none picked they stay in Whiteboard", async (t) => {
+	const view = { reviewId: "review-a", version: 7 };
+	const head = apiSourceUri({ view, side: "head", file: "src/a.ts" });
+	const selection = { selection: { startLineNumber: 9, startColumn: 1 } };
+
+	const picked = sourceResolver(t, { openFilesIn: "application", application: "/Applications/TextEdit.app", live: () => true });
+	await picked.resolver.resolveEditor({ resource: head, options: selection }, undefined);
+	assert.deepEqual(picked.external, [{ application: "/Applications/TextEdit.app", filePath: "/navigator/head/src/a.ts" }]);
+	assert.equal(picked.windows.length, 0);
+
+	const unset = sourceResolver(t, { openFilesIn: "application", live: () => true });
+	await unset.resolver.resolveEditor({ resource: head, options: selection }, undefined);
+	assert.equal(unset.external.length, 0);
+	assert.equal(unset.windows.length, 1);
 });
