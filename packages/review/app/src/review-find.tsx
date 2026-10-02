@@ -21,6 +21,7 @@ import {
 import { createPortal } from "react-dom";
 import { useStore } from "zustand";
 
+import { setCssHighlight } from "./css-highlights";
 import type { ReviewClientConfig } from "./host/review-client";
 import { useOptionalReviewSession } from "./host/review-session";
 import { compileReviewFindQuery } from "./review-find-query";
@@ -144,7 +145,8 @@ function createFindController(
   let searchScheduled = false;
 
   const clearHighlights = () => {
-    clearCssHighlights(articleRef.current?.ownerDocument);
+    setCssHighlight(articleRef.current, ALL_HIGHLIGHT, []);
+    setCssHighlight(articleRef.current, ACTIVE_HIGHLIGHT, []);
 
     for (const registration of registrations) {
       registration.clearFind();
@@ -167,7 +169,7 @@ function createFindController(
     const wrapped = (index + matches.length) % matches.length;
     const match = matches[wrapped]!;
     setActiveIndex(wrapped);
-    clearActiveCssHighlight(articleRef.current?.ownerDocument);
+    setCssHighlight(articleRef.current, ACTIVE_HIGHLIGHT, []);
 
     for (const registration of registrations) {
       registration.getHandle()?.clearActiveFindMatch();
@@ -180,7 +182,7 @@ function createFindController(
       expandReviewSection(match.node);
       requestAnimationFrame(() => {
         if (!current()) return;
-        setActiveCssHighlight(match.range);
+        setCssHighlight(articleRef.current, ACTIVE_HIGHLIGHT, [match.range]);
         rangeElement(match.range)?.scrollIntoView?.({ block: "center" });
         inputRef.current?.focus();
       });
@@ -271,7 +273,7 @@ function createFindController(
       ].sort((left, right) => compareDocumentOrder(left.node, right.node));
 
       if (!store.getState().completeSearch(generation, matches)) return;
-      setAllCssHighlights(article?.ownerDocument, ranges);
+      setCssHighlight(article, ALL_HIGHLIGHT, ranges);
 
       if (matches.length > 0) reveal(0);
     });
@@ -574,54 +576,6 @@ function compareDocumentOrder(left: Node, right: Node): number {
   const position = left.compareDocumentPosition(right);
 
   return position & Node.DOCUMENT_POSITION_FOLLOWING ? -1 : 1;
-}
-
-function highlightApi(document: Document | null | undefined): {
-  registry: HighlightRegistry;
-  Highlight: typeof Highlight;
-} | null {
-  // SAFETY: lib.dom only declares the CSS Custom Highlight API on globalThis;
-  // it is read off the document's own window, and both members stay optional
-  // because jsdom does not implement it.
-  const view = document?.defaultView as
-    | (Window & {
-        CSS?: { highlights?: HighlightRegistry };
-        Highlight?: typeof Highlight;
-      })
-    | null;
-
-  const registry = view?.CSS?.highlights;
-
-  return registry && view?.Highlight
-    ? { registry, Highlight: view.Highlight }
-    : null;
-}
-
-function setAllCssHighlights(
-  document: Document | undefined,
-  ranges: Range[],
-): void {
-  const api = highlightApi(document);
-
-  if (!api) return;
-  api.registry.set(ALL_HIGHLIGHT, new api.Highlight(...ranges));
-}
-
-function setActiveCssHighlight(range: Range): void {
-  const api = highlightApi(range.startContainer.ownerDocument);
-
-  if (!api) return;
-  api.registry.set(ACTIVE_HIGHLIGHT, new api.Highlight(range));
-}
-
-function clearActiveCssHighlight(document: Document | undefined): void {
-  highlightApi(document)?.registry.delete(ACTIVE_HIGHLIGHT);
-}
-
-function clearCssHighlights(document: Document | undefined): void {
-  const registry = highlightApi(document)?.registry;
-  registry?.delete(ALL_HIGHLIGHT);
-  registry?.delete(ACTIVE_HIGHLIGHT);
 }
 
 const compact = "@media (max-width: 620px)";
