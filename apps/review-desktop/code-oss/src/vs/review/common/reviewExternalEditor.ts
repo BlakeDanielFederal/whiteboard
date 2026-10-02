@@ -19,6 +19,8 @@ export interface ReviewExternalEditorTarget {
 	readonly filePath: string;
 	readonly line?: number;
 	readonly column?: number;
+	/** The checkout the editor opens as its workspace, so the file arrives with its tree. */
+	readonly folder?: string;
 }
 
 export function isExternalEditor(editor: string | undefined): editor is string {

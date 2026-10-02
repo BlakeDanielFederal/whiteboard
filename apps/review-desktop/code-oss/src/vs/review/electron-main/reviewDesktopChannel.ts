@@ -59,8 +59,13 @@ export class ReviewDesktopChannel implements IServerChannel {
     if (command === "openInExternalEditor") {
       // Only a known editor's file URL leaves here: the renderer names the
       // file, never the URL or the program that opens it.
-      const url = externalEditorUrl((arg ?? {}) as ReviewExternalEditorTarget);
+      const target = (arg ?? {}) as ReviewExternalEditorTarget;
+      const url = externalEditorUrl(target);
       if (!url) throw new Error("Not a file Whiteboard can open in an external editor.");
+      // The folder first: the editor then puts the file in the window that
+      // has its checkout open, with the file tree beside it.
+      const folderUrl = target.folder ? externalEditorUrl({ editor: target.editor, filePath: target.folder }) : undefined;
+      if (folderUrl) await this.launcher.openUrl(folderUrl);
       await this.launcher.openUrl(url);
       return undefined as T;
     }

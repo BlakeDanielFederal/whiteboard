@@ -68,6 +68,15 @@ test("opens only a known editor's file URL from the main process", async () => {
 	assert.deepEqual(launched, ["cursor://file/repo/a.ts:3:2"]);
 });
 
+test("an editor opens the checkout folder before the file, so the file arrives in that window", async () => {
+	const { channel, launched } = launchingChannel();
+
+	await channel.call("", "openInExternalEditor", { editor: "vscode", filePath: "/repo/src/a.ts", line: 3, folder: "/repo" });
+	await channel.call("", "openInExternalEditor", { editor: "vscode", filePath: "/repo/src/b.ts", folder: "relative" });
+
+	assert.deepEqual(launched, ["vscode://file/repo", "vscode://file/repo/src/a.ts:3:1", "vscode://file/repo/src/b.ts"]);
+});
+
 test("opens a file in a picked application only by absolute paths", async () => {
 	const { channel, launched } = launchingChannel();
 

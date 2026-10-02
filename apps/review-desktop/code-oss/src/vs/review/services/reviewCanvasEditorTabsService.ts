@@ -128,7 +128,7 @@ export class ReviewCanvasEditorTabsService extends Disposable implements IReview
 		const destinations = await Promise.all(resources.map(resource => this.sourceDestination(resource)));
 		const selection = !diff ? (editor.options as ITextEditorOptions | undefined)?.selection : undefined;
 		const position = selection ? `:${selection.startLineNumber}:${selection.startColumn ?? 1}` : "";
-		if (!diff && destinations[0].external && await this.openExternalEditor(destinations[0].filePath, selection)) return true;
+		if (!diff && destinations[0].external && await this.openExternalEditor(destinations[0], selection)) return true;
 		await this.host.openWindow([
 			{ workspaceUri: destinations[destinations.length - 1].workspaceUri },
 			...destinations.map(({ filePath }) => ({ fileUri: URI.file(`${filePath}${position}`) })),
@@ -136,7 +136,7 @@ export class ReviewCanvasEditorTabsService extends Disposable implements IReview
 		return true;
 	}
 
-	private async openExternalEditor(filePath: string, selection: ITextEditorOptions["selection"]): Promise<boolean> {
+	private async openExternalEditor({ filePath, rootPath }: { filePath: string; rootPath?: string }, selection: ITextEditorOptions["selection"]): Promise<boolean> {
 		const editor = this.configurationService.getValue<string>(REVIEW_OPEN_FILES_IN_SETTING);
 		if (editor === "application") {
 			// An application takes the file alone: only the editors' URLs carry a line.
@@ -146,7 +146,7 @@ export class ReviewCanvasEditorTabsService extends Disposable implements IReview
 			return true;
 		}
 		if (!isExternalEditor(editor)) return false;
-		await this.desktopConnection.openInExternalEditor({ editor, filePath, line: selection?.startLineNumber, column: selection?.startColumn });
+		await this.desktopConnection.openInExternalEditor({ editor, filePath, line: selection?.startLineNumber, column: selection?.startColumn, folder: rootPath });
 		return true;
 	}
 
@@ -160,7 +160,7 @@ export class ReviewCanvasEditorTabsService extends Disposable implements IReview
 		return true;
 	}
 
-	private async sourceDestination(resource: URI): Promise<{ workspaceUri: URI; filePath: string; external: boolean }> {
+	private async sourceDestination(resource: URI): Promise<{ workspaceUri: URI; filePath: string; rootPath?: string; external: boolean }> {
 		const target = sourceLocation(resource);
 		const local = resource.scheme === REVIEW_LANGUAGE_SOURCE_SCHEME;
 		const empty = new URLSearchParams(resource.query).has("empty");
@@ -173,10 +173,10 @@ export class ReviewCanvasEditorTabsService extends Disposable implements IReview
 		const filePath = local ? resource.fsPath : result.filePath;
 		if (!filePath) throw new Error("The navigator did not resolve the source file.");
 		// An empty side is a placeholder the navigator writes for native diffs.
-		return { workspaceUri: URI.file(result.workspacePath), filePath, external: !empty };
+		return { workspaceUri: URI.file(result.workspacePath), filePath, rootPath: result.rootPath, external: !empty };
 	}
 
-	private async navigatorWorkspace(reviewId: string, values: Record<string, string | number | undefined>): Promise<{ workspacePath: string; filePath?: string }> {
+	private async navigatorWorkspace(reviewId: string, values: Record<string, string | number | undefined>): Promise<{ workspacePath: string; filePath?: string; rootPath?: string }> {
 		const { serverUrl, token } = await this.desktopConnection.getConnection();
 		const query = new URLSearchParams(Object.entries(values).filter(([key, value]) => key !== "reviewId" && value !== undefined).map(([key, value]) => [key, String(value)]));
 		const response = await fetch(`${serverUrl}/reviews-api/${encodeURIComponent(reviewId)}/navigator${query.size ? `?${query}` : ""}`, {

@@ -22,7 +22,7 @@ function sourceResolver(t: TestContext, options: { openFilesIn?: string; applica
 		if (state.fail) return Response.json({ error: "Checkout unavailable" }, { status: 409 });
 		const side = request.searchParams.get("side");
 		const file = request.searchParams.get("file");
-		return Response.json({ workspacePath: `/navigator/${side}.code-workspace`, filePath: file ? `/navigator/${side}/${file}` : undefined });
+		return Response.json({ workspacePath: `/navigator/${side}.code-workspace`, filePath: file ? `/navigator/${side}/${file}` : undefined, rootPath: `/navigator/${side}` });
 	});
 	const tabs = new ReviewCanvasEditorTabsService(
 		{} as never, { onDidCloseEditor: Event.None } as never, {} as never,
@@ -95,9 +95,9 @@ test("source files, pinned revisions included, open in the chosen editor; diffs 
 	await resolver.resolveEditor({ resource: base }, undefined);
 	await resolver.resolveEditor({ resource: dependency }, undefined);
 	assert.deepEqual(external, [
-		{ editor: "cursor", filePath: "/navigator/head/nested/my source.ts", line: 42, column: 3 },
-		{ editor: "cursor", filePath: "/navigator/base/nested/my source.ts", line: undefined, column: undefined },
-		{ editor: "cursor", filePath: "/prepared/node_modules/lib/index.d.ts", line: undefined, column: undefined },
+		{ editor: "cursor", filePath: "/navigator/head/nested/my source.ts", line: 42, column: 3, folder: "/navigator/head" },
+		{ editor: "cursor", filePath: "/navigator/base/nested/my source.ts", line: undefined, column: undefined, folder: "/navigator/base" },
+		{ editor: "cursor", filePath: "/prepared/node_modules/lib/index.d.ts", line: undefined, column: undefined, folder: "/navigator/head" },
 	]);
 	assert.equal(windows.length, 0);
 	await resolver.resolveEditor({ original: { resource: base }, modified: { resource: head } }, undefined);
