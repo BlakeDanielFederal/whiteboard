@@ -117,14 +117,6 @@ export const curatedExtensions = Object.freeze([
     },
     executables: ["server/rust-analyzer"],
     stripExtensionPack: false,
-    // rust-analyzer ships only `workspaceContains:` activation events. Review
-    // now roots the workspace at the reviewed repository, so those can fire,
-    // but two gaps remain: the extension host only re-evaluates
-    // `workspaceContains:` for folders added while it is already running, and
-    // the patterns miss a Rust file whose Cargo.toml is not at the folder
-    // root. Every other curated language extension already declares an
-    // `onLanguage:` event; this gives rust-analyzer the same trigger.
-    addActivationEvents: ["onLanguage:rust"],
   },
   {
     id: "swiftlang.swift-vscode",

@@ -17,6 +17,7 @@ import { ITextFileService } from "../../workbench/services/textfile/common/textf
 import { IWorkspaceEditingService } from "../../workbench/services/workspaces/common/workspaceEditing.js";
 import { reviewSourceQuery, type ReviewLanguageEnvironment } from "../common/reviewProtocol.js";
 import { sourceLocation } from "../common/reviewSourceView.js";
+import { reviewWorkspaceLanguageEvent } from "../common/reviewWorkspaceLanguageActivation.js";
 import { REVIEW_LANGUAGE_SOURCE_SCHEME } from "../common/reviewReadonlySource.js";
 import { REVIEW_API_SOURCE_SCHEME } from "./reviewApiSourceService.js";
 import { IReviewDesktopConnectionService } from "./reviewDesktopConnectionService.js";
@@ -164,7 +165,10 @@ export class ReviewLocalLanguageFeatures extends Disposable {
 			const reference = owned.add(await this.models.createModelReference(resource));
 			owned.add(reference.object.textEditorModel.onDidChangeContent(() => this.generation++));
 		if (model.isDisposed()) { owned.dispose(); return undefined; }
-			await this.extensions.activateByEvent(`onLanguage:${reference.object.textEditorModel.getLanguageId()}`);
+			const languageId = reference.object.textEditorModel.getLanguageId();
+			await this.extensions.activateByEvent(`onLanguage:${languageId}`);
+			// Folder changes reach the extension host before this activation request.
+			await this.extensions.activateByEvent(reviewWorkspaceLanguageEvent(languageId));
 			if (model.isDisposed()) { owned.dispose(); return undefined; }
 			const lifetime = new RefCountedDisposable(owned);
 			const owner = toDisposable(() => lifetime.release());

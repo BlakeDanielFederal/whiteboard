@@ -288,13 +288,6 @@ test(
         );
       }
 
-      for (const activationEvent of extension.addActivationEvents ?? []) {
-        assert.ok(
-          manifest.activationEvents.includes(activationEvent),
-          `${extension.id} must declare ${activationEvent}`,
-        );
-      }
-
       for (const relative of extension.executables) {
         const windowsTarget = stamp.target.startsWith("win32-");
 
@@ -337,7 +330,6 @@ test("copies only bundled extensions for each package target", () => {
             publisher: extension.namespace,
             name: extension.name,
             version: extension.version,
-            activationEvents: extension.addActivationEvents ?? [],
           })}\n`,
         );
         writeFileSync(
