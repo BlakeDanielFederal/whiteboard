@@ -8,7 +8,7 @@ import { EventEmitter } from "node:events";
 import { PassThrough } from "node:stream";
 import test from "node:test";
 
-import { launchApplication, launchExternalEditorUrl } from "./reviewExternalEditorLauncher.js";
+import { launchApplication, launchExternalEditorUrl, launchZedWorkspace } from "./reviewExternalEditorLauncher.js";
 
 const whiteboardEnv = {
 	PATH: "/usr/bin:/opt/homebrew/bin",
@@ -72,4 +72,30 @@ test("a picked application gets the file with the same clean environment", async
 
 	assert.deepEqual(opener.calls[0].env, { PATH: "/usr/bin:/opt/homebrew/bin", HOME: "/Users/reader", LANG: "en_US.UTF-8" });
 	assert.deepEqual(opener.calls[0].args.slice(-2), ["/Applications/TextEdit.app", "/repo/my file.ts"]);
+});
+
+test("Zed's command line from the app that handles zed:// gets the folder and the file", async () => {
+	const opener = fakeOpener({ code: 0 });
+	const launched = await launchZedWorkspace("/repo", "/repo/a.ts:4:1", {
+		spawn: opener.spawn,
+		platform: "darwin",
+		env: whiteboardEnv,
+		zedApplication: async () => "/Applications/Zed Preview.app",
+		exists: () => true,
+	});
+
+	assert.equal(launched, true);
+	assert.equal(opener.calls[0].command, "/Applications/Zed Preview.app/Contents/MacOS/cli");
+	assert.deepEqual(opener.calls[0].args, ["/repo", "/repo/a.ts:4:1"]);
+	assert.equal(opener.calls[0].env.VSCODE_DEV, undefined);
+});
+
+test("without Zed's command line nothing starts", async () => {
+	const opener = fakeOpener({ code: 0 });
+	const options = { spawn: opener.spawn, env: whiteboardEnv, exists: () => false };
+
+	assert.equal(await launchZedWorkspace("/repo", "/repo/a.ts", { ...options, platform: "darwin", zedApplication: async () => undefined }), false);
+	assert.equal(await launchZedWorkspace("/repo", "/repo/a.ts", { ...options, platform: "darwin", zedApplication: async () => "/Applications/Zed.app" }), false);
+	assert.equal(await launchZedWorkspace("/repo", "/repo/a.ts", { ...options, platform: "linux", exists: () => true }), false);
+	assert.equal(opener.calls.length, 0);
 });

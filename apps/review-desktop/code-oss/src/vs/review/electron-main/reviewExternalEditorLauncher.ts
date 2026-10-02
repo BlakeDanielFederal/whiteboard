@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as cp from "child_process";
+import { existsSync } from "fs";
+import { join } from "../../base/common/path.js";
 import type { IProcessEnvironment } from "../../base/common/platform.js";
 import { removeDangerousEnvVariables, sanitizeProcessEnvironment } from "../../base/common/processes.js";
 
@@ -66,6 +68,36 @@ export function launchExternalEditorUrl(url: string, options: ExternalEditorLaun
 /** Opens a file in an application the reader picked, with the same clean environment. */
 export function launchApplication(application: string, filePath: string, options: ExternalEditorLaunchOptions = {}): Promise<void> {
 	return launchDetached(applicationOpener(options.platform ?? process.platform, application, filePath), options);
+}
+
+export interface ZedLaunchOptions extends ExternalEditorLaunchOptions {
+	/** The app bundle that handles `zed://`, which carries the command line. */
+	readonly zedApplication?: () => Promise<string | undefined>;
+	readonly exists?: (path: string) => boolean;
+}
+
+/**
+ * Opens a checkout and a file in one Zed window through Zed's command line.
+ * Its URLs cannot: `zed://file/<folder>` and `zed://file/<file>` each open a
+ * window of their own. Resolves false where the command line is not found,
+ * which is anywhere but macOS: elsewhere `zed` on `PATH` may be another
+ * program, such as the ZFS event daemon on Linux.
+ */
+export async function launchZedWorkspace(folder: string, file: string, options: ZedLaunchOptions = {}): Promise<boolean> {
+	const { zedApplication = protocolApplication("zed://"), exists = existsSync } = options;
+	if ((options.platform ?? process.platform) !== "darwin") return false;
+	const application = await zedApplication();
+	const cli = application && join(application, "Contents", "MacOS", "cli");
+	if (!cli || !exists(cli)) return false;
+	await launchDetached([cli, [folder, file]], options);
+	return true;
+}
+
+function protocolApplication(url: string) {
+	return async () => {
+		const { app } = await import("electron");
+		return (await app.getApplicationInfoForProtocol(url).catch(() => undefined))?.path || undefined;
+	};
 }
 
 /**

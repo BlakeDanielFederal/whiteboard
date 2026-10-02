@@ -31,8 +31,12 @@ export function isExternalEditor(editor: string | undefined): editor is string {
 export function externalEditorUrl({ editor, filePath, line, column }: ReviewExternalEditorTarget): string | undefined {
 	if (!isExternalEditor(editor) || typeof filePath !== "string" || !isAbsolute(filePath)) return undefined;
 	const encodedPath = URI.file(filePath).path.split("/").map(encodeURIComponent).join("/");
-	const position = isLineNumber(line) ? `:${line}:${isLineNumber(column) ? column : 1}` : "";
-	return `${EXTERNAL_EDITOR_SCHEMES[editor]}://file${encodedPath}${position}`;
+	return `${EXTERNAL_EDITOR_SCHEMES[editor]}://file${encodedPath}${editorPosition(line, column)}`;
+}
+
+/** The `:<line>:<column>` suffix editors read after a path, or nothing without a line. */
+export function editorPosition(line: number | undefined, column: number | undefined): string {
+	return isLineNumber(line) ? `:${line}:${isLineNumber(column) ? column : 1}` : "";
 }
 
 function isLineNumber(value: unknown): value is number {
