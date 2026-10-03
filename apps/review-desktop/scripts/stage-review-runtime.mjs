@@ -17,6 +17,8 @@ import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { promisify } from "node:util";
 
+import { pruneReviewRuntime } from "./prune-review-runtime.mjs";
+
 const execFileAsync = promisify(execFile);
 
 const diffrName = process.platform === "win32" ? "diffr.exe" : "diffr";
@@ -144,6 +146,7 @@ export async function stageReviewRuntime(packagedRoot) {
   await stageReviewDocs(runtimeRoot);
   await stageDiffrBinary(runtimeRoot);
   await makeTreeOwnerWritable(path.join(runtimeRoot, "tutorial", "git-stub"));
+  console.log("[runtime pruning]", await pruneReviewRuntime(runtimeRoot));
   await assertRuntimeClosure(runtimeRoot);
 
   return runtimeRoot;
