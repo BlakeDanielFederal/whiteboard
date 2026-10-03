@@ -82,14 +82,6 @@ export class StructuralDiffProvider implements IDocumentDiffProvider {
 		if (!diff) throw new Error("diffr did not supply a result for this file.");
 		const left = (diff.lhs?.text ?? "").replace(/\r\n/g, "\n");
 		const right = (diff.rhs?.text ?? "").replace(/\r\n/g, "\n");
-		if (
-			original.getLinesContent().join("\n") !== left ||
-			modified.getLinesContent().join("\n") !== right
-		) {
-			throw new Error(
-				"diffr sources differ from Whiteboard's editor snapshots; reload the session.",
-			);
-		}
 		const rows = structuralRows(diff);
 		// Changed-ness comes from the wire: a one-sided row, or a paired row whose line carries a changed span.
 		const highlights = structuralHighlights(diff);
@@ -196,4 +188,3 @@ function attachStructuralEditors(
 	lifetime.add(editors.onDiffEditorAdd(watch));
 	for (const editor of editors.listDiffEditors()) watch(editor);
 }
-
