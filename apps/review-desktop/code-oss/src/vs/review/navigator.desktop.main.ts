@@ -50,7 +50,8 @@ import { IEditorService } from '../workbench/services/editor/common/editorServic
 import { NativeExtensionService } from '../workbench/services/extensions/electron-browser/nativeExtensionService.js';
 import { IExtensionService, type IExtensionHost } from '../workbench/services/extensions/common/extensions.js';
 import type { IExtensionHostManager } from '../workbench/services/extensions/common/extensionHostManagers.js';
-import { ReviewRemoteWindowExtensionHosts } from './services/remote/reviewRemoteWindowScope.js';
+import type { IExtensionDescription } from '../platform/extensions/common/extensions.js';
+import { registersContributions, ReviewRemoteWindowExtensionHosts } from './services/remote/reviewRemoteWindowScope.js';
 
 class NavigatorDefaults {
 	constructor(@IStorageService storage: IStorageService) {
@@ -70,6 +71,10 @@ class NavigatorExtensionService extends NativeExtensionService {
 	protected override _doCreateExtensionHostManager(extensionHost: IExtensionHost, initialActivationEvents: string[]): IExtensionHostManager {
 		return this.remoteHosts.create(extensionHost, initialActivationEvents, this._acquireInternalAPI(extensionHost))
 			?? super._doCreateExtensionHostManager(extensionHost, initialActivationEvents);
+	}
+
+	protected override _registersContributions(extension: IExtensionDescription): boolean {
+		return registersContributions(extension);
 	}
 }
 

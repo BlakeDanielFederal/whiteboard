@@ -1162,7 +1162,7 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 		}
 
 		const messageHandler = (msg: IMessage) => this._handleExtensionPointMessage(msg);
-		const availableExtensions = this._registry.getAllExtensionDescriptions();
+		const availableExtensions = this._registry.getAllExtensionDescriptions().filter(extension => this._registersContributions(extension));
 		const extensionPoints = ExtensionsRegistry.getExtensionPoints();
 		perf.mark(onlyResolverExtensionPoints ? 'code/willHandleResolverExtensionPoints' : 'code/willHandleExtensionPoints');
 		for (const extensionPoint of extensionPoints) {
@@ -1173,6 +1173,10 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 			}
 		}
 		perf.mark(onlyResolverExtensionPoints ? 'code/didHandleResolverExtensionPoints' : 'code/didHandleExtensionPoints');
+	}
+
+	protected _registersContributions(extension: IExtensionDescription): boolean {
+		return true;
 	}
 
 	private _getOrCreateExtensionStatus(extensionId: ExtensionIdentifier): ExtensionStatus {

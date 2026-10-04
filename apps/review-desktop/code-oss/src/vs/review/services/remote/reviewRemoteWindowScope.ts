@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from "../../../base/common/lifecycle.js";
+import { Schemas } from "../../../base/common/network.js";
 import { ILanguageFeaturesService } from "../../../editor/common/services/languageFeatures.js";
 import { ExtensionIdentifierSet, type ExtensionIdentifier, type IExtensionDescription } from "../../../platform/extensions/common/extensions.js";
 import { IFileService } from "../../../platform/files/common/files.js";
@@ -40,6 +41,12 @@ export function reviewRemoteWindowScope(input: {
 			ownFiles: window.get(IFileService),
 		}, window);
 	}));
+}
+
+/** A Source window registers none of its Whiteboard host's manifest contributions; the extensions still activate. */
+export function registersContributions(extension: IExtensionDescription): boolean {
+	const location = extension.extensionLocation;
+	return location.scheme !== Schemas.vscodeRemote || !isReviewRemoteAuthority(location.authority);
 }
 
 /**

@@ -374,7 +374,10 @@ one of these entries:
   extension service can create a Whiteboard host's extension host manager
   inside the remote guard (`review/services/remote/reviewRemoteWindowScope.ts`);
   the manager creates the host's main-thread peers. Upstream's
-  `_doCreateExtensionHostManager` is already protected.
+  `_doCreateExtensionHostManager` is already protected. A protected
+  `_registersContributions` decides which extensions' manifests reach the
+  extension points, so a Source window registers none of its Whiteboard
+  host's keybindings, menus, settings, grammars or languages.
 - `extensions/package.json` and the extension `package.json`/`package-lock.json`
   files: `@vscode/extension-telemetry` is hoisted to the shared extensions
   install (github keeps its own ^1.0.0 copy; the shared copy is ^0.9.8). The
