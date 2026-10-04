@@ -9,6 +9,10 @@ on:
       - ready_for_review
   workflow_dispatch:
     inputs:
+      published_nixos_url:
+        description: "Published Preview NixOS archive to install and inspect"
+        type: string
+        default: ""
       nixos_artifact_runs:
         description: "JSON array of existing Linux build run IDs (stable, preview) to validate on NixOS"
         type: string
@@ -34,6 +38,57 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  published-nixos:
+    if: github.event_name == 'workflow_dispatch' && inputs.published_nixos_url != ''
+    name: Published Preview NixOS installation
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      ARCHIVE_URL: ${{ inputs.published_nixos_url }}
+      FINGERPRINT: 0760DDC0AACD234D42A2C62626D3C32D039A5EC3
+      NIX_CONFIG: |
+        experimental-features = nix-command flakes
+        accept-flake-config = false
+        system-features = nixos-test benchmark big-parallel kvm
+    steps:
+      - uses: cachix/install-nix-action@13d8dd58da0234aa297dedd986986ccb8e7f3e24 # v31
+      - name: Download and verify published archive
+        run: |
+          set -euo pipefail
+          mkdir evidence
+          curl -fsSL "$ARCHIVE_URL" -o published-preview.nix.tar.gz -w '%{url_effective}\n' > evidence/archive-url.txt
+          SOURCE=$(cat evidence/archive-url.txt)
+          curl -fsSL "$SOURCE.asc" -o published-preview.nix.tar.gz.asc
+          curl -fsSL "https://install.dev.fast/repos/keys/$FINGERPRINT.asc" -o signing-key.asc
+          export GNUPGHOME="$RUNNER_TEMP/published-nixos-gnupg"
+          mkdir -m 0700 "$GNUPGHOME"
+          gpg --batch --show-keys --with-colons signing-key.asc | grep -F "fpr:::::::::$FINGERPRINT:"
+          gpg --batch --import signing-key.asc
+          gpg --batch --status-fd 1 --verify published-preview.nix.tar.gz.asc published-preview.nix.tar.gz > evidence/signature.txt
+          grep -E "^\[GNUPG:\] VALIDSIG ($FINGERPRINT |.* $FINGERPRINT$)" evidence/signature.txt
+          sha256sum published-preview.nix.tar.gz > evidence/archive-sha256.txt
+          tar -xOf published-preview.nix.tar.gz whiteboard-preview/release.json > evidence/release.json
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          release = json.loads(Path('evidence/release.json').read_text())
+          assert release['packageName'] == 'whiteboard-preview'
+          assert '-preview.' in release['version']
+          assert release['commit'] in Path('evidence/archive-url.txt').read_text()
+          print(json.dumps(release))
+          PY
+      - name: Install published package in a fresh graphical NixOS VM
+        run: |
+          nix build -L --no-update-lock-file "file://$PWD/published-preview.nix.tar.gz#checks.x86_64-linux.nixos" --out-link validation
+          cp -RL validation/. evidence/
+      - name: Upload installation logs and screenshots
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: published-preview-nixos-evidence
+          path: evidence/
+          retention-days: 7
+
   linux-versions:
     if: github.event_name == 'workflow_dispatch' && inputs.linux_packages
     runs-on: ubuntu-latest
@@ -191,6 +246,7 @@ jobs:
           rm -rf "$GNUPGHOME"
 
   review-desktop:
+    if: inputs.published_nixos_url == ''
     name: Review Desktop
     runs-on: ubuntu-latest
     timeout-minutes: 60
