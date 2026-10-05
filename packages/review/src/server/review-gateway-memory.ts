@@ -47,7 +47,7 @@ interface Server {
 }
 
 export function gatewayMemoryPath(home: string) {
-  return path.join(home, "remote-reviews.json");
+  return path.join(home, "remotes.json");
 }
 
 export function openGatewayMemory(
