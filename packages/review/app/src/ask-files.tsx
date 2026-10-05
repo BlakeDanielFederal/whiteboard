@@ -15,6 +15,7 @@ import { z } from "zod";
 import { useReviewSession } from "./host/review-session";
 import { radius } from "./scale.stylex";
 import { tokens } from "./tokens.stylex";
+import { useTooltip } from "./use-tooltip";
 
 const resolvedSchema = z.object({
   files: z.array(z.object({ path: z.string(), file: z.string() })),
@@ -145,6 +146,10 @@ function AskFileLink({
   useEffect(() => files?.request(path), [files, path]);
   const file = files?.lookup(path);
 
+  const tooltip = useTooltip<HTMLAnchorElement>(
+    `Open ${file}${line ? `:${line}` : ""}`,
+  );
+
   if (!files || !file) return fallback;
   const open = () => files.open(file, line);
 
@@ -154,9 +159,9 @@ function AskFileLink({
   return (
     <a
       role="link"
+      ref={tooltip}
       tabIndex={0}
       {...stylex.props(styles.link)}
-      title={`Open ${file}${line ? `:${line}` : ""}`}
       onClick={open}
       onKeyDown={(event) => {
         if (event.key !== "Enter") return;
@@ -216,10 +221,7 @@ const styles = stylex.create({
     textUnderlineOffset: "3px",
     cursor: "pointer",
     borderRadius: { default: null, ":focus-visible": radius.small },
-    outline: {
-      default: null,
-      ":focus-visible": `2px solid ${tokens.accentOutline}`,
-    },
+    outline: { default: null, ":focus-visible": `1px solid ${tokens.accent}` },
     outlineOffset: { default: null, ":focus-visible": "1px" },
   },
 });

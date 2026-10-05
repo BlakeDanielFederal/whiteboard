@@ -12,16 +12,10 @@ import {
 import { createPortal } from "react-dom";
 
 import { logos } from "./ask-agent-picker";
-import {
-  AskDockIcon,
-  AskGripIcon,
-  AskIcon,
-  AskMinimizeIcon,
-  askIconSizes,
-} from "./ask-icons";
 import { controlStyles } from "./controls-styles";
 import { useReviewDebugSettings } from "./debug-settings";
-import { CloseIcon } from "./icons";
+import { ChatIcon, CloseIcon, DockIcon, GripIcon, MinusIcon } from "./icons";
+import { appMarker } from "./markers.stylex";
 import { useReviewPanel, useReviewPanelStore } from "./review-panel";
 import type { AskAnchor } from "./review-panel-model";
 import { useReviewContainer } from "./review-root-context";
@@ -31,7 +25,10 @@ import { withClass } from "./stylex-props";
 import { themeStyles } from "./theme-styles";
 import { tokens } from "./tokens.stylex";
 import { IconButton } from "./ui/button";
+import { Chip } from "./ui/chip";
+import { surfaceStyles } from "./ui/surface";
 import { textStyles } from "./ui/text";
+import { useTooltip } from "./use-tooltip";
 
 /** What the pill says about a conversation it stands in for. */
 export interface AskPresence {
@@ -121,16 +118,20 @@ export function AskSlot({ node }: { node: HTMLElement }): ReactElement {
 /** Ask in a window over the canvas, above peeks and fullscreen diagrams. */
 export function AskWindow({
   actions,
+  titleAccessory,
   children,
 }: {
   /** The conversation's own buttons, before dock, minimize and close. */
   actions: ReactNode;
+  titleAccessory?: ReactNode;
   children: ReactNode;
 }): ReactElement {
   const store = useReviewPanelStore();
   const anchor = useReviewPanel((state) => state.askAnchor) ?? DEFAULT_ANCHOR;
   const size = useReviewPanel((state) => state.askSize);
   const canvas = useAskCanvas();
+  const dockTooltip = useTooltip("Dock in the side panel");
+  const minimizeTooltip = useTooltip("Minimize");
 
   const [live, setLive] = useState<{
     frame: Frame;
@@ -240,7 +241,7 @@ export function AskWindow({
   return (
     <AskLayer>
       <div
-        {...stylex.props(styles.window)}
+        {...stylex.props(surfaceStyles.dialog, panelStyles.tray, styles.window)}
         role="dialog"
         aria-label="Ask"
         style={{
@@ -259,7 +260,7 @@ export function AskWindow({
           {...gestureHandlers}
         >
           <div {...stylex.props(styles.title)}>
-            <AskGripIcon xstyle={styles.grip} />
+            <GripIcon xstyle={styles.grip} />
             <span
               {...stylex.props(
                 textStyles.eyebrow,
@@ -269,27 +270,28 @@ export function AskWindow({
             >
               Ask
             </span>
+            {titleAccessory}
           </div>
           <div {...stylex.props(panelStyles.actions)}>
             {actions}
             <IconButton
+              ref={dockTooltip}
               size="large"
               aria-label="Dock Ask in the side panel"
-              title="Dock in the side panel"
               onClick={() => store.getState().dockAsk()}
             >
-              <AskDockIcon
-                xstyle={[controlStyles.inertIcon, askIconSizes.header]}
+              <DockIcon
+                xstyle={[controlStyles.inertIcon, controlStyles.chromeIcon]}
               />
             </IconButton>
             <IconButton
+              ref={minimizeTooltip}
               size="large"
               aria-label="Minimize Ask"
-              title="Minimize"
               onClick={() => store.getState().minimizeAsk()}
             >
-              <AskMinimizeIcon
-                xstyle={[controlStyles.inertIcon, askIconSizes.header]}
+              <MinusIcon
+                xstyle={[controlStyles.inertIcon, controlStyles.chromeIcon]}
               />
             </IconButton>
             <IconButton
@@ -402,6 +404,7 @@ export function AskPill({ presence }: { presence: AskPresence }): ReactElement {
         ref={pill}
         type="button"
         {...stylex.props(
+          surfaceStyles.popover,
           styles.pill,
           waiting && styles.pillWaiting,
           live && styles.pillLifted,
@@ -432,7 +435,7 @@ export function AskPill({ presence }: { presence: AskPresence }): ReactElement {
         {presence.agent ? (
           logos[presence.agent]({ xstyle: styles.logo })
         ) : (
-          <AskIcon xstyle={[styles.logo, styles.askGlyph]} />
+          <ChatIcon xstyle={[styles.logo, styles.askGlyph]} />
         )}
         <span {...stylex.props(styles.name)}>{presence.agentName}</span>
         <span
@@ -444,9 +447,13 @@ export function AskPill({ presence }: { presence: AskPresence }): ReactElement {
         >
           {presence.status}
         </span>
-        <span {...stylex.props(styles.open, waiting && styles.openWaiting)}>
+        <Chip
+          variant="pill"
+          size="large"
+          xstyle={[styles.open, waiting && styles.openWaiting]}
+        >
           {waiting ? "Review" : "Open"}
-        </span>
+        </Chip>
       </button>
     </AskLayer>
   );
@@ -547,6 +554,8 @@ function AskLayer({ children }: { children: ReactNode }): ReactElement {
     <div
       {...withClass(
         `review-app--theme-${theme}`,
+        appMarker,
+        themeStyles.vars,
         theme === "light" && themeStyles.light,
         styles.layer,
       )}
@@ -673,18 +682,11 @@ function useAskCanvas(): AskCanvas {
   return canvas;
 }
 
-const hairline = {
-  borderWidth: "1px",
-  borderStyle: "solid",
-} as const;
-
-// Portals inside .review-canvas-root but outside .review-app, where
-// --review-debug-layer lives, hence the literal fallback: one above the
-// fullscreen diagrams that use it.
 const styles = stylex.create({
+  // One above the fullscreen diagrams.
   layer: {
     position: "fixed",
-    zIndex: "calc(var(--review-debug-layer, 2147483000) + 1)",
+    zIndex: `calc(${tokens.reviewDebugLayer} + 1)`,
   },
   fill: {
     display: "flex",
@@ -698,11 +700,6 @@ const styles = stylex.create({
     display: "flex",
     flexDirection: "column",
     overflow: "hidden",
-    ...hairline,
-    borderColor: tokens.ruleSoft,
-    borderRadius: radius.surface,
-    backgroundColor: tokens.tray,
-    boxShadow: elevation.dialog,
   },
   titleBar: {
     paddingLeft: "10px",
@@ -742,17 +739,13 @@ const styles = stylex.create({
     gap: "10px",
     maxWidth: `calc(100% - ${GAP * 2}px)`,
     padding: "6px 6px 6px 12px",
-    ...hairline,
-    borderColor: tokens.ruleSoft,
     borderRadius: radius.pill,
-    backgroundColor: tokens.raised,
-    boxShadow: elevation.popover,
     fontFamily: tokens.fontMono,
     cursor: "pointer",
     touchAction: "none",
     userSelect: "none",
     outline: { default: null, ":focus-visible": `1px solid ${tokens.accent}` },
-    outlineOffset: { default: null, ":focus-visible": "2px" },
+    outlineOffset: { default: null, ":focus-visible": "1px" },
   },
   // While it is dragged, it lifts to the window's shadow.
   pillLifted: {
@@ -793,17 +786,9 @@ const styles = stylex.create({
     color: tokens.changeRemoved,
   },
   open: {
-    flex: "0 0 auto",
-    padding: "4px 12px",
-    ...hairline,
-    borderColor: tokens.ruleSoft,
-    borderRadius: radius.pill,
     color: tokens.ink,
-    fontSize: fontSize.small,
-    lineHeight: "14px",
   },
   openWaiting: {
-    borderColor: tokens.changeModified,
     backgroundColor: tokens.changeModified,
     color: tokens.onWarning,
   },

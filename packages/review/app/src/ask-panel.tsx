@@ -11,12 +11,14 @@ import {
 import * as stylex from "@stylexjs/stylex";
 import {
   type ReactElement,
+  type ReactNode,
   memo,
   useCallback,
   useEffect,
   useRef,
   useState,
 } from "react";
+import { createPortal } from "react-dom";
 import { z } from "zod";
 
 import { AgentChatUserMessage } from "./agent-chat";
@@ -40,25 +42,26 @@ import { useShowOpenThread } from "./ask-delete";
 import { AskFilesProvider } from "./ask-files";
 import { useAskHistory } from "./ask-history";
 import { AskOutdatedNote } from "./ask-history-list";
-import {
-  AskArrowIcon,
-  AskImageIcon,
-  AskLockIcon,
-  askIconSizes,
-} from "./ask-icons";
-import { AskSelectionQuote, askPanelStyles } from "./ask-panel-shared";
+import { AskSelectionQuote } from "./ask-panel-shared";
 import { AskPermission } from "./ask-permission";
 import { AskSetup, AskSignIn } from "./ask-setup";
+import { askPanelStyles } from "./ask-styles";
 import { useLatest, useThread } from "./ask-thread-stream";
 import { AskAgentTurn, AskWorking, turns } from "./ask-turn";
 import type { AskPresence } from "./ask-window";
+import { controlStyles } from "./controls-styles";
 import { useReviewSession } from "./host/review-session";
+import { ArrowUpIcon, ImageIcon, LockIcon } from "./icons";
 import { formatRelativeTime } from "./review-home-view";
 import { useOptionalReviewPanelStore } from "./review-panel";
-import { fontSize, motion, radius } from "./scale.stylex";
+import { fontSize, radius } from "./scale.stylex";
+import type { StyleArg } from "./stylex-props";
 import { tokens } from "./tokens.stylex";
+import { IconButton } from "./ui/button";
+import { Chip } from "./ui/chip";
 import { surfaceStyles } from "./ui/surface";
 import { useFollowLatest } from "./use-follow-latest";
+import { useTooltip } from "./use-tooltip";
 
 /** What the panel sends: a first question, a follow-up, or a decision. */
 type AskRequest =
@@ -86,9 +89,11 @@ export function AskPanelContent({
   agent: requestedAgent,
   savedThreadId,
   onPresence,
+  header,
 }: {
   selection: AgentSelection;
   agent?: AskAgentId;
+  header?: HTMLElement | null;
   /** A saved conversation to reopen instead of asking a new question. */
   savedThreadId?: string;
   /** What the pill says while the conversation is out of sight. */
@@ -104,6 +109,12 @@ export function AskPanelContent({
   const [picks, setPicks] = useState<AskPicks>({});
   const [bypassPick, setBypassPick] = useState<boolean>();
   const { thread, lost } = useThread(session, threadId);
+
+  const loadingConversation =
+    savedThreadId !== undefined &&
+    !requestError &&
+    !lost &&
+    (!thread || (thread.status === "starting" && !thread.entries.length));
 
   useShowOpenThread(threadId ?? savedThreadId ?? null);
 
@@ -123,6 +134,24 @@ export function AskPanelContent({
   }, [agents, agent, session]);
 
   const latestSession = useLatest(session);
+  const mounted = useRef(true);
+
+  useEffect(() => {
+    mounted.current = true;
+
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
+
+  // A thread opened after the panel closed has nobody to close it.
+  const closeLate = useCallback(
+    (id: string) =>
+      void latestSession.current
+        .fetch(`/ask/${id}/close`, { method: "POST", keepalive: true })
+        .catch(() => {}),
+    [latestSession],
+  );
 
   // A saved conversation: the server starts its agent and loads it, once
   // per panel, not again for each new version of the review.
@@ -141,7 +170,11 @@ export function AskPanelContent({
         }),
       })
       .then(async (response) => {
-        if (!current) return;
+        if (!current) {
+          if (response.ok && !mounted.current) closeLate(savedThreadId);
+
+          return;
+        }
 
         if (response.ok) setThreadId(savedThreadId);
         else
@@ -158,9 +191,9 @@ export function AskPanelContent({
     return () => {
       current = false;
     };
-  }, [latestSession, savedThreadId, requestedAgent]);
+  }, [latestSession, savedThreadId, requestedAgent, closeLate]);
 
-  useEffect(() => composer.current?.focus(), [agent]);
+  useEffect(() => composer.current?.focus(), [agent, loadingConversation]);
 
   // The server saves a conversation once the agent starts it and dates it
   // by its last turn, so the document's marks and the history follow.
@@ -227,6 +260,12 @@ export function AskPanelContent({
           .object({ threadId: z.string() })
           .parse(await response.json());
 
+        if (!mounted.current) {
+          closeLate(id);
+
+          return false;
+        }
+
         rememberAskAgent(session, agent);
         setThreadId(id);
       }
@@ -276,9 +315,6 @@ export function AskPanelContent({
     void post(`/ask/${threadId}/cancel`).catch((error: Error) =>
       setRequestError(error.message),
     );
-
-  if (agents && !agents.some((candidate) => candidate.available))
-    return <AskSetup agents={agents} selection={selection} />;
 
   const chosen = agents?.find((candidate) => candidate.id === agent);
   // A running thread offers its agent's choices; before one, what the
@@ -441,6 +477,12 @@ export function AskPanelContent({
     presence.tone,
   ]);
 
+  if (agents && !agents.some((candidate) => candidate.available))
+    return <AskSetup agents={agents} selection={selection} />;
+
+  if (loadingConversation)
+    return <div {...stylex.props(askPanelStyles.body)} aria-busy="true" />;
+
   // Until the agent says, what its kind of agent does: a starting thread
   // has not yet been put in its read-only mode.
   const readOnly =
@@ -459,32 +501,33 @@ export function AskPanelContent({
 
   // Below the composer, as in the agents' own apps: what the agent may do,
   // then its model and effort.
-  const permissions =
-    chosen?.bypass && (thread || savedThreadId === undefined) ? (
-      <AskChoicePicker
-        label="Permissions"
-        select={permissionsSelect(bypass)}
-        current={bypass ? "bypass" : "ask"}
-        disabled={settingsDisabled}
-        quiet
-        icon={readOnly ? <AskLockIcon /> : null}
-        onPick={(value) => permit(value === "bypass")}
-      />
-    ) : (
-      <span
-        {...stylex.props(styles.mode, styles.settingsLabel)}
-        title={modeTitle}
-      >
-        {readOnly ? (
-          <>
-            <AskLockIcon />
-            Read-only
-          </>
-        ) : (
-          "Not read-only"
-        )}
-      </span>
-    );
+  const canBypass = chosen?.bypass && (thread || savedThreadId === undefined);
+
+  const permissions = canBypass ? (
+    <AskChoicePicker
+      label="Permissions"
+      select={permissionsSelect(bypass)}
+      current={bypass ? "bypass" : "ask"}
+      disabled={settingsDisabled}
+      quiet
+      icon={readOnly ? <LockIcon xstyle={controlStyles.inlineIcon} /> : null}
+      onPick={(value) => permit(value === "bypass")}
+    />
+  ) : (
+    <TooltipLabel
+      tooltip={modeTitle}
+      xstyle={[styles.mode, styles.settingsLabel]}
+    >
+      {readOnly ? (
+        <>
+          <LockIcon xstyle={controlStyles.inlineIcon} />
+          Read-only
+        </>
+      ) : (
+        "Not read-only"
+      )}
+    </TooltipLabel>
+  );
 
   const settings = (
     <>
@@ -508,28 +551,22 @@ export function AskPanelContent({
     </>
   );
 
+  const agentPicker = (
+    <AskAgentPicker
+      agents={agents}
+      agent={agent}
+      locked={threadId !== null || savedThreadId !== undefined}
+      onPick={(picked) => {
+        setAgent(picked);
+        setPicks({});
+        setBypassPick(undefined);
+      }}
+    />
+  );
+
   return (
     <div {...stylex.props(askPanelStyles.body)}>
-      <div {...stylex.props(styles.agentBar)}>
-        <AskAgentPicker
-          agents={agents}
-          agent={agent}
-          locked={threadId !== null || savedThreadId !== undefined}
-          onPick={(picked) => {
-            setAgent(picked);
-            setPicks({});
-            setBypassPick(undefined);
-          }}
-        />
-        {thread ? (
-          <span
-            {...stylex.props(styles.mode, styles.head)}
-            title={`Commit ${thread.head}`}
-          >
-            {thread.head.slice(0, 7)}
-          </span>
-        ) : null}
-      </div>
+      {header ? createPortal(agentPicker, header) : agentPicker}
 
       <AskFilesProvider key={threadId} threadId={threadId}>
         <div {...stylex.props(styles.threadFrame)}>
@@ -554,18 +591,6 @@ export function AskPanelContent({
                 }
                 thread={thread}
               />
-            ) : null}
-
-            {connecting && !thread?.entries.length ? (
-              <div {...stylex.props(styles.loading)} role="status">
-                <span {...stylex.props(styles.loadingLabel)}>
-                  Loading the conversation from {agentName}…
-                </span>
-                <span {...stylex.props(styles.loadingLine)} />
-                <span
-                  {...stylex.props(styles.loadingLine, styles.loadingLineShort)}
-                />
-              </div>
             ) : null}
 
             {thread?.signIn && retry && !requestError ? (
@@ -597,17 +622,7 @@ export function AskPanelContent({
             ) : null}
           </div>
           {latest.atLatest ? null : (
-            <button
-              type="button"
-              {...stylex.props(surfaceStyles.popover, styles.toLatest)}
-              aria-label="Scroll to the latest"
-              title="Scroll to the latest"
-              onClick={() => latest.jump()}
-            >
-              <AskArrowIcon
-                xstyle={[askIconSizes.small, styles.toLatestIcon]}
-              />
-            </button>
+            <ToLatestButton onClick={() => latest.jump()} />
           )}
         </div>
       </AskFilesProvider>
@@ -640,10 +655,46 @@ export function AskPanelContent({
         acceptsImages={(thread?.accepts ?? offered?.accepts)?.image === true}
         findFiles={findFiles}
         permissions={permissions}
+        onCyclePermissions={
+          canBypass && !settingsDisabled ? () => permit(!bypass) : undefined
+        }
         settings={settings}
         onAsk={ask}
+        usage={thread?.usage}
       />
     </div>
+  );
+}
+
+function ToLatestButton({ onClick }: { onClick: () => void }): ReactElement {
+  const label = "Scroll to the latest";
+
+  return (
+    <IconButton
+      ref={useTooltip(label)}
+      size="large"
+      xstyle={[surfaceStyles.popover, styles.toLatest]}
+      aria-label={label}
+      onClick={onClick}
+    >
+      <ArrowUpIcon xstyle={[controlStyles.chromeIcon, styles.toLatestIcon]} />
+    </IconButton>
+  );
+}
+
+function TooltipLabel({
+  tooltip,
+  xstyle,
+  children,
+}: {
+  tooltip: string;
+  xstyle: StyleArg;
+  children: ReactNode;
+}): ReactElement {
+  return (
+    <span ref={useTooltip<HTMLSpanElement>(tooltip)} {...stylex.props(xstyle)}>
+      {children}
+    </span>
   );
 }
 
@@ -696,12 +747,22 @@ function AskUserImages({
     <span {...stylex.props(styles.attachments)}>
       {names.map((name, index) => (
         // An image's name can repeat.
-        <span key={index} {...stylex.props(styles.attachment)} title={name}>
-          <AskImageIcon xstyle={askIconSizes.small} />
-          {name}
-        </span>
+        <AskImageChip key={index} name={name} />
       ))}
     </span>
+  );
+}
+
+function AskImageChip({ name }: { name: string }): ReactElement {
+  return (
+    <Chip
+      ref={useTooltip<HTMLSpanElement>(name)}
+      variant="pill"
+      xstyle={styles.attachment}
+    >
+      <ImageIcon xstyle={controlStyles.inlineIcon} />
+      {name}
+    </Chip>
   );
 }
 
@@ -750,39 +811,9 @@ const AskTurns = memo(function AskTurns({
   );
 });
 
-const reducedMotion = "@media (prefers-reduced-motion: reduce)";
-
-const loadingSweep = stylex.keyframes({
-  from: { backgroundPosition: "100% 0" },
-  to: { backgroundPosition: "-100% 0" },
-});
-
-// Raised off the panel's tray in either theme; --surface-raised is the
-// workbench's widget color, which matches the tray in light themes.
-const offTray = `color-mix(in srgb, ${tokens.ink} 6%, ${tokens.tray})`;
-
-const hairline = {
-  borderWidth: "1px",
-  borderStyle: "solid",
-} as const;
-
 // Ask: one conversation with a local agent about a selection. The thread
 // scrolls; the composer stays at the bottom.
 const styles = stylex.create({
-  agentBar: {
-    display: "flex",
-    flex: "0 0 auto",
-    alignItems: "center",
-    gap: "8px",
-    padding: "12px 16px",
-    borderBottomWidth: "1px",
-    borderBottomStyle: "solid",
-    borderBottomColor: tokens.rule,
-  },
-  // The commit the agent reads, at the bar's end.
-  head: {
-    marginLeft: "auto",
-  },
   // Level with the pickers beside it.
   settingsLabel: {
     padding: "4px 6px",
@@ -815,14 +846,12 @@ const styles = stylex.create({
     position: "absolute",
     bottom: "12px",
     left: "50%",
-    display: "grid",
-    placeItems: "center",
-    width: "28px",
-    height: "28px",
-    padding: 0,
     borderRadius: radius.round,
-    color: { default: tokens.inkMuted, ":hover": tokens.ink },
-    cursor: "pointer",
+    color: {
+      default: tokens.chromeIconFg,
+      ":hover": tokens.chromeFg,
+      ":focus-visible": tokens.chromeFg,
+    },
     transform: "translateX(-50%)",
   },
   toLatestIcon: {
@@ -844,32 +873,7 @@ const styles = stylex.create({
   },
   userBubble: {
     padding: "10px 14px",
-    backgroundColor: offTray,
-  },
-  loading: {
-    display: "flex",
-    flexDirection: "column",
-    gap: "10px",
-    padding: "4px 0",
-  },
-  loadingLabel: {
-    color: tokens.inkFaint,
-    fontFamily: tokens.fontMono,
-    fontSize: fontSize.micro,
-    lineHeight: "14px",
-  },
-  loadingLine: {
-    height: "12px",
-    borderRadius: radius.small,
-    backgroundImage: `linear-gradient(90deg, color-mix(in srgb, ${tokens.ink} 5%, transparent) 0%, color-mix(in srgb, ${tokens.ink} 10%, transparent) 50%, color-mix(in srgb, ${tokens.ink} 5%, transparent) 100%)`,
-    backgroundSize: "200% 100%",
-    animationName: { default: loadingSweep, [reducedMotion]: "none" },
-    animationDuration: motion.pulse,
-    animationTimingFunction: "ease-in-out",
-    animationIterationCount: "infinite",
-  },
-  loadingLineShort: {
-    width: "62%",
+    backgroundColor: tokens.trayRaised,
   },
   attachments: {
     display: "flex",
@@ -877,21 +881,16 @@ const styles = stylex.create({
     gap: "6px",
     marginTop: "8px",
   },
+  // Outlined: the pill's well would vanish on the bubble.
   attachment: {
-    display: "inline-flex",
-    alignItems: "center",
     gap: "4px",
     maxWidth: "100%",
-    padding: "2px 6px",
     overflow: "hidden",
-    ...hairline,
+    borderWidth: "1px",
+    borderStyle: "solid",
     borderColor: tokens.ruleSoft,
-    borderRadius: radius.small,
-    color: tokens.inkMuted,
+    backgroundColor: tokens.transparent,
     fontFamily: tokens.fontMono,
-    fontSize: fontSize.small,
-    lineHeight: "14px",
     textOverflow: "ellipsis",
-    whiteSpace: "nowrap",
   },
 });

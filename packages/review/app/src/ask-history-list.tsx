@@ -2,21 +2,25 @@ import * as stylex from "@stylexjs/stylex";
 import { type ReactElement, useEffect } from "react";
 
 import { logos, useAskAgents } from "./ask-agent-picker";
+import { resolveAskAnchor } from "./ask-anchor";
 import { AskDeleteButton } from "./ask-delete";
 import { useAskHistory } from "./ask-history";
-import { AskHistoryIcon, AskIcon, askIconSizes } from "./ask-icons";
-import { askPanelStyles } from "./ask-panel-shared";
+import { askPanelStyles } from "./ask-styles";
 import { controlStyles } from "./controls-styles";
 import { useReviewSession } from "./host/review-session";
+import { ChatIcon, HistoryIcon } from "./icons";
 import { formatRelativeTime } from "./review-home-view";
 import { useOptionalReviewPanelStore } from "./review-panel";
 import type { AskView } from "./review-panel-model";
+import { useReviewRoots } from "./review-root-context";
 import { fontSize } from "./scale.stylex";
 import { shellStyles } from "./shell-styles";
 import { tokens } from "./tokens.stylex";
 import { IconButton } from "./ui/button";
 import { Chip } from "./ui/chip";
+import { EmptyState } from "./ui/empty-state";
 import { textStyles } from "./ui/text";
+import { useTooltip } from "./use-tooltip";
 
 /** Opens the list of this review's saved conversations. */
 function useOpenAskHistory() {
@@ -43,12 +47,18 @@ export function AskOutdatedNote({
 }): ReactElement | null {
   const history = useAskHistory();
 
-  if (threadId === null || !history?.outdated.has(threadId)) return null;
+  const entry = history?.entries?.find((entry) => entry.id === threadId);
+
+  const unavailable =
+    entry?.selection.target.kind === "text" &&
+    (!entry.selection.target.anchor || history?.outdated.has(entry.id));
+
+  if (!entry || !unavailable) return null;
 
   return (
     <p {...stylex.props(styles.outdated)}>
-      <OutdatedTag />
-      <span>The passage changed in this version of the review.</span>
+      {history?.outdated.has(entry.id) ? <OutdatedTag /> : null}
+      <span>Original passage unavailable in this version of the review.</span>
     </p>
   );
 }
@@ -58,18 +68,21 @@ export function AskHistoryButton({ view }: { view: AskView }): ReactElement {
   const openHistory = useOpenAskHistory();
   // One passage's conversations are a step away from all of them.
   const allShown = view.type === "history" && !view.passage;
+  const tooltip = useTooltip("Saved conversations");
 
   return (
     <IconButton
+      ref={tooltip}
       size="large"
       xstyle={allShown && styles.historyButtonOn}
       aria-label="Saved conversations"
-      title="Saved conversations"
       aria-pressed={allShown}
       disabled={!openHistory || allShown}
       onClick={openHistory}
     >
-      <AskHistoryIcon xstyle={[controlStyles.inertIcon, askIconSizes.header]} />
+      <HistoryIcon
+        xstyle={[controlStyles.inertIcon, controlStyles.chromeIcon]}
+      />
     </IconButton>
   );
 }
@@ -79,17 +92,18 @@ export function AskHistoryControl(): ReactElement | null {
   const session = useReviewSession();
   const openHistory = useOpenAskHistory();
   const agents = useAskAgents(openHistory ? session : null);
+  const tooltip = useTooltip("Saved conversations");
 
   if (!openHistory || !agents) return null;
 
   return (
     <IconButton
+      ref={tooltip}
       xstyle={shellStyles.topbarItem}
       aria-label="Saved conversations"
-      title="Saved conversations"
       onClick={openHistory}
     >
-      <AskIcon xstyle={[controlStyles.chromeIcon, askIconSizes.chrome]} />
+      <ChatIcon xstyle={controlStyles.chromeIcon} />
     </IconButton>
   );
 }
@@ -105,6 +119,10 @@ export function AskHistoryList({
   const panels = useOptionalReviewPanelStore();
   const openHistory = useOpenAskHistory();
 
+  const session = useReviewSession();
+  const roots = useReviewRoots();
+  const agents = useAskAgents(session);
+
   const entries =
     history?.entries?.filter(
       (entry) => !passage || passage.threadIds.includes(entry.id),
@@ -115,6 +133,9 @@ export function AskHistoryList({
     : "Saved conversations are not available here.";
 
   const refresh = history?.refresh;
+  const preview = history?.preview;
+
+  useEffect(() => () => preview?.(null), [preview]);
 
   // The list may be older than a conversation this panel just had.
   useEffect(() => refresh?.(), [refresh]);
@@ -144,17 +165,51 @@ export function AskHistoryList({
           </p>
         ) : null}
         {entries === null && !error ? (
-          <p {...stylex.props(styles.historyEmpty)}>Loading…</p>
+          <EmptyState xstyle={styles.historyEmpty} message="Loading…" />
         ) : entries?.length === 0 ? (
-          <p {...stylex.props(styles.historyEmpty)}>
-            {passage
-              ? "No saved conversations about this passage."
-              : "Nothing yet. Select text or code in the review and choose Ask; the conversation is saved here."}
-          </p>
+          <EmptyState
+            xstyle={styles.historyEmpty}
+            message={
+              passage
+                ? "No saved conversations about this passage."
+                : "Nothing yet. Select text or code in the review and choose Ask; the conversation is saved here."
+            }
+          />
         ) : entries?.length ? (
           <ul {...stylex.props(askPanelStyles.list)}>
             {entries.map((entry) => {
               const target = entry.selection.target;
+              const title = entry.question ?? entry.title;
+              const article = roots?.articleRef.current;
+
+              const range =
+                article && target.kind === "text" && target.anchor
+                  ? resolveAskAnchor(article, target.anchor)?.range
+                  : undefined;
+
+              const heading =
+                range && article
+                  ? [...article.querySelectorAll("h1, h2, h3, h4, h5, h6")]
+                      .filter(
+                        (heading) =>
+                          heading.contains(range.startContainer) ||
+                          Boolean(
+                            heading.compareDocumentPosition(
+                              range.startContainer,
+                            ) & Node.DOCUMENT_POSITION_FOLLOWING,
+                          ),
+                      )
+                      .at(-1)?.textContent
+                  : undefined;
+
+              const source =
+                target.kind === "code"
+                  ? `${target.path}:${target.startLine}${target.endLine === target.startLine ? "" : `–${target.endLine}`}`
+                  : heading;
+
+              const unavailable =
+                target.kind === "text" &&
+                (!target.anchor || history?.outdated.has(entry.id));
 
               return (
                 <li
@@ -168,33 +223,72 @@ export function AskHistoryList({
                   <button
                     type="button"
                     {...stylex.props(styles.historyOpen)}
-                    onClick={() =>
+                    onPointerEnter={() => {
+                      history?.preview(entry.id);
+                      history?.reveal(entry);
+                    }}
+                    onPointerLeave={() => history?.preview(null)}
+                    onFocus={() => {
+                      history?.preview(entry.id);
+                      history?.reveal(entry);
+                    }}
+                    onBlur={() => history?.preview(null)}
+                    onClick={() => {
+                      history?.reveal(entry);
+                      history?.preview(null);
+
+                      if (target.kind === "code") {
+                        void session.surface
+                          .post({
+                            name: "reveal",
+                            args: {
+                              path: target.path,
+                              startLine: target.startLine,
+                              endLine: target.endLine,
+                              side: target.side,
+                              highlight: true,
+                              preserveFocus: true,
+                            },
+                          })
+                          .catch(() =>
+                            session.bridge.notify?.({
+                              kind: "error",
+                              text: "Original source unavailable.",
+                            }),
+                          );
+                      }
+
                       panels?.getState().openAskView({
                         type: "saved",
                         threadId: entry.id,
                         selection: entry.selection,
                         agent: entry.agent,
-                      })
-                    }
+                      });
+                    }}
                   >
                     <span {...stylex.props(styles.historyLogo)}>
                       {logos[entry.agent]({})}
                     </span>
                     <span {...stylex.props(styles.historyText)}>
                       <span {...stylex.props(styles.historyTitle)}>
-                        {entry.title}
+                        {title}
                       </span>
-                      {/* One passage's list quotes it once, above. */}
-                      {passage ? null : (
-                        <span {...stylex.props(styles.historyQuote)}>
-                          {target.kind === "text"
-                            ? target.quote
-                            : entry.selection.title}
+                      {source ? (
+                        <span {...stylex.props(styles.historyMeta)}>
+                          {source}
                         </span>
-                      )}
+                      ) : null}
+                      {/* One passage's list quotes it once, above. */}
+                      {!passage && target.kind === "text" ? (
+                        <span {...stylex.props(styles.historyQuote)}>
+                          {target.quote}
+                        </span>
+                      ) : null}
                       <span {...stylex.props(styles.historyMeta)}>
-                        {formatRelativeTime(entry.updatedAt)} ·{" "}
-                        {entry.head.slice(0, 7)}
+                        {agents?.find((agent) => agent.id === entry.agent)
+                          ?.name ?? entry.agent}{" "}
+                        · {formatRelativeTime(entry.updatedAt)}
+                        {unavailable ? " · Original passage unavailable" : null}
                         {history?.outdated.has(entry.id) ? (
                           <OutdatedTag xstyle={styles.outdatedInline} />
                         ) : null}
@@ -203,7 +297,7 @@ export function AskHistoryList({
                   </button>
                   <AskDeleteButton
                     xstyle={styles.historyForget}
-                    label={`Delete “${entry.title}”`}
+                    label={`Delete “${title}”`}
                     onDelete={() => void history?.forget(entry.id)}
                   />
                 </li>
@@ -228,16 +322,6 @@ export function AskHistoryList({
   );
 }
 
-const noBorder = {
-  borderWidth: 0,
-  borderStyle: "none",
-} as const;
-
-const hairline = {
-  borderWidth: "1px",
-  borderStyle: "solid",
-} as const;
-
 const styles = stylex.create({
   allConversations: {
     alignSelf: "flex-start",
@@ -253,12 +337,9 @@ const styles = stylex.create({
   historyHeading: {
     margin: 0,
   },
+  // The page already spaces its parts.
   historyEmpty: {
-    margin: 0,
-    color: tokens.inkMuted,
-    fontFamily: tokens.fontSerif,
-    fontSize: fontSize.reading,
-    lineHeight: "24px",
+    paddingBlock: 0,
   },
   historyRow: {
     position: "relative",
@@ -270,16 +351,19 @@ const styles = stylex.create({
     gap: "12px",
     minWidth: 0,
     padding: "12px 40px 12px 14px",
-    ...noBorder,
+    borderWidth: 0,
+    borderStyle: "none",
+    borderColor: "currentcolor",
     backgroundColor: {
       default: tokens.transparent,
-      ":hover": `color-mix(in srgb, ${tokens.ink} 4%, ${tokens.tray})`,
-      ":focus-visible": `color-mix(in srgb, ${tokens.ink} 4%, ${tokens.tray})`,
+      ":hover": tokens.chromeHoverBg,
+      ":focus-visible": tokens.chromeHoverBg,
     },
     color: tokens.ink,
     textAlign: "left",
     cursor: "pointer",
-    outline: { default: null, ":focus-visible": "none" },
+    outline: { default: null, ":focus-visible": `1px solid ${tokens.accent}` },
+    outlineOffset: { default: null, ":focus-visible": "-1px" },
   },
   historyLogo: {
     display: "flex",
@@ -331,8 +415,9 @@ const styles = stylex.create({
   },
   // A conversation whose passage changed in the version on screen.
   outdatedTag: {
-    ...hairline,
-    borderColor: tokens.warningFocus,
+    borderWidth: "1px",
+    borderStyle: "solid",
+    borderColor: tokens.warningOutline,
     backgroundColor: tokens.warningWash,
     fontFamily: tokens.fontMono,
   },

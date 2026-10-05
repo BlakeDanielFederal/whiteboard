@@ -291,6 +291,189 @@ export function DrawnCheckIcon(): ReactElement {
   );
 }
 
+export function ChatIcon({ xstyle }: IconProps = {}): ReactElement {
+  return (
+    <svg
+      aria-hidden="true"
+      {...stylex.props(styles.icon, xstyle)}
+      focusable="false"
+      viewBox="0 0 24 24"
+    >
+      <path d="M4.5 5.25h15v10.5H11.25L6.75 19.5v-3.75H4.5z" />
+    </svg>
+  );
+}
+
+export function LockIcon({ xstyle }: IconProps = {}): ReactElement {
+  return (
+    <svg
+      aria-hidden="true"
+      {...stylex.props(styles.icon, xstyle)}
+      focusable="false"
+      viewBox="0 0 24 24"
+    >
+      <rect x="4.5" y="10.5" width="15" height="10.5" rx="2.25" />
+      <path d="M8.25 10.5v-3a3.75 3.75 0 0 1 7.5 0v3" />
+    </svg>
+  );
+}
+
+export function ArrowUpIcon({ xstyle }: IconProps = {}): ReactElement {
+  return (
+    <svg
+      aria-hidden="true"
+      {...stylex.props(styles.icon, xstyle)}
+      focusable="false"
+      viewBox="0 0 24 24"
+    >
+      <path d="M12 20V4m-7 7 7-7 7 7" />
+    </svg>
+  );
+}
+
+export function HistoryIcon({ xstyle }: IconProps = {}): ReactElement {
+  return (
+    <svg
+      aria-hidden="true"
+      {...stylex.props(styles.icon, xstyle)}
+      focusable="false"
+      viewBox="0 0 24 24"
+    >
+      <path d="M3.75 12a8.25 8.25 0 1 0 2.4-5.85M3.75 3.75v3.9h3.9M12 7.5v4.8l3 1.95" />
+    </svg>
+  );
+}
+
+export function ImageIcon({ xstyle }: IconProps = {}): ReactElement {
+  return (
+    <svg
+      aria-hidden="true"
+      {...stylex.props(styles.icon, xstyle)}
+      focusable="false"
+      viewBox="0 0 24 24"
+    >
+      <rect x="3.75" y="4.5" width="16.5" height="15" rx="2.25" />
+      <circle cx="9" cy="9.75" r="1.5" />
+      <path d="m20.25 15.75-4.5-4.5L6 19.5" />
+    </svg>
+  );
+}
+
+export function TrashIcon({ xstyle }: IconProps = {}): ReactElement {
+  return (
+    <svg
+      aria-hidden="true"
+      {...stylex.props(styles.icon, xstyle)}
+      focusable="false"
+      viewBox="0 0 24 24"
+    >
+      <path d="M4.5 6.75h15M9.75 6.75V4.5h4.5v2.25M6.75 6.75l.9 12.75h8.7l.9-12.75M10.5 10.5v6M13.5 10.5v6" />
+    </svg>
+  );
+}
+
+export function SearchIcon({ xstyle }: IconProps = {}): ReactElement {
+  return (
+    <svg
+      aria-hidden="true"
+      {...stylex.props(styles.icon, xstyle)}
+      focusable="false"
+      viewBox="0 0 24 24"
+    >
+      <circle cx="10.5" cy="10.5" r="6.75" />
+      <path d="m15.75 15.75 4.5 4.5" />
+    </svg>
+  );
+}
+
+export function PopOutIcon({ xstyle }: IconProps = {}): ReactElement {
+  return (
+    <svg
+      aria-hidden="true"
+      {...stylex.props(styles.icon, xstyle)}
+      focusable="false"
+      viewBox="0 0 24 24"
+    >
+      <path d="M13.5 3.75h6.75v6.75M20.25 3.75 12 12M9.75 5.25H6A2.25 2.25 0 0 0 3.75 7.5V18A2.25 2.25 0 0 0 6 20.25h10.5A2.25 2.25 0 0 0 18.75 18v-3.75" />
+    </svg>
+  );
+}
+
+/** A side panel, for docking a floating window back into it. */
+export function DockIcon({ xstyle }: IconProps = {}): ReactElement {
+  return (
+    <svg
+      aria-hidden="true"
+      {...stylex.props(styles.icon, xstyle)}
+      focusable="false"
+      viewBox="0 0 24 24"
+    >
+      <rect x="3.75" y="4.5" width="16.5" height="15" rx="2.25" />
+      <path d="M14.25 4.5v15" />
+    </svg>
+  );
+}
+
+/** The Command key, drawn: the canvas's mono font has no ⌘. */
+export function CommandKeyIcon({ xstyle }: IconProps = {}): ReactElement {
+  return (
+    <svg
+      aria-hidden="true"
+      {...stylex.props(styles.icon, styles.key, xstyle)}
+      focusable="false"
+      viewBox="0 0 24 24"
+    >
+      <path d="M9 9h6v6H9zM9 9V6.5A2.5 2.5 0 1 0 6.5 9H9m6 0V6.5A2.5 2.5 0 1 1 17.5 9H15m-6 6v2.5A2.5 2.5 0 1 1 6.5 15H9m6 0v2.5a2.5 2.5 0 1 0 2.5-2.5H15" />
+    </svg>
+  );
+}
+
+/** The Shift key, drawn: the canvas's mono font has no ⇧. */
+export function ShiftKeyIcon({ xstyle }: IconProps = {}): ReactElement {
+  return (
+    <svg
+      aria-hidden="true"
+      {...stylex.props(styles.icon, styles.key, xstyle)}
+      focusable="false"
+      viewBox="0 0 24 24"
+    >
+      <path d="M12 4.5 5 12.5h4v7h6v-7h4z" />
+    </svg>
+  );
+}
+
+/** A select's closed-state chevron, the same glyph as `tokens.chevronDown`. */
+export function ChevronDownIcon({ xstyle }: IconProps = {}): ReactElement {
+  return (
+    <svg
+      aria-hidden="true"
+      {...stylex.props(styles.chevronDown, xstyle)}
+      focusable="false"
+      viewBox="0 0 12 12"
+    >
+      <path d="M2.5 4.25 6 8l3.5-3.75" />
+    </svg>
+  );
+}
+
+/** Where a floating window is dragged from. */
+export function GripIcon({ xstyle }: IconProps = {}): ReactElement {
+  return (
+    <svg
+      aria-hidden="true"
+      {...stylex.props(styles.grip, xstyle)}
+      focusable="false"
+      viewBox="0 0 10 14"
+    >
+      {[3, 7].flatMap((cx) =>
+        [3, 7, 11].map((cy) => (
+          <circle key={`${cx}-${cy}`} cx={cx} cy={cy} r="1.1" />
+        )),
+      )}
+    </svg>
+  );
+}
+
 const drawIn = stylex.keyframes({
   from: { strokeDashoffset: 1 },
   to: { strokeDashoffset: 0 },
@@ -316,6 +499,28 @@ const styles = stylex.create({
     strokeLinecap: "round",
     strokeLinejoin: "round",
     strokeWidth: "1.5px",
+  },
+  // As tall as a shortcut's letter.
+  key: {
+    width: "10px",
+    height: "10px",
+    strokeWidth: "2.2px",
+  },
+  chevronDown: {
+    flex: "none",
+    width: "12px",
+    height: "12px",
+    fill: "none",
+    stroke: "currentcolor",
+    strokeWidth: "1.5",
+    strokeLinecap: "round",
+    strokeLinejoin: "round",
+  },
+  grip: {
+    flex: "none",
+    width: "10px",
+    height: "14px",
+    fill: "currentColor",
   },
   discord: {
     fill: "currentColor",

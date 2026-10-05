@@ -18,7 +18,7 @@ function channelWith(workspaces: Record<string, unknown>) {
 		openedWorkspace,
 		close: () => closed.push(name),
 	}));
-	const channel = new ReviewDesktopChannel({} as never, { getWindows: () => windows } as never, {} as never);
+	const channel = new ReviewDesktopChannel({} as never, { getWindows: () => windows } as never, () => false, {} as never);
 	return { channel, closed };
 }
 
@@ -57,7 +57,7 @@ function launchingChannel(picked: string | null = null, zedCli = true) {
 		},
 	};
 	const dialogs = { async showOpenDialog() { return { canceled: picked === null, filePaths: picked ? [picked] : [] }; } };
-	const channel = new ReviewDesktopChannel({} as never, { getWindows: () => [], getFocusedWindow: () => undefined } as never, dialogs as never, launcher);
+	const channel = new ReviewDesktopChannel({} as never, { getWindows: () => [], getFocusedWindow: () => undefined } as never, () => false, dialogs as never, launcher);
 	return { channel, launched };
 }
 

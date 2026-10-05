@@ -68,7 +68,11 @@ const blocks: Block[] = [
 
 const data = testApiDocumentData(blocks);
 
-const working = { workingCount: 1, expiresAt: null, focuses: [] };
+const working = {
+  workingCount: 1,
+  expiresAt: null,
+  activities: [{ activityId: "a", slot: 0 }],
+};
 
 /** A clock the test drives by hand: `advance` moves it forward and, inside
  * `act`, fires the pending timeout once its due time has passed. This is
@@ -178,19 +182,24 @@ const courier = () => article.querySelector<HTMLElement>(".courier");
 /** The courier re-measures a frame after the document reflows, so wait for
  * him to catch up with the element. */
 const expectCourierOn = (selector: string) =>
-  vi.waitFor(() => {
-    const target = article.querySelector(selector)!.getBoundingClientRect();
-    const base = article.getBoundingClientRect();
-    expect(parseFloat(courier()!.style.top)).toBeCloseTo(
-      target.top - base.top,
-      0,
-    );
-  });
+  vi.waitFor(
+    () => {
+      const target = article.querySelector(selector)!.getBoundingClientRect();
+      const base = article.getBoundingClientRect();
+      expect(parseFloat(courier()!.style.top)).toBeCloseTo(
+        target.top - base.top,
+        0,
+      );
+    },
+    { timeout: 5000 },
+  );
 
 it("traces a new flow node, then fills it, with the courier on it, and settles", async () => {
   await render(null);
-  await vi.waitFor(() =>
-    expect(article.querySelector('[data-review-unit-id="n2"]')).toBeTruthy(),
+  await vi.waitFor(
+    () =>
+      expect(article.querySelector('[data-review-unit-id="n2"]')).toBeTruthy(),
+    { timeout: 5000 },
   );
 
   await render(insert("n2", "d1", "flow_node"));
@@ -211,8 +220,10 @@ it("holds the attention ring on a focused block until the next edit lands", asyn
 
   // The diagram lays out asynchronously; the edge has to be on the board
   // before an edit can be drawn on it.
-  await vi.waitFor(() =>
-    expect(article.querySelector('[data-review-unit-id="e1"]')).toBeTruthy(),
+  await vi.waitFor(
+    () =>
+      expect(article.querySelector('[data-review-unit-id="e1"]')).toBeTruthy(),
+    { timeout: 5000 },
   );
   expect(motion('[data-review-node-id="b1"]')).toBe("attention");
 

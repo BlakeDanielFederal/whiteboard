@@ -94,12 +94,19 @@ export const themeStyles = stylex.create({
     "--well": "#e9ebef",
     "--raised": "#ffffff",
     "--tray": "#f3f4f6",
+    "--tray-raised": "color-mix(in srgb, var(--ink) 6%, var(--tray))",
     "--chevron-down":
       "url(\"data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'><path d='M2.5 4.25 6 8l3.5-3.75' fill='none' stroke='%239AA0AB' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/></svg>\")",
     "--check-mark":
       "url(\"data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 10'><path d='M2 5.2 4.2 7.4 8 3.2' fill='none' stroke='%23FFFFFF' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/></svg>\")",
     "--marker-tint": "rgba(43, 85, 230, 0.08)",
     "--marker-glow": "rgba(43, 85, 230, 0.22)",
+    "--agent-1": "#7a4fd6",
+    "--agent-1-tint": "rgba(122, 79, 214, 0.08)",
+    "--agent-1-glow": "rgba(122, 79, 214, 0.22)",
+    "--agent-2": "#0f8a86",
+    "--agent-2-tint": "rgba(15, 138, 134, 0.08)",
+    "--agent-2-glow": "rgba(15, 138, 134, 0.22)",
     "--board-grid":
       "url(\"data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='24' height='24'><circle cx='1' cy='1' r='0.8' fill='%23E6E8EC'/></svg>\")",
     colorScheme: "light",
@@ -155,7 +162,7 @@ export const themeStyles = stylex.create({
     "--change-removed": "#d8402c",
     "--change-modified": "#c98a0b",
     "--warning-wash": "rgba(201, 138, 11, 0.1)",
-    "--warning-focus": "rgba(201, 138, 11, 0.24)",
+    "--warning-outline": "rgba(201, 138, 11, 0.24)",
     "--on-warning": "#4a3514",
     "--diff-added": "#1b9a57",
     "--diff-added-bg": "#eef7f2",

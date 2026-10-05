@@ -24,9 +24,9 @@ import { topbarActionsMarker } from "./markers.stylex";
 import { shellStyles } from "./shell-styles";
 import { tokens } from "./tokens.stylex";
 import { captureUiEvent } from "./ui-telemetry";
+import { useAnchoredPopover } from "./use-anchored-popover";
 import { useDismissOnOutside } from "./use-dismiss-on-outside";
 import { useTooltip } from "./use-tooltip";
-import { useTopbarPopover } from "./use-topbar-popover";
 
 export const SharingContext = createContext<{
   client: ReviewApiClient;
@@ -67,7 +67,7 @@ export function ShareControl() {
   const [copyError, setCopyError] = useState<string>();
   const [copied, setCopied] = useState(false);
   const popover = useRef<HTMLDivElement>(null);
-  const popoverRef = useTopbarPopover(open, popover);
+  const popoverRef = useAnchoredPopover(open, popover);
   const shared = context?.reviewId.startsWith("shared-");
   const accountKey = canvasQueryKeys.sharingAccount();
 

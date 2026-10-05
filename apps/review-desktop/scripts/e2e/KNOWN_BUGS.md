@@ -21,7 +21,7 @@ Status values: `open`, `fix-pr #<n>`, `fixed`, `not-a-bug` (with the reason).
 - One unreadable legacy `review.json` stops Review Desktop from starting — fixed (#349)
 - Home says nothing about a legacy review directory left behind by the JSON cutover — not-a-bug
 - Opening a Go file installs Go tools from the network without asking — fixed (#354)
-- A review's Rust language server never starts when the extension wins a race with the workspace folder — open
+- A review's Rust language server never starts when the extension wins a race with the workspace folder — fix-pr #854
 - Home offers no way to dismiss an active review — open
 - The tutorial's live editor gets no hover or Go to Definition — open
 - Activating the Go extension opens its welcome page over the review — open
@@ -120,7 +120,7 @@ for <repo>.` The delete path fails the same way. The journey asserts that log
 
 ## A review's Rust language server never starts when the extension wins a race with the workspace folder
 
-- **Journey:** `lsp-rust` · **Found:** 2026-09-17 · **Status:** open
+- **Journey:** `lsp-rust` · **Found:** 2026-09-17 · **Status:** fix-pr #854
 - **Repro:** install the Rust group through Settings → Tools → Extensions, then
   open a review with a `code_peek` over a `.rs` file in a Cargo project. Two
   windows out of three, no hover, no Go to Definition, no `cargo` process and

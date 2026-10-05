@@ -1,4 +1,3 @@
-import { randomUUID } from "node:crypto";
 import { DatabaseSync } from "node:sqlite";
 
 import { AskHistory, type AskRecord } from "@review/review-api/ask-history.js";
@@ -7,10 +6,7 @@ import { afterEach, beforeEach, expect, it } from "vitest";
 
 const pins = { repositoryId: "repo", base: "base", head: "head" };
 
-const command = <Operation>(operation: Operation) => ({
-  commandId: randomUUID(),
-  operation,
-});
+const command = <Operation>(operation: Operation) => ({ operation });
 
 let store: ReviewStore;
 
@@ -50,7 +46,11 @@ const record = (
 
 it("keeps each review's conversations, newest first, until the review is deleted", async () => {
   const { reviewId } = await store.execute(
-    command({ type: "create", title: "Payments", pins }),
+    command({
+      type: "create",
+      title: "Payments",
+      target: { kind: "commits", ...pins },
+    }),
   );
 
   const history = store.askHistory;
@@ -100,6 +100,11 @@ it("keeps what the panel showed, and what each agent offered", () => {
     history.saveEntries("thread", entries);
     expect(history.get("thread")).toEqual({ ...saved, entries });
     expect(history.list("review")[0]).not.toHaveProperty("entries");
+    history.rename("thread", "Generic agent title");
+    expect(history.list("review")[0]).toMatchObject({
+      title: "Generic agent title",
+      question: "Is this safe?",
+    });
     expect(new AskHistory(db).get("thread")?.entries).toEqual(entries);
 
     // What an agent offered last, for picking before it starts.

@@ -78,6 +78,9 @@ function working(container: HTMLElement) {
 it("asks the chosen agent, streams its answer, relays a decision, and closes the agent when the panel goes", async () => {
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
   const session = testReviewSession();
+  const header = document.createElement("div");
+
+  document.body.append(header);
   // Each watch request opens a new stream; `push` writes to the newest.
   let push!: (update: AskUpdate) => void;
   let watches = 0;
@@ -126,7 +129,7 @@ it("asks the chosen agent, streams its answer, relays a decision, and closes the
     await act(async () =>
       root.render(
         <ReviewSessionProvider session={session}>
-          <AskPanelContent selection={selection} />
+          <AskPanelContent selection={selection} header={header} />
         </ReviewSessionProvider>,
       ),
     );
@@ -134,12 +137,13 @@ it("asks the chosen agent, streams its answer, relays a decision, and closes the
     const textarea = container.querySelector("textarea")!;
 
     const picker = () =>
-      container.querySelector<HTMLButtonElement>(
+      header.querySelector<HTMLButtonElement>(
         'button[aria-haspopup="menu"]:not([aria-label])',
       )!;
 
     // Only an installed agent can be chosen, so Codex answers.
-    expect(picker().textContent).toBe("Codex");
+    expect(header.textContent).toBe("Codex");
+    expect(picker()).toBeNull();
 
     await act(async () => {
       const setValue = Object.getOwnPropertyDescriptor(
@@ -202,7 +206,8 @@ it("asks the chosen agent, streams its answer, relays a decision, and closes the
     );
 
     expect(container.textContent).toContain("Replicas replay the index build.");
-    expect(picker().disabled).toBe(true);
+    expect(picker()).toBeNull();
+    expect(header.textContent).toBe("Codex");
 
     const allow = [...container.querySelectorAll("button")].find(
       (button) => button.textContent === "Allow once",
@@ -243,6 +248,7 @@ it("asks the chosen agent, streams its answer, relays a decision, and closes the
   } finally {
     await act(async () => root.unmount());
     container.remove();
+    header.remove();
     vi.restoreAllMocks();
     vi.unstubAllGlobals();
   }
@@ -1138,12 +1144,28 @@ it("stops a conversation while it reopens, and takes no answer to a permission o
         </ReviewSessionProvider>,
       ),
     );
+    expect(container.querySelector('[aria-busy="true"]')).not.toBeNull();
+    expect(container.querySelector("blockquote")).toBeNull();
+    expect(container.querySelector("textarea")).toBeNull();
     await act(async () =>
       push({
         seq: 0,
+        snapshot: state({ id: "saved", status: "starting", entries: [] }),
+      }),
+    );
+    expect(container.querySelector("blockquote")).toBeNull();
+    expect(container.querySelector("textarea")).toBeNull();
+    await act(async () =>
+      push({
+        seq: 1,
         snapshot: state({ id: "saved", status: "starting", entries: saved }),
       }),
     );
+    expect(container.querySelector('[aria-busy="true"]')).toBeNull();
+    expect(container.querySelector("blockquote")).not.toBeNull();
+    expect(container.querySelector("textarea")).not.toBeNull();
+    expect(container.textContent).toContain("Is this safe?");
+    expect(container.textContent).toContain("It is.");
 
     // Loading the conversation shows it connecting, and can be stopped.
     await act(async () => buttonNamed(container, "Stop connecting")!.click());
@@ -1153,7 +1175,7 @@ it("stops a conversation while it reopens, and takes no answer to a permission o
 
     await act(async () =>
       push({
-        seq: 1,
+        seq: 2,
         snapshot: state({
           id: "saved",
           status: "failed",
@@ -1183,6 +1205,181 @@ it("stops a conversation while it reopens, and takes no answer to a permission o
 
     expect(options).toHaveLength(2);
     expect(options.every((option) => option.disabled)).toBe(true);
+  } finally {
+    await act(async () => root.unmount());
+    container.remove();
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+  }
+});
+
+/** Types into the question. */
+async function type(textarea: HTMLTextAreaElement, text: string) {
+  await act(async () => {
+    Object.getOwnPropertyDescriptor(
+      HTMLTextAreaElement.prototype,
+      "value",
+    )!.set!.call(textarea, text);
+    textarea.dispatchEvent(new Event("input", { bubbles: true }));
+  });
+}
+
+async function enter(textarea: HTMLTextAreaElement) {
+  await act(async () =>
+    textarea.dispatchEvent(
+      new KeyboardEvent("keydown", { key: "Enter", bubbles: true }),
+    ),
+  );
+}
+
+it("moves from setup to asking once an agent is installed", async () => {
+  vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
+  const session = testReviewSession();
+  let available = false;
+
+  vi.spyOn(session, "fetch").mockImplementation(async (endpoint, init) =>
+    endpoint === "/ask/agents"
+      ? Response.json({
+          agents: [{ id: "claude", name: "Claude Code", available }],
+        })
+      : Response.json({ ok: true }, { status: init?.method ? 200 : 404 }),
+  );
+
+  const container = document.createElement("div");
+  document.body.append(container);
+  const root = createRoot(container);
+
+  try {
+    await act(async () =>
+      root.render(
+        <ReviewSessionProvider session={session}>
+          <AskPanelContent selection={selection} />
+        </ReviewSessionProvider>,
+      ),
+    );
+    expect(container.querySelector("textarea")).toBeNull();
+
+    available = true;
+    await act(async () => window.dispatchEvent(new Event("focus")));
+    expect(container.querySelector("textarea")).not.toBeNull();
+  } finally {
+    await act(async () => root.unmount());
+    container.remove();
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+  }
+});
+
+it("closes an agent that starts after its panel closed", async () => {
+  vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
+  const session = testReviewSession();
+  const answers: Record<string, (response: Response) => void> = {};
+
+  const fetch = vi
+    .spyOn(session, "fetch")
+    .mockImplementation(async (endpoint, init) => {
+      if (endpoint === "/ask/agents")
+        return Response.json({
+          agents: [{ id: "claude", name: "Claude Code", available: true }],
+        });
+
+      if (endpoint === "/ask" || endpoint === "/ask/saved/open")
+        return new Promise((resolve) => (answers[endpoint] = resolve));
+
+      return Response.json({ ok: true }, { status: init?.method ? 200 : 404 });
+    });
+
+  const closes = (id: string) =>
+    fetch.mock.calls.filter(([called]) => called === `/ask/${id}/close`).length;
+
+  const panel = async (savedThreadId?: string) => {
+    const container = document.createElement("div");
+    document.body.append(container);
+    const root = createRoot(container);
+
+    await act(async () =>
+      root.render(
+        <ReviewSessionProvider session={session}>
+          <AskPanelContent
+            selection={selection}
+            agent="claude"
+            savedThreadId={savedThreadId}
+          />
+        </ReviewSessionProvider>,
+      ),
+    );
+
+    return { container, root };
+  };
+
+  try {
+    const asking = await panel();
+    const textarea = asking.container.querySelector("textarea")!;
+
+    await type(textarea, "Is this safe?");
+    await enter(textarea);
+    await act(async () => asking.root.unmount());
+    await act(async () => answers["/ask"]!(Response.json({ threadId: "new" })));
+    expect(closes("new")).toBe(1);
+    asking.container.remove();
+
+    const opening = await panel("saved");
+
+    await act(async () => opening.root.unmount());
+    await act(async () =>
+      answers["/ask/saved/open"]!(Response.json({ ok: true })),
+    );
+    expect(closes("saved")).toBe(1);
+    opening.container.remove();
+  } finally {
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+  }
+});
+
+it("keeps what is written while a question goes, and puts back one that did not", async () => {
+  vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
+  const session = testReviewSession();
+  const asks: ((response: Response) => void)[] = [];
+
+  vi.spyOn(session, "fetch").mockImplementation(async (endpoint, init) => {
+    if (endpoint === "/ask/agents")
+      return Response.json({
+        agents: [{ id: "claude", name: "Claude Code", available: true }],
+      });
+
+    if (endpoint === "/ask")
+      return new Promise((resolve) => asks.push(resolve));
+
+    return Response.json({ ok: true }, { status: init?.method ? 200 : 404 });
+  });
+
+  const container = document.createElement("div");
+  document.body.append(container);
+  const root = createRoot(container);
+
+  try {
+    await act(async () =>
+      root.render(
+        <ReviewSessionProvider session={session}>
+          <AskPanelContent selection={selection} agent="claude" />
+        </ReviewSessionProvider>,
+      ),
+    );
+
+    const textarea = container.querySelector("textarea")!;
+
+    await type(textarea, "Is this safe?");
+    await enter(textarea);
+    await act(async () =>
+      asks[0]!(Response.json({ error: "Busy." }, { status: 500 })),
+    );
+    expect(textarea.value).toBe("Is this safe?");
+
+    await enter(textarea);
+    await type(textarea, "And on replicas?");
+    await act(async () => asks[1]!(Response.json({ threadId: "thread" })));
+    expect(textarea.value).toBe("And on replicas?");
   } finally {
     await act(async () => root.unmount());
     container.remove();

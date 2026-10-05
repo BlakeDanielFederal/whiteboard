@@ -51,6 +51,7 @@ import {
 } from "./side-panel-resizer";
 import { withClass } from "./stylex-props";
 import { tokens } from "./tokens.stylex";
+import { ProgressRing } from "./ui/progress-ring";
 import { useTooltip } from "./use-tooltip";
 import { ViewedButton } from "./viewed-button";
 
@@ -172,6 +173,7 @@ export function ReviewDiffView({
   });
 
   const lenses = useReviewLenses();
+  const diffFiles = useReviewDiffFiles();
   const lens = scope ? undefined : lenses?.active;
   const [lensList, setLensList] = useState<HTMLDivElement | null>(null);
   const rows = useLensRows(lenses?.lenses ?? []);
@@ -244,6 +246,8 @@ export function ReviewDiffView({
 
     void lenses.mark(sources, lenses.stats(sources).state !== "viewed");
   };
+
+  if (diffFiles.status === "unavailable") return null;
 
   if (scope || !lenses)
     return (
@@ -493,6 +497,16 @@ export function ReviewDiffView({
               ref={setLensTree}
               style={!lens ? { display: "none" } : undefined}
             />
+            {lenses.progress?.untrackedFiles ? (
+              <div
+                {...stylex.props(styles.hint, styles.untracked)}
+                title="Untracked files are not part of the review. git add -N a file to include it."
+              >
+                {lenses.progress.untrackedFiles} untracked{" "}
+                {lenses.progress.untrackedFiles === 1 ? "file" : "files"} not
+                shown
+              </div>
+            ) : null}
           </div>
         </div>
       </aside>
@@ -663,17 +677,7 @@ function ViewedRing({
       aria-valuemax={100}
       title={title}
     >
-      <svg width="18" height="18" viewBox="0 0 20 20">
-        <circle {...stylex.props(styles.ringTrack)} cx="10" cy="10" r="7" />
-        <circle
-          {...stylex.props(styles.ringTrack, styles.ringValue)}
-          cx="10"
-          cy="10"
-          r="7"
-          pathLength="100"
-          strokeDasharray={`${percent} 100`}
-        />
-      </svg>
+      <ProgressRing percent={percent} size={18} />
       {percent}%
     </span>
   );
@@ -1017,17 +1021,6 @@ const styles = stylex.create({
     gap: "5px",
     fontVariantNumeric: "tabular-nums",
   },
-  ringTrack: {
-    fill: "none",
-    stroke: tokens.well,
-    strokeWidth: "2.5",
-  },
-  ringValue: {
-    transform: "rotate(-90deg)",
-    transformOrigin: "10px 10px",
-    stroke: tokens.accent,
-    strokeLinecap: "round",
-  },
   cabinets: {
     display: "flex",
     flexDirection: "column",
@@ -1067,6 +1060,10 @@ const styles = stylex.create({
     padding: "0 14px 6px 16px",
     color: tokens.inkFaint,
     font: `${fontSize.small}/16px ${tokens.fontMono}`,
+  },
+  untracked: {
+    flexShrink: 0,
+    paddingTop: 6,
   },
   nativeTree: {
     flex: 1,

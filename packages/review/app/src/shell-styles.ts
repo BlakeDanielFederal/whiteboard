@@ -1,4 +1,4 @@
-import { fontSize, motion } from "@canvas/scale.stylex";
+import { motion } from "@canvas/scale.stylex";
 import * as stylex from "@stylexjs/stylex";
 
 import { appMarker, topbarActionsMarker } from "./markers.stylex";
@@ -67,7 +67,7 @@ export const shellStyles = stylex.create({
     overflow: "hidden",
     container: "review-content / inline-size",
   },
-  documentShellHistorical: {
+  documentShellBanner: {
     gridTemplateRows: "auto auto minmax(0, 1fr)",
   },
   // The host's own box lives in the collapsed third grid column on narrow
@@ -150,11 +150,11 @@ export const shellStyles = stylex.create({
   peekResizer: {
     height: "100%",
     borderColor: tokens.transparent,
-    backgroundImage: `linear-gradient(${tokens.surface} calc(${tokens.reviewHeaderHeight} - 1px), ${tokens.rule} 0 ${tokens.reviewHeaderHeight}, transparent 0)`,
+    backgroundImage: `linear-gradient(${tokens.surface} calc(${tokens.reviewHeaderHeight} - 1px), ${tokens.rule} 0 ${tokens.reviewHeaderHeight}, ${tokens.transparent} 0)`,
   },
   peekResizerTray: {
     backgroundColor: tokens.tray,
-    backgroundImage: `linear-gradient(transparent calc(${tokens.reviewHeaderHeight} - 1px), ${tokens.rule} 0 ${tokens.reviewHeaderHeight}, transparent 0)`,
+    backgroundImage: `linear-gradient(${tokens.transparent} calc(${tokens.reviewHeaderHeight} - 1px), ${tokens.rule} 0 ${tokens.reviewHeaderHeight}, ${tokens.transparent} 0)`,
   },
   // Horizontal twin of the divider for the narrow-layout bottom sheet: it
   // drags the sheet height. Hidden on wide layouts, where the vertical
@@ -228,7 +228,7 @@ export const shellStyles = stylex.create({
     flex: { default: null, [inTopbarActions()]: "0 0 auto" },
   },
   // Popovers in the action row hang below their control, anchored by
-  // useTopbarPopover.
+  // useAnchoredPopover.
   topbarPopover: {
     position: { default: null, [inTopbarActions()]: "fixed" },
     top: { default: null, [inTopbarActions()]: "calc(anchor(bottom) + 4px)" },
@@ -278,20 +278,6 @@ export const shellStyles = stylex.create({
     width: "1px",
     height: "16px",
     backgroundColor: tokens.chromeBorder,
-  },
-  historyBanner: {
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: "12px",
-    padding: "6px 12px",
-    borderBottomWidth: "1px",
-    borderBottomStyle: "solid",
-    borderBottomColor: tokens.ruleSoft,
-    backgroundColor: `color-mix(in srgb, ${tokens.accent} 12%, ${tokens.surface})`,
-    color: tokens.ink,
-    fontFamily: tokens.chromeFont,
-    fontSize: fontSize.body,
   },
 
   viewRegion: {

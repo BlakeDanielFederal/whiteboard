@@ -1,6 +1,6 @@
 {
   "name": "@dev.fast/review",
-  "version": "0.0.1",
+  "version": "0.2.0",
   "private": false,
   "license": "MIT",
   "repository": {
@@ -68,6 +68,7 @@
     "@agentclientprotocol/codex-acp": "2.0.0",
     "@agentclientprotocol/sdk": "1.5.1",
     "@hono/node-server": "2.0.12",
+    "@img/sharp-wasm32": "0.35.4",
     "@modelcontextprotocol/sdk": "1.30.0",
     "commander": "14.0.3",
     "es-module-lexer": "2.1.0",
@@ -82,10 +83,10 @@
     "semver": "7.8.5",
     "sharp": "0.35.4",
     "smol-toml": "1.8.0",
-    "zod": "4.4.3"
+    "zod": "catalog:"
   },
   "devDependencies": {
-    "@dev.fast/diffr": "0.1.8",
+    "@dev.fast/diffr": "0.1.10",
     "@dev.fast/json": "workspace:*",
     "@dev.fast/local-vcs": "^0.1.0",
     "@dev.fast/review-protocol": "workspace:*",

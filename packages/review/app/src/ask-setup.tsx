@@ -3,14 +3,18 @@ import * as stylex from "@stylexjs/stylex";
 import type { ReactElement } from "react";
 
 import { type AskAgent, logos } from "./ask-agent-picker";
-import { AskCopyIcon, askIconSizes } from "./ask-icons";
-import { AskSelectionQuote, askPanelStyles } from "./ask-panel-shared";
+import { AskSelectionQuote } from "./ask-panel-shared";
+import { askPanelStyles } from "./ask-styles";
+import { controlStyles } from "./controls-styles";
 import { copyAgentContext } from "./copy-agent-context";
 import { CopyButton } from "./copy-text";
 import { useReviewSession } from "./host/review-session";
-import { fontSize, fontWeight, radius, tracking } from "./scale.stylex";
+import { CopyIcon } from "./icons";
+import { fontSize, radius } from "./scale.stylex";
 import { useToast } from "./toast";
 import { tokens } from "./tokens.stylex";
+import { Button } from "./ui/button";
+import { EmptyState } from "./ui/empty-state";
 
 export function AskSetup({
   agents,
@@ -41,16 +45,11 @@ export function AskSetup({
     <div {...stylex.props(askPanelStyles.body)}>
       <div {...stylex.props(askPanelStyles.page, setupStyles.page)}>
         <AskSelectionQuote selection={selection} />
-        <div {...stylex.props(setupStyles.message)}>
-          <h3 {...stylex.props(setupStyles.heading)}>
-            No agent is ready to answer
-          </h3>
-          <p {...stylex.props(setupStyles.text)}>
-            Whiteboard runs a coding agent on your machine, against the pinned
-            checkout. Install one and sign in to it once in a terminal; it shows
-            up here when you come back.
-          </p>
-        </div>
+        <EmptyState
+          title="No agent is ready to answer"
+          message="Whiteboard runs a coding agent on your machine, against the pinned checkout. Install one and sign in to it once in a terminal; it shows up here when you come back."
+          xstyle={setupStyles.message}
+        />
         <ul {...stylex.props(askPanelStyles.list)}>
           {agents.map((candidate) => (
             <li
@@ -70,14 +69,14 @@ export function AskSetup({
       </div>
       <div {...stylex.props(setupStyles.fallback)}>
         <span>Or take the selection to an agent yourself</span>
-        <button
-          type="button"
-          {...stylex.props(setupStyles.copy)}
+        <Button
+          size="large"
+          xstyle={setupStyles.copy}
           onClick={() => void copy()}
         >
-          <AskCopyIcon xstyle={[askIconSizes.toolbar, setupStyles.copyIcon]} />
+          <CopyIcon xstyle={[controlStyles.inlineIcon, setupStyles.copyIcon]} />
           Copy selection for your agent
-        </button>
+        </Button>
       </div>
       {toast}
     </div>
@@ -110,50 +109,24 @@ export function AskSignIn({
         <CopyButton
           text={command}
           label="Copy the sign-in command"
-          iconStyle={signInStyles.copyIcon}
+          iconStyle={controlStyles.chromeIcon}
         />
       </div>
-      <button
-        type="button"
-        {...stylex.props(signInStyles.retry)}
-        onClick={onRetry}
-      >
+      <Button variant="primary" size="large" onClick={onRetry}>
         Try again
-      </button>
+      </Button>
     </section>
   );
 }
-
-const hairline = {
-  borderWidth: "1px",
-  borderStyle: "solid",
-} as const;
 
 const setupStyles = stylex.create({
   page: {
     gap: "36px",
   },
+  // The page pads it already.
   message: {
-    display: "flex",
-    flexDirection: "column",
-    gap: "10px",
+    paddingBlock: 0,
     paddingInline: "4px",
-  },
-  heading: {
-    margin: 0,
-    color: tokens.ink,
-    fontFamily: tokens.fontSerif,
-    fontSize: fontSize.display,
-    fontWeight: fontWeight.medium,
-    lineHeight: "32px",
-    letterSpacing: tracking.tight,
-  },
-  text: {
-    margin: 0,
-    color: tokens.inkMuted,
-    fontFamily: tokens.fontSerif,
-    fontSize: fontSize.reading,
-    lineHeight: "24px",
   },
   agent: {
     display: "flex",
@@ -201,24 +174,7 @@ const setupStyles = stylex.create({
     lineHeight: "14px",
   },
   copy: {
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: "8px",
     width: "100%",
-    padding: "9px 12px",
-    ...hairline,
-    borderColor: {
-      default: tokens.ruleSoft,
-      ":hover": tokens.accentOutline,
-    },
-    borderRadius: radius.surface,
-    backgroundColor: tokens.surfaceRaised,
-    color: tokens.ink,
-    fontFamily: tokens.fontMono,
-    fontSize: fontSize.small,
-    lineHeight: "14px",
-    cursor: "pointer",
   },
   copyIcon: {
     color: tokens.inkMuted,
@@ -232,7 +188,8 @@ const signInStyles = stylex.create({
     alignItems: "flex-start",
     gap: "12px",
     padding: "16px",
-    ...hairline,
+    borderWidth: "1px",
+    borderStyle: "solid",
     borderColor: tokens.rule,
     borderRadius: radius.surface,
     backgroundColor: tokens.raised,
@@ -250,7 +207,8 @@ const signInStyles = stylex.create({
     alignSelf: "stretch",
     gap: "8px",
     padding: "4px 4px 4px 12px",
-    ...hairline,
+    borderWidth: "1px",
+    borderStyle: "solid",
     borderColor: tokens.rule,
     borderRadius: radius.surface,
     backgroundColor: tokens.bg,
@@ -263,21 +221,5 @@ const signInStyles = stylex.create({
     fontSize: fontSize.body,
     lineHeight: "16px",
     overflowWrap: "anywhere",
-  },
-  copyIcon: {
-    width: "12px",
-    height: "12px",
-  },
-  retry: {
-    padding: "6px 12px",
-    ...hairline,
-    borderColor: tokens.accent,
-    borderRadius: radius.surface,
-    backgroundColor: tokens.accent,
-    color: tokens.onAccent,
-    fontFamily: tokens.fontMono,
-    fontSize: fontSize.small,
-    lineHeight: "14px",
-    cursor: "pointer",
   },
 });

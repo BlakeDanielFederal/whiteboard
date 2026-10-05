@@ -19,20 +19,22 @@ import {
   useAskAgents,
 } from "./ask-agent-picker";
 import { askAnchor } from "./ask-anchor";
-import {
-  AskChevronIcon,
-  AskCommandKeyIcon,
-  AskCopyIcon,
-  AskIcon,
-  AskShiftKeyIcon,
-  askIconSizes,
-} from "./ask-icons";
+import { controlStyles } from "./controls-styles";
 import { copyAgentContext } from "./copy-agent-context";
 import { useReviewSession } from "./host/review-session";
+import {
+  ChatIcon,
+  ChevronDownIcon,
+  CommandKeyIcon,
+  CopyIcon,
+  ShiftKeyIcon,
+} from "./icons";
 import { useOptionalReviewPanelStore } from "./review-panel";
-import { fontSize, layer, radius } from "./scale.stylex";
+import { fontSize, layer } from "./scale.stylex";
+import { themeStyles } from "./theme-styles";
 import { useToast } from "./toast";
 import { tokens } from "./tokens.stylex";
+import { Button } from "./ui/button";
 import { surfaceStyles } from "./ui/surface";
 
 type Selection = Omit<AgentSelection, "revision"> & {
@@ -75,7 +77,6 @@ export function AgentSelectionProvider({
 
   const [selection, setSelection] = useState<Selection | null>(null);
   const [copiedSelection, setCopiedSelection] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
   const [choosing, setChoosing] = useState(false);
   const actions = useRef<HTMLDivElement>(null);
   const copying = useRef(false);
@@ -123,7 +124,8 @@ export function AgentSelectionProvider({
           anchorContainer: container ?? undefined,
           anchor: {
             x: Math.max(8, anchor.x - (rect?.left ?? 0)),
-            y: anchor.y - (rect?.top ?? 0) - 38,
+            // Above the selection: the toolbar's 34px and a 2px gap.
+            y: anchor.y - (rect?.top ?? 0) - 36,
           },
         };
       }
@@ -175,7 +177,6 @@ export function AgentSelectionProvider({
   const copy = useCallback(async () => {
     if (!selection || copying.current) return;
     copying.current = true;
-    setBusy(true);
 
     const {
       anchor: _anchor,
@@ -185,31 +186,35 @@ export function AgentSelectionProvider({
       ...payload
     } = selection;
 
+    setCopiedSelection(
+      JSON.stringify([
+        selection.target,
+        selection.selectedDiff,
+        selection.apiSource,
+      ]),
+    );
+
     try {
       await copyAgentContext(session, { ...payload, revision });
-      setCopiedSelection(
-        JSON.stringify([
-          selection.target,
-          selection.selectedDiff,
-          selection.apiSource,
-        ]),
-      );
       setToast({
         kind: "success",
         text: "Selection copied to clipboard. Paste into your agent to chat about it.",
       });
     } catch {
+      setCopiedSelection(null);
       setToast({
         kind: "error",
         text: "Could not copy selection. Please try again.",
       });
     } finally {
       copying.current = false;
-      setBusy(false);
     }
   }, [selection, session, revision]);
 
   const askAgent = askAgents && preferredAskAgent(session, askAgents);
+
+  const canChooseAgent =
+    (askAgents?.filter((candidate) => candidate.available).length ?? 0) > 1;
 
   const ask = useCallback(
     (agent?: AskAgentId) => {
@@ -293,7 +298,7 @@ export function AgentSelectionProvider({
                 // The toolbar starts at the selection, after a lead that
                 // gives way so it never runs past the container's edge.
                 <div
-                  {...stylex.props(styles.lane)}
+                  {...stylex.props(themeStyles.vars, styles.lane)}
                   style={{ top: selection.anchor?.y }}
                 >
                   <span
@@ -307,41 +312,36 @@ export function AgentSelectionProvider({
                   >
                     {askAgents && askAgent ? (
                       <>
-                        <button
-                          type="button"
-                          {...stylex.props(styles.action, styles.ask)}
-                          aria-keyshortcuts="Meta+L"
-                          onClick={() => ask()}
-                        >
-                          <AskIcon xstyle={askIconSizes.toolbar} />
-                          <span>Ask {askAgent.name}</span>
-                          <kbd
-                            aria-hidden="true"
-                            {...stylex.props(styles.key, styles.askKey)}
+                        <span {...stylex.props(styles.split)}>
+                          <Button
+                            variant="primary"
+                            aria-keyshortcuts="Meta+L"
+                            onClick={() => ask()}
+                            xstyle={canChooseAgent && styles.splitMain}
                           >
-                            <AskCommandKeyIcon />L
-                          </kbd>
-                        </button>
-                        <button
-                          type="button"
-                          {...stylex.props(
-                            styles.action,
-                            styles.quiet,
-                            styles.switch,
-                            choosing && styles.quietOpen,
-                          )}
-                          aria-label="Ask another agent"
-                          aria-haspopup="menu"
-                          aria-expanded={choosing}
-                          onClick={() => setChoosing((value) => !value)}
-                        >
-                          <AskChevronIcon />
-                        </button>
-                        <span
-                          {...stylex.props(styles.divider)}
-                          aria-hidden="true"
-                        />
-                        {choosing ? (
+                            <ChatIcon xstyle={controlStyles.inlineIcon} />
+                            <span>Ask {askAgent.name}</span>
+                            <kbd
+                              aria-hidden="true"
+                              {...stylex.props(styles.key)}
+                            >
+                              <CommandKeyIcon />L
+                            </kbd>
+                          </Button>
+                          {canChooseAgent ? (
+                            <Button
+                              variant="primary"
+                              aria-label="Ask another agent"
+                              aria-haspopup="menu"
+                              aria-expanded={choosing}
+                              onClick={() => setChoosing((value) => !value)}
+                              xstyle={styles.splitMenu}
+                            >
+                              <ChevronDownIcon />
+                            </Button>
+                          ) : null}
+                        </span>
+                        {canChooseAgent && choosing ? (
                           <AskAgentMenu
                             agents={askAgents}
                             current={askAgent.id}
@@ -352,28 +352,19 @@ export function AgentSelectionProvider({
                         ) : null}
                       </>
                     ) : null}
-                    <button
-                      type="button"
-                      {...stylex.props(
-                        styles.action,
-                        styles.quiet,
-                        styles.copy,
-                      )}
+                    <Button
+                      variant="ghost"
                       aria-keyshortcuts="Meta+Shift+C"
-                      aria-label="Copy for Agent"
-                      disabled={busy}
+                      aria-label="Copy ref"
                       onClick={() => void copy()}
                     >
-                      <AskCopyIcon xstyle={askIconSizes.toolbar} />
-                      <span>{busy ? "Copying…" : "Copy for agent"}</span>
-                      <kbd
-                        aria-hidden="true"
-                        {...stylex.props(styles.key, styles.copyKey)}
-                      >
-                        <AskShiftKeyIcon />
-                        <AskCommandKeyIcon />C
+                      <CopyIcon xstyle={controlStyles.inlineIcon} />
+                      <span>Copy ref</span>
+                      <kbd aria-hidden="true" {...stylex.props(styles.key)}>
+                        <ShiftKeyIcon />
+                        <CommandKeyIcon />C
                       </kbd>
-                    </button>
+                    </Button>
                   </div>
                 </div>,
                 selection.anchorContainer ?? overlayHost,
@@ -390,7 +381,7 @@ export function AgentSelectionProvider({
 // agent (or pick another), or copy the selection for an agent elsewhere.
 const styles = stylex.create({
   // Spans its container, short of the right edge; only the toolbar takes
-  // the pointer.
+  // the pointer. Outside .review-app it brings the chrome tokens.
   lane: {
     position: "absolute",
     left: 0,
@@ -410,36 +401,26 @@ const styles = stylex.create({
     pointerEvents: "auto",
     display: "inline-flex",
     alignItems: "center",
-    gap: "2px",
+    gap: "4px",
     padding: "4px",
     whiteSpace: "nowrap",
   },
-  action: {
+  // Ask and its agent menu are one split button; the fill sets it apart from
+  // Copy, so the toolbar needs no divider with or without the menu.
+  split: {
     display: "inline-flex",
-    alignItems: "center",
-    borderWidth: 0,
-    borderStyle: "none",
-    borderRadius: radius.small,
-    fontFamily: tokens.fontMono,
-    fontSize: fontSize.small,
-    lineHeight: "14px",
-    cursor: "pointer",
-    outline: {
-      default: null,
-      ":focus-visible": `2px solid ${tokens.accentOutline}`,
-    },
-    outlineOffset: { default: null, ":focus-visible": "1px" },
   },
-  ask: {
-    gap: "7px",
-    padding: "5px 8px 5px 7px",
-    backgroundColor: {
-      default: tokens.accent,
-      ":hover": `color-mix(in srgb, ${tokens.accent} 88%, white)`,
-    },
-    color: tokens.onAccent,
+  splitMain: {
+    borderTopRightRadius: 0,
+    borderBottomRightRadius: 0,
   },
-  // Drawn modifiers, then the key's letter.
+  splitMenu: {
+    width: "22px",
+    padding: 0,
+    borderTopLeftRadius: 0,
+    borderBottomLeftRadius: 0,
+    boxShadow: `inset 1px 0 0 color-mix(in srgb, ${tokens.onAccent} 28%, transparent)`,
+  },
   key: {
     display: "inline-flex",
     alignItems: "center",
@@ -447,35 +428,6 @@ const styles = stylex.create({
     fontFamily: tokens.fontMono,
     fontSize: fontSize.micro,
     lineHeight: "14px",
-  },
-  askKey: {
-    color: `color-mix(in srgb, ${tokens.onAccent} 65%, transparent)`,
-  },
-  quiet: {
-    backgroundColor: { default: tokens.transparent, ":hover": tokens.tray },
-    color: { default: tokens.inkMuted, ":hover": tokens.ink },
-  },
-  quietOpen: {
-    backgroundColor: tokens.tray,
-    color: tokens.ink,
-  },
-  switch: {
-    justifyContent: "center",
-    width: "24px",
-    height: "26px",
-  },
-  divider: {
-    flex: "0 0 auto",
-    width: "1px",
-    height: "16px",
-    backgroundColor: tokens.ruleSoft,
-  },
-  copy: {
-    gap: "6px",
-    padding: "5px 8px",
-  },
-  copyKey: {
-    marginInlineStart: "1px",
-    color: "color-mix(in srgb, currentColor 65%, transparent)",
+    opacity: 0.65,
   },
 });

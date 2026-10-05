@@ -38,6 +38,7 @@ export class ReviewDesktopChannel implements IServerChannel {
   constructor(
     private readonly host: ReviewDesktopHost,
     private readonly windows: IWindowsMainService,
+    private readonly moveToApplications: () => boolean,
     private readonly dialogs: Pick<IDialogMainService, "showOpenDialog">,
     private readonly launcher: ReviewExternalLauncher = externalLauncher,
   ) {}
@@ -54,6 +55,9 @@ export class ReviewDesktopChannel implements IServerChannel {
     if (command === "stageRustAnalyzer") {
       this.host.stageRustAnalyzer();
       return undefined as T;
+    }
+    if (command === "moveToApplications") {
+      return this.moveToApplications() as T;
     }
     if (command === "closeSourceWindows") {
       this.closeSourceWindows(Array.isArray(arg) ? arg.map(String) : []);

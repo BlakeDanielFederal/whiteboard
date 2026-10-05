@@ -17,7 +17,6 @@ import { createPortal } from "react-dom";
 
 import { AskDeleteThreadButton, AskOpenThreadProvider } from "./ask-delete";
 import { AskHistoryButton, AskHistoryList } from "./ask-history-list";
-import { AskPopOutIcon, askIconSizes } from "./ask-icons";
 import { AskPanelContent } from "./ask-panel";
 import { AskPill, type AskPresence, AskSlot, AskWindow } from "./ask-window";
 import { AuthoredCodeSurface } from "./authored-code-surface";
@@ -30,7 +29,7 @@ import {
   useOptionalReviewSession,
   useReviewSession,
 } from "./host/review-session";
-import { CloseIcon, DisclosureChevron, MapPinIcon } from "./icons";
+import { CloseIcon, DisclosureChevron, MapPinIcon, PopOutIcon } from "./icons";
 import { newTabLinkProps } from "./link-props";
 import { chevronMarker, documentMarker } from "./markers.stylex";
 import { useReviewActions } from "./review-context";
@@ -59,6 +58,7 @@ import { traceStyles } from "./trace-styles";
 import { useTutorialSection } from "./tutorial-section-context";
 import { captureUiEvent } from "./ui-telemetry";
 import { useAgentTrace } from "./use-agent-trace";
+import { useTooltip } from "./use-tooltip";
 
 const TOUR_ACTIVE_TOP_SLACK_PX = 18;
 
@@ -487,7 +487,10 @@ function AskHost() {
   const shown = useReviewPanel(askShown);
   const closeAsk = useReviewPanel((state) => state.closeAsk);
   const popOutAsk = useReviewPanel((state) => state.popOutAsk);
+  const popOutTooltip = useTooltip("Pop out");
   const [node] = useState(() => document.createElement("div"));
+
+  const [header, setHeader] = useState<HTMLDivElement | null>(null);
 
   const [presence, setPresence] = useState<AskPresence>({
     agentName: "Ask",
@@ -517,6 +520,7 @@ function AskHost() {
               ask.view.type === "saved" ? ask.view.threadId : undefined
             }
             onPresence={setPresence}
+            header={header}
           />
         ),
         node,
@@ -525,19 +529,22 @@ function AskHost() {
         <ReviewPanelFrame
           tray
           label="Ask"
+          titleAccessory={
+            <div ref={setHeader} {...stylex.props(panelStyles.title)} />
+          }
           onClose={closeAsk}
           closeLabel="Close Ask"
           headerActions={
             <>
               {actions}
               <IconButton
+                ref={popOutTooltip}
                 size="large"
                 aria-label="Pop out Ask"
-                title="Pop out"
                 onClick={popOutAsk}
               >
-                <AskPopOutIcon
-                  xstyle={[controlStyles.inertIcon, askIconSizes.header]}
+                <PopOutIcon
+                  xstyle={[controlStyles.inertIcon, controlStyles.chromeIcon]}
                 />
               </IconButton>
             </>
@@ -546,7 +553,12 @@ function AskHost() {
           <AskSlot node={node} />
         </ReviewPanelFrame>
       ) : shown === "window" ? (
-        <AskWindow actions={actions}>
+        <AskWindow
+          actions={actions}
+          titleAccessory={
+            <div ref={setHeader} {...stylex.props(panelStyles.title)} />
+          }
+        >
           <AskSlot node={node} />
         </AskWindow>
       ) : (

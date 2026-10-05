@@ -250,14 +250,6 @@ function sanitizeManifest(directory, extension) {
     delete manifest.extensionPack;
   }
 
-  for (const activationEvent of extension.addActivationEvents ?? []) {
-    manifest.activationEvents ??= [];
-
-    if (!manifest.activationEvents.includes(activationEvent)) {
-      manifest.activationEvents.push(activationEvent);
-    }
-  }
-
   const engine = manifest.engines?.vscode;
   fs.writeFileSync(manifestPath, `${JSON.stringify(manifest, undefined, 2)}\n`);
 
@@ -499,14 +491,6 @@ export function verifyCuratedExtensions({
       throw new Error(
         `${extension.id}: sanitized manifest still declares extensionPack`,
       );
-    }
-
-    for (const activationEvent of extension.addActivationEvents ?? []) {
-      if (!manifest.activationEvents?.includes(activationEvent)) {
-        throw new Error(
-          `${extension.id}: packaged manifest is missing ${activationEvent}`,
-        );
-      }
     }
 
     for (const relative of extension.prunePaths ?? []) {

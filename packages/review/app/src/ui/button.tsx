@@ -7,7 +7,7 @@ import type { ComponentProps } from "react";
 type NativeButtonProps = Omit<ComponentProps<"button">, "className" | "style">;
 
 type ButtonProps = NativeButtonProps & {
-  variant?: "ghost" | "secondary" | "primary";
+  variant?: "ghost" | "secondary" | "primary" | "warning";
   // Large is for canvas and dialog actions; default matches the chrome.
   size?: "default" | "large";
   /** A plain class that code, tests or global.css look up. */
@@ -118,6 +118,13 @@ export const buttonStyles = stylex.create({
   primary: {
     backgroundColor: tokens.accent,
     color: tokens.onAccent,
+    filter: { default: null, ":hover:not(:disabled)": "brightness(1.1)" },
+    outlineOffset: { default: null, ":focus-visible": "1px" },
+  },
+  // The one action a warning asks for, like allowing an agent's command.
+  warning: {
+    backgroundColor: tokens.changeModified,
+    color: tokens.onWarning,
     filter: { default: null, ":hover:not(:disabled)": "brightness(1.1)" },
     outlineOffset: { default: null, ":focus-visible": "1px" },
   },

@@ -17,7 +17,7 @@ import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { promisify } from "node:util";
 
-import { verifyWindowsDiffr } from "./windows-diffr.mjs";
+import { pruneReviewRuntime } from "./prune-review-runtime.mjs";
 
 const execFileAsync = promisify(execFile);
 
@@ -49,7 +49,12 @@ export const REQUIRED_RUNTIME_ENTRIES = [
   RUNTIME_SERVER_ENTRY,
   RUNTIME_CLI_ENTRY,
   `bin/${diffrName}`,
+  "bin/diffr-package/bin/fetch.mjs",
+  "bin/diffr-package/package.json",
+  "bin/diffr-package/pins.json",
   "dist/cli.js",
+  // The build's commit; without it the server reports `commit: null`.
+  "dist/build-info.json",
   "instructions/authoring.md",
   "tutorial/runtime-manifest.json",
   "node_modules",
@@ -144,6 +149,7 @@ export async function stageReviewRuntime(packagedRoot) {
   await stageReviewDocs(runtimeRoot);
   await stageDiffrBinary(runtimeRoot);
   await makeTreeOwnerWritable(path.join(runtimeRoot, "tutorial", "git-stub"));
+  console.log("[runtime pruning]", await pruneReviewRuntime(runtimeRoot));
   await assertRuntimeClosure(runtimeRoot);
 
   return runtimeRoot;
@@ -177,28 +183,34 @@ export async function stageDiffrBinary(
     );
   }
 
-  if (process.platform === "win32") {
-    verifyWindowsDiffr(source);
-  } else {
-    const require = createRequire(
-      path.join(monorepoRoot, "packages/review/package.json"),
-    );
+  const require = createRequire(
+    path.join(monorepoRoot, "packages/review/package.json"),
+  );
 
-    const packageRoot = path.dirname(
-      require.resolve("@dev.fast/diffr/package.json"),
-    );
+  const packageRoot = path.dirname(
+    require.resolve("@dev.fast/diffr/package.json"),
+  );
 
-    await execFileAsync(process.execPath, [
-      path.join(packageRoot, "bin/fetch.mjs"),
-      "--check",
-      "--into",
-      path.dirname(source),
-    ]);
-  }
+  await execFileAsync(process.execPath, [
+    path.join(packageRoot, "bin/fetch.mjs"),
+    "--check",
+    "--into",
+    path.dirname(source),
+  ]);
 
   const destination = path.join(runtimeRoot, "bin", diffrName);
   await mkdir(path.dirname(destination), { recursive: true });
   await copyFile(source, destination);
+  const installerRoot = path.join(runtimeRoot, "bin/diffr-package");
+  await mkdir(path.join(installerRoot, "bin"), { recursive: true });
+
+  for (const file of ["package.json", "pins.json", "bin/fetch.mjs"]) {
+    await copyFile(
+      path.join(packageRoot, file),
+      path.join(installerRoot, file),
+    );
+  }
+
   await chmod(destination, 0o755);
 }
 

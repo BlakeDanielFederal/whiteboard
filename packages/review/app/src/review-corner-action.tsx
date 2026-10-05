@@ -9,8 +9,8 @@ import { useReviewActions, useReviewState } from "./review-context";
 import { shellStyles } from "./shell-styles";
 import { tokens } from "./tokens.stylex";
 import { useTutorial } from "./tutorial-context";
+import { useAnchoredPopover } from "./use-anchored-popover";
 import { useTooltip } from "./use-tooltip";
-import { useTopbarPopover } from "./use-topbar-popover";
 
 export function ReviewCornerAction(): ReactElement | null {
   const { dismissReview } = useReviewActions();
@@ -21,7 +21,7 @@ export function ReviewCornerAction(): ReactElement | null {
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState(false);
   const control = useRef<HTMLDivElement>(null);
-  const errorPopover = useTopbarPopover<HTMLSpanElement>(failed, control);
+  const errorPopover = useAnchoredPopover<HTMLSpanElement>(failed, control);
 
   // A finished review has nothing left to submit or dismiss.
   if (submissionOutcome === "dismissed") return null;

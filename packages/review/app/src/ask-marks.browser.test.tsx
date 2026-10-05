@@ -6,12 +6,14 @@ import { userEvent } from "vitest/browser";
 import { MarkdownContent } from "./agent-markdown";
 import { type AskAnchor, askAnchor } from "./ask-anchor";
 import { AskHistoryProvider, useAskHistory } from "./ask-history";
+import { AskHistoryList } from "./ask-history-list";
 import { AskThreadMarks } from "./ask-marks";
 import { documentStyles } from "./document-styles";
 import { drawStyles } from "./draw-styles";
 import { ReviewSessionProvider } from "./host/review-session";
 import { documentMarker } from "./markers.stylex";
 import { ReviewPanelProvider, useReviewPanel } from "./review-panel";
+import { ReviewRootsProvider } from "./review-root-context";
 import { testReviewSession } from "./review-session-test-utils";
 import { withClass } from "./stylex-props";
 
@@ -235,6 +237,11 @@ it("marks each asked-about passage beside it and reopens its conversation", asyn
 
   // The document's own text is unchanged; the wash is a CSS highlight.
   expect(CSS.highlights.get("ask-thread")?.size).toBe(2);
+  const highlightRoot = container.querySelector("article")!;
+  container.style.setProperty("--accent-wash", "rgb(10, 20, 30)");
+  expect(
+    getComputedStyle(highlightRoot, "::highlight(ask-thread)").backgroundColor,
+  ).toBe("rgb(10, 20, 30)");
   expect(outdated).toEqual(new Set(["gone"]));
 
   await act(async () => first!.click());
@@ -354,7 +361,7 @@ it("marks asked-about code beside its line in the editor showing its file, witho
     Math.abs(at.top + at.height / 2 - (line.top + line.height / 2)),
   ).toBeLessThan(2);
   expect(at.left).toBeGreaterThanOrEqual(editor.right);
-  expect(CSS.highlights.get("ask-thread")?.size).toBe(0);
+  expect(CSS.highlights.has("ask-thread")).toBe(false);
   expect(outdated).toEqual(new Set());
 
   await act(async () => pin!.click());
@@ -565,6 +572,12 @@ it("pins every passage in one lane, side by side on a shared line, and pairs a p
   await frame();
   expect(active()).toEqual([pins()[2]]);
   expect(CSS.highlights.get("ask-thread-active")?.size).toBe(1);
+  const highlightRoot = container.querySelector("article")!;
+  container.style.setProperty("--marker-glow", "rgb(40, 50, 60)");
+  expect(
+    getComputedStyle(highlightRoot, "::highlight(ask-thread-active)")
+      .backgroundColor,
+  ).toBe("rgb(40, 50, 60)");
 
   // And on a passage's words, its pin.
   const article = container.querySelector("article")!;
@@ -587,6 +600,139 @@ it("pins every passage in one lane, side by side on a shared line, and pairs a p
   });
   expect(active()).toEqual([]);
   expect(CSS.highlights.has("ask-thread-active")).toBe(false);
+  expect(
+    getComputedStyle(highlightRoot, "::highlight(ask-thread-active)")
+      .backgroundColor,
+  ).toBe("rgba(0, 0, 0, 0)");
 
   await act(async () => root.unmount());
+});
+
+function HistoryDocument() {
+  const articleRef = useRef<HTMLElement>(null);
+  const scrollRegionRef = useRef<HTMLDivElement>(null);
+
+  return (
+    <ReviewRootsProvider
+      roots={{
+        articleRef,
+        scrollRegionRef,
+        appRef: scrollRegionRef,
+        shellRef: scrollRegionRef,
+      }}
+    >
+      <div
+        ref={scrollRegionRef}
+        data-testid="review-scroll"
+        style={{ height: 240, overflow: "auto" }}
+      >
+        <article
+          ref={articleRef}
+          {...withClass(
+            "review-document",
+            documentStyles.article,
+            documentMarker,
+          )}
+        >
+          <div style={{ height: 900 }} />
+          <MarkdownBlock
+            id="source"
+            source={"## Migration safety\n\nThe index is built concurrently."}
+          />
+          <div style={{ height: 900 }} />
+        </article>
+      </div>
+      <AskThreadMarks articleRef={articleRef} revision="1" />
+      <AskHistoryList />
+      <Probe />
+    </ReviewRootsProvider>
+  );
+}
+
+it("scrolls to a history passage on hover, keyboard focus, and activation", async () => {
+  const quote = "built concurrently";
+
+  const [anchor] = await anchorsIn(
+    <MarkdownBlock
+      id="source"
+      source={"## Migration safety\n\nThe index is built concurrently."}
+    />,
+    [{ words: quote }],
+  );
+
+  const session = testReviewSession();
+  session.fetch = vi.fn<typeof session.fetch>(async (endpoint) =>
+    Response.json(
+      endpoint === "/ask/agents"
+        ? { agents: [{ id: "codex", name: "Codex", available: true }] }
+        : {
+            threads: [
+              {
+                ...saved("question", quote, anchor, "codex"),
+                title: "Generic review title",
+                question: "Will this block writes?",
+              },
+              saved("legacy", "A removed passage", undefined),
+            ],
+          },
+    ),
+  );
+  const container = document.createElement("div");
+  document.body.append(container);
+  const root = createRoot(container);
+  await act(async () =>
+    root.render(
+      <ReviewSessionProvider session={session}>
+        <ReviewPanelProvider>
+          <AskHistoryProvider>
+            <HistoryDocument />
+          </AskHistoryProvider>
+        </ReviewPanelProvider>
+      </ReviewSessionProvider>,
+    ),
+  );
+
+  try {
+    const button = () =>
+      [...container.querySelectorAll("button")].find((button) =>
+        button.textContent?.includes("Will this block writes?"),
+      )!;
+
+    await vi.waitFor(() => expect(button()).toBeTruthy());
+    expect(button().textContent).toContain("Migration safety");
+    expect(button().textContent).toContain("Codex");
+
+    const scroll = container.querySelector<HTMLElement>(
+      '[data-testid="review-scroll"]',
+    )!;
+
+    await act(async () => userEvent.hover(button()));
+    await vi.waitFor(() =>
+      expect([...CSS.highlights.get("ask-thread-active")!][0]?.toString()).toBe(
+        quote,
+      ),
+    );
+    await vi.waitFor(() => expect(scroll.scrollTop).toBeGreaterThan(500));
+    scroll.scrollTop = 0;
+    await act(async () => userEvent.click(button()));
+    await vi.waitFor(() => expect(scroll.scrollTop).toBeGreaterThan(500));
+    expect(view).toMatchObject({ type: "saved", threadId: "question" });
+    await act(async () => button().blur());
+    scroll.scrollTop = 0;
+    await act(async () => {
+      button().focus();
+    });
+    await vi.waitFor(() => expect(scroll.scrollTop).toBeGreaterThan(500));
+    scroll.scrollTop = 0;
+    await act(async () => userEvent.keyboard("{Enter}"));
+    await vi.waitFor(() => expect(scroll.scrollTop).toBeGreaterThan(500));
+
+    const legacy = [...container.querySelectorAll("button")].find((button) =>
+      button.textContent?.includes("Question legacy"),
+    )!;
+
+    expect(legacy.textContent).toContain("Original passage unavailable");
+  } finally {
+    await act(async () => root.unmount());
+  }
 });

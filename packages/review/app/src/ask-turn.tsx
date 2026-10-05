@@ -11,17 +11,16 @@ import {
 import { AGENT_LOGOS } from "./agent-logos";
 import { AgentMarkdown } from "./agent-markdown";
 import { askFileCode, askFileLink } from "./ask-files";
-import {
-  AskCheckIcon,
-  AskChevronIcon,
-  AskCrossIcon,
-  askIconSizes,
-} from "./ask-icons";
 import { askMotion } from "./ask-motion.stylex";
+import { askPanelStyles } from "./ask-styles";
+import { controlStyles } from "./controls-styles";
 import { CourierFigure } from "./courier-figure";
-import { fontSize, motion, radius } from "./scale.stylex";
+import { CheckIcon, CloseIcon, DisclosureChevron } from "./icons";
+import { chevronMarker } from "./markers.stylex";
+import { fontSize, radius } from "./scale.stylex";
 import { settleStreamingMarkdown } from "./streaming-markdown";
 import { tokens } from "./tokens.stylex";
+import { useTooltip } from "./use-tooltip";
 
 type ToolEntry = Extract<AskEntry, { kind: "tool" }>;
 
@@ -276,9 +275,9 @@ function ActivityStatusIcon({ status }: { status: ActivityStatus }) {
       aria-label={status}
     >
       {status === "completed" ? (
-        <AskCheckIcon xstyle={askIconSizes.small} />
+        <CheckIcon xstyle={controlStyles.inlineIcon} />
       ) : status === "failed" ? (
-        <AskCrossIcon xstyle={askIconSizes.small} />
+        <CloseIcon xstyle={controlStyles.inlineIcon} />
       ) : status === "in_progress" ? (
         <span {...stylex.props(styles.spinner)} />
       ) : (
@@ -290,23 +289,16 @@ function ActivityStatusIcon({ status }: { status: ActivityStatus }) {
   );
 }
 
-function Chevron({ open }: { open: boolean }) {
-  return (
-    <AskChevronIcon
-      xstyle={[askIconSizes.small, styles.chevron, open && styles.chevronOpen]}
-    />
-  );
-}
-
 /** A row that opens to what it ran and what came back. */
 function AskToolItem({ activity }: { activity: Activity }): ReactElement {
   const [open, setOpen] = useState(false);
   const detail = activity.command !== undefined || Boolean(activity.output);
+  const labelTooltip = useTooltip<HTMLSpanElement>(activity.label);
 
   const head = (
     <>
       <ActivityStatusIcon status={activity.status} />
-      <span {...stylex.props(styles.toolLabel)} title={activity.label}>
+      <span ref={labelTooltip} {...stylex.props(styles.toolLabel)}>
         {activity.label}
       </span>
     </>
@@ -317,12 +309,16 @@ function AskToolItem({ activity }: { activity: Activity }): ReactElement {
       {detail ? (
         <button
           type="button"
-          {...stylex.props(styles.toolHead, styles.toolHeadButton)}
+          {...stylex.props(
+            chevronMarker,
+            styles.toolHead,
+            styles.toolHeadButton,
+          )}
           aria-expanded={open}
           onClick={() => setOpen((value) => !value)}
         >
           {head}
-          <Chevron open={open} />
+          <DisclosureChevron expanded={open} />
         </button>
       ) : (
         <div {...stylex.props(styles.toolHead)}>{head}</div>
@@ -361,12 +357,16 @@ function AskToolGroup({
     <div {...stylex.props(styles.tools)}>
       <button
         type="button"
-        {...stylex.props(styles.summary, failed && styles.summaryFailed)}
+        {...stylex.props(
+          chevronMarker,
+          styles.summary,
+          failed && styles.summaryFailed,
+        )}
         aria-expanded={open}
         onClick={() => setOpen((value) => !value)}
       >
         <span>{summarize(activities)}</span>
-        <Chevron open={open} />
+        <DisclosureChevron expanded={open} xstyle={styles.summaryChevron} />
       </button>
       {open ? (
         <ul {...stylex.props(styles.toolList)}>
@@ -634,7 +634,9 @@ export function AskWorking({
         marching={writing}
         thinking={!writing}
       />
-      <span {...stylex.props(styles.workingLabel)}>{doing}…</span>
+      <span {...stylex.props(styles.workingLabel, askPanelStyles.sweep)}>
+        {doing}…
+      </span>
       <span {...stylex.props(styles.workingTime)}>{elapsed(since, now)}</span>
     </div>
   );
@@ -643,14 +645,6 @@ export function AskWorking({
 const reducedMotion = "@media (prefers-reduced-motion: reduce)";
 
 const spin = stylex.keyframes({ to: { transform: "rotate(360deg)" } });
-
-const shimmer = stylex.keyframes({
-  from: { backgroundPosition: "100% 0" },
-  to: { backgroundPosition: "-150% 0" },
-});
-
-// Lifts code off the panel's tray, where the chat's own code sits.
-const onTray = `color-mix(in srgb, ${tokens.ink} 6%, ${tokens.tray})`;
 
 const styles = stylex.create({
   turn: {
@@ -686,10 +680,11 @@ const styles = stylex.create({
     fontSize: fontSize.reading,
     lineHeight: "26px",
   },
-  // A long path wraps; each line's piece keeps its padding and corners.
+  // Lifted off the panel's tray, where the chat's own code sits. A long path
+  // wraps; each line's piece keeps its padding and corners.
   answerCode: {
-    backgroundColor: onTray,
-    fontSize: "0.84em",
+    backgroundColor: tokens.trayRaised,
+    fontSize: "0.92em",
     boxDecorationBreak: "clone",
   },
   // Consecutive tool calls, collapsed to what they add up to.
@@ -700,12 +695,15 @@ const styles = stylex.create({
   },
   summary: {
     display: "inline-flex",
-    alignItems: "center",
+    // A wrapped summary keeps its chevron on the first line.
+    alignItems: "flex-start",
     alignSelf: "flex-start",
     gap: "6px",
     padding: 0,
     borderWidth: 0,
     borderStyle: "none",
+    borderColor: "currentcolor",
+    borderRadius: radius.small,
     backgroundColor: tokens.transparent,
     color: {
       default: tokens.inkMuted,
@@ -715,17 +713,18 @@ const styles = stylex.create({
     fontFamily: tokens.fontSerif,
     fontSize: fontSize.reading,
     lineHeight: "20px",
+    // Buttons center their text, which shows once a long summary wraps.
+    textAlign: "left",
     cursor: "pointer",
-    outline: { default: null, ":focus-visible": "none" },
+    outline: { default: null, ":focus-visible": `1px solid ${tokens.accent}` },
+    outlineOffset: { default: null, ":focus-visible": "1px" },
+  },
+  // Centered on the summary's first 20px line.
+  summaryChevron: {
+    margin: "4px 2px",
   },
   summaryFailed: {
     color: tokens.inkFaint,
-  },
-  chevron: {
-    transition: `transform ${motion.fast} ${motion.ease}`,
-  },
-  chevronOpen: {
-    transform: "rotate(180deg)",
   },
   toolList: {
     display: "flex",
@@ -753,6 +752,7 @@ const styles = stylex.create({
     padding: "7px 12px",
     borderWidth: 0,
     borderStyle: "none",
+    borderColor: "currentcolor",
     backgroundColor: tokens.transparent,
     color: tokens.inkMuted,
     fontFamily: tokens.fontSerif,
@@ -767,7 +767,8 @@ const styles = stylex.create({
       ":focus-visible": tokens.ink,
     },
     cursor: "pointer",
-    outline: { default: null, ":focus-visible": "none" },
+    outline: { default: null, ":focus-visible": `1px solid ${tokens.accent}` },
+    outlineOffset: { default: null, ":focus-visible": "-1px" },
   },
   toolLabel: {
     flex: "1 1 auto",
@@ -800,7 +801,7 @@ const styles = stylex.create({
     borderColor: tokens.ruleSoft,
     borderTopColor: tokens.accent,
     borderRadius: radius.round,
-    animationName: spin,
+    animationName: { default: spin, [reducedMotion]: "none" },
     animationDuration: askMotion.spin,
     animationTimingFunction: "linear",
     animationIterationCount: "infinite",
@@ -833,7 +834,7 @@ const styles = stylex.create({
     overflowWrap: "anywhere",
   },
   command: {
-    backgroundColor: onTray,
+    backgroundColor: tokens.trayRaised,
     color: tokens.ink,
   },
   prompt: {
@@ -880,10 +881,6 @@ const styles = stylex.create({
     color: { default: tokens.transparent, [reducedMotion]: tokens.inkMuted },
     textOverflow: "ellipsis",
     whiteSpace: "nowrap",
-    animationName: { default: shimmer, [reducedMotion]: "none" },
-    animationDuration: motion.pulse,
-    animationTimingFunction: "linear",
-    animationIterationCount: "infinite",
   },
   workingTime: {
     flex: "0 0 auto",

@@ -14,6 +14,15 @@ export const REVIEW_DESKTOP_DISCOVERY_VERSION = 3;
 // Version 5: document and software-map bundles are JSON.
 export const REVIEW_SCHEMA_VERSION = 5;
 
+// A gateway sets the client header on every call it forwards from another
+// machine; the server then leaves local paths out. The host header names the
+// machine that answered; absent means this one.
+export const REVIEW_CLIENT_HEADER = "x-review-client";
+
+export const REVIEW_CLIENT_REMOTE = "remote";
+
+export const REVIEW_HOST_HEADER = "x-review-host";
+
 const requiredString = z
   .string({ error: "must be a string" })
   .refine((value) => value.trim().length > 0, "must be a string");
@@ -305,11 +314,13 @@ export interface ReviewCanvasDiagnostic {
 
 /**
  * `instant` shows the Whiteboard tooltip the moment the pointer lands, for
- * small targets like the viewed box and the diff counts; `detail` is its
- * fainter second line. Without options the host shows its delayed hover.
+ * small targets like the viewed box and the diff counts; `quick` shows it
+ * after half the delay; `detail` is its fainter second line. Without options
+ * the host shows its delayed hover.
  */
 export interface ReviewTooltipOptions {
   instant?: boolean;
+  quick?: boolean;
   detail?: string;
 }
 
@@ -477,16 +488,32 @@ export interface ReviewCanvasTutorialBridge {
  * setter resolves with the value that actually landed, so a row re-renders from
  * the authoritative result instead of an optimistic one.
  */
+/** What diffr's schema says about one summary provider. */
+export interface ReviewDiffrProvider {
+  id: string;
+  title: string;
+  model: string;
+  endpoint: string;
+  keyVariables: string[];
+  keylessCustomEndpoint: boolean;
+}
+
 export interface ReviewDiffrConfig {
   values: JsonObject;
   credentialSource: "config" | "environment" | "missing";
+  providers?: ReviewDiffrProvider[];
+  defaultPrompt?: string;
   changed?: boolean;
   error?: string;
 }
 
 export const reviewDiffrSummarizerInputSchema = z.object({
   enabled: z.boolean(),
+  provider: z.string().min(1),
   model: z.string().trim().min(1),
+  endpoint: z.string().trim(),
+  // Blank means diffr's own default; kept as written, not trimmed.
+  systemPrompt: z.string(),
   tests: z.boolean(),
   apiKey: z.string().optional(),
 });
@@ -498,6 +525,19 @@ export type ReviewDiffrSummarizerInput = z.infer<
 const reviewDiffrConfigSchema = z.object({
   values: z.custom<JsonObject>(isJsonObject),
   credentialSource: z.enum(["config", "environment", "missing"]),
+  providers: z
+    .array(
+      z.object({
+        id: z.string(),
+        title: z.string(),
+        model: z.string(),
+        endpoint: z.string(),
+        keyVariables: z.array(z.string()),
+        keylessCustomEndpoint: z.boolean(),
+      }),
+    )
+    .optional(),
+  defaultPrompt: z.string().optional(),
   changed: z.boolean().optional(),
   error: z.string().optional(),
 });
@@ -565,7 +605,8 @@ export interface ReviewCanvasSettingsContent {
 
 /** Workspace attachment identity is independent of the displayed source generation. */
 export interface ReviewLanguageEnvironment {
-  readonly rootPath: string | null;
+  /** Absent for a caller on another machine. */
+  readonly rootPath?: string | null;
   readonly identity: string;
   /** Present only when the language checkout is unavailable, not while preparing. */
   readonly issue?: string;
@@ -809,6 +850,21 @@ export const ReviewDesktopDiscoverySchema = z.object({
 export type ReviewDesktopDiscovery = z.infer<
   typeof ReviewDesktopDiscoverySchema
 >;
+
+/** `GET /health` on every review server. No token needed. */
+export interface ReviewServerHealth {
+  ok: true;
+  instanceId: string; // new on every start
+  desktopAttached: boolean;
+  version: string; // package version; equals the Desktop version in release builds
+}
+
+/** `GET /health` with the server's token: what identifies the machine and build. */
+export interface ReviewServerHealthWithToken extends ReviewServerHealth {
+  serverId: string; // stable, one per review store
+  serverPid: number;
+  commit: string | null;
+}
 
 export const ReviewRepositoryIdentitySchema = z.strictObject({
   kind: z.enum(["git", "jj", "none"], {
