@@ -12,7 +12,7 @@ test("activation goes to the host, and lookups answer with the host's own extens
 		getExtension: async () => ({ identifier: new ExtensionIdentifier("laptop.ext"), extensionLocation: "file:///Users/me/.vscode/ext" }),
 	} as unknown as IExtensionService;
 	const probe = { identifier: new ExtensionIdentifier("wb-test.remote-guard-probe") } as IExtensionDescription;
-	const extensions = reviewRemoteExtensionService(window, [probe], async (event) => { onHost.push(event); });
+	const extensions = reviewRemoteExtensionService(window, () => [probe], async (event) => { onHost.push(event); });
 	await extensions.activateByEvent("onSearch:vscode-remote");
 	assert.deepEqual([onLaptop, onHost], [[], ["onSearch:vscode-remote"]]);
 	assert.equal(await extensions.whenInstalledExtensionsRegistered(), true);

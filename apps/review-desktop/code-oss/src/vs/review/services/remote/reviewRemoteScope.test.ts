@@ -200,7 +200,7 @@ test("a host's main-thread peers are created with the guarded services", async (
 	const scope = parent.createChild(parent.invokeFunction((accessor) => reviewRemoteScope({
 		authority: A,
 		refusals: new ReviewRemoteRefusals(A, () => "wb-test-a", accessor.get(ILogService)),
-		extensions: [],
+		extensions: () => [],
 		activate: async () => { },
 		languageFeatures: {} as never,
 		workspace: new ReviewRemoteWorkspace("w"),

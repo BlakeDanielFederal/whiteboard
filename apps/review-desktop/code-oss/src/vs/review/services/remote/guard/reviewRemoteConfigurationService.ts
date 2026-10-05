@@ -33,12 +33,13 @@ function remoteContributedSettings(extensions: readonly IExtensionDescription[])
 
 export function reviewRemoteConfigurationService(
 	base: IConfigurationService,
-	extensions: readonly IExtensionDescription[],
+	extensions: () => readonly IExtensionDescription[],
 	refusals: ReviewRemoteRefusals,
 	logService: ILogService,
 ): IConfigurationService {
-	const settings = remoteContributedSettings(extensions);
+	const contributed = () => remoteContributedSettings(extensions());
 	const data = (): IConfigurationData => {
+		const settings = contributed();
 		const window = base.getConfigurationData();
 		const defaults = window
 			? new ConfigurationModel(deepClone(window.defaults.contents), [...window.defaults.keys], deepClone(window.defaults.overrides), undefined, logService)
@@ -52,12 +53,12 @@ export function reviewRemoteConfigurationService(
 		const empty = ConfigurationModel.createEmptyModel(logService).toJSON();
 		return { defaults: defaults.toJSON(), policy: empty, application: empty, userLocal: user.toJSON(), userRemote: empty, workspace: empty, folders: [] };
 	};
-	const filter = (change: IConfigurationChange): IConfigurationChange => ({
+	const filter = (change: IConfigurationChange, settings: Map<string, unknown>): IConfigurationChange => ({
 		keys: change.keys.filter((key) => settings.has(key)),
 		overrides: change.overrides.map(([id, keys]): [string, string[]] => [id, keys.filter((key) => settings.has(key))]).filter(([, keys]) => keys.length > 0),
 	});
 	const within = (key: string, section: string) => key === section || key.startsWith(`${section}.`) || section.startsWith(`${key}.`);
-	const affects = (e: IConfigurationChangeEvent, change: IConfigurationChange, section: string, overrides?: IConfigurationOverrides) => {
+	const affects = (e: IConfigurationChangeEvent, change: IConfigurationChange, settings: Map<string, unknown>, section: string, overrides?: IConfigurationOverrides) => {
 		if (within("telemetry", section)) return e.affectsConfiguration(section, overrides);
 		if (![...settings.keys()].some((key) => within(key, section))) {
 			refusals.refuse("telling which of your settings changed");
@@ -71,8 +72,9 @@ export function reviewRemoteConfigurationService(
 		getConfigurationData: data,
 		onDidChangeConfiguration: Event.filter(
 			Event.map(base.onDidChangeConfiguration, (e): IConfigurationChangeEvent => {
-				const change = filter(e.change);
-				return { source: e.source, change, affectedKeys: new Set(change.keys), affectsConfiguration: (section, overrides) => affects(e, change, section, overrides) };
+				const settings = contributed();
+				const change = filter(e.change, settings);
+				return { source: e.source, change, affectedKeys: new Set(change.keys), affectsConfiguration: (section, overrides) => affects(e, change, settings, section, overrides) };
 			}),
 			(e) => e.change.keys.length > 0 || e.change.overrides.length > 0 || e.affectsConfiguration("telemetry"),
 		),

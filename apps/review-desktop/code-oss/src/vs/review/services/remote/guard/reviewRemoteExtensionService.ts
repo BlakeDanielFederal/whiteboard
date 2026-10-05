@@ -9,15 +9,16 @@ import { override } from "./reviewRemoteGuard.js";
 
 export function reviewRemoteExtensionService(
 	base: IExtensionService,
-	extensions: readonly IExtensionDescription[],
+	extensions: () => readonly IExtensionDescription[],
 	activate: (event: string) => Promise<void>,
 ): IExtensionService {
-	const byId = new Map(extensions.map((extension) => [ExtensionIdentifier.toKey(extension.identifier), extension]));
 	return override(base, {
-		extensions,
+		get extensions() {
+			return extensions();
+		},
 		activateByEvent: (event) => activate(event),
 		activationEventIsDone: () => false,
 		whenInstalledExtensionsRegistered: async () => true,
-		getExtension: async (id) => byId.get(ExtensionIdentifier.toKey(id)),
+		getExtension: async (id) => extensions().find((extension) => ExtensionIdentifier.equals(extension.identifier, id)),
 	});
 }

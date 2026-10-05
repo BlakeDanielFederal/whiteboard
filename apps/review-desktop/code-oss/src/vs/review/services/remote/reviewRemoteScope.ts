@@ -236,10 +236,10 @@ export class ReviewRemoteWorkspace extends Disposable implements IWorkspaceConte
 export function reviewRemoteScope(input: {
 	authority: string;
 	refusals: ReviewRemoteRefusals;
-	extensions: readonly IExtensionDescription[];
+	extensions: () => readonly IExtensionDescription[];
 	activate: (event: string) => Promise<void>;
 	languageFeatures: ILanguageFeaturesService;
-	workspace: ReviewRemoteWorkspace;
+	workspace: IWorkspaceContextService;
 	resolver: IRemoteAuthorityResolverService;
 	ownFiles: IFileService;
 }, window: ServicesAccessor): ServiceCollection {
@@ -257,7 +257,7 @@ export function reviewRemoteScope(input: {
 		[ISearchService, new SyncDescriptor(SearchService)],
 		[IRemoteAuthorityResolverService, input.resolver],
 		[IReviewRemoteRefusals, refusals],
-		[IReviewRemoteExtensions, { _serviceBrand: undefined, extensions: input.extensions }],
+		[IReviewRemoteExtensions, { _serviceBrand: undefined, get extensions() { return input.extensions(); } }],
 		[IFileService, reviewRemoteFileService(window.get(IFileService), refusals, input.ownFiles)],
 		[ITextModelService, reviewRemoteTextModelService(window.get(ITextModelService), refusals)],
 		[ITextFileService, reviewRemoteTextFileService(window.get(ITextFileService), refusals)],

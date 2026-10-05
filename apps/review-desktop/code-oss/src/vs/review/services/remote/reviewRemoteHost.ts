@@ -282,7 +282,7 @@ export class ReviewRemoteSession extends Disposable implements IReviewRemoteSess
 		const scope = this._register(this.instantiationService.createChild(this.instantiationService.invokeFunction((window) => reviewRemoteScope({
 			authority,
 			refusals: this.host.refusals,
-			extensions,
+			extensions: () => extensions,
 			activate: (event) => this.activateByEvent(event),
 			languageFeatures: this.host.languageFeatures,
 			workspace: this.host.workspace,

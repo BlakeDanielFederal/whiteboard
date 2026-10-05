@@ -47,10 +47,11 @@ function setup(t: { after(fn: () => void): void }) {
 		updateValue: async (...args: unknown[]) => writes.push(args),
 	} as unknown as IConfigurationService;
 	const refusals = new ReviewRemoteRefusals(A, () => "wb-test-a", { warn: (message: string) => warnings.push(message) } as unknown as ILogService);
-	const configuration = reviewRemoteConfigurationService(base, [
+	const extensions = [
 		extension("vscode.typescript-language-features", { "typescript.tsdk": { type: "string" }, "typescript.format.enable": { type: "boolean", default: true } }),
 		extension("evil.ext", { "review.remote.hosts": {}, "laptopext.token": {}, "evil.own": { default: 0 } }),
-	], refusals, new NullLogService());
+	];
+	const configuration = reviewRemoteConfigurationService(base, () => extensions, refusals, new NullLogService());
 	return { configuration, changed, writes, warnings };
 }
 
