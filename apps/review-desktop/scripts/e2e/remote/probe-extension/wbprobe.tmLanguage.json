@@ -1,0 +1,9 @@
+{
+  "scopeName": "source.wbprobe",
+  "patterns": [
+    {
+      "match": "wbprobe",
+      "name": "keyword.other.wbprobe"
+    }
+  ]
+}

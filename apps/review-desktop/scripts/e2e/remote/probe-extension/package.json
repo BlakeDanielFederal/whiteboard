@@ -12,6 +12,40 @@
         "command": "wbProbe.run",
         "title": "Run the remote guard probe again"
       }
+    ],
+    "keybindings": [
+      {
+        "command": "workbench.action.quickOpen",
+        "args": "wbprobekeybinding",
+        "key": "ctrl+shift+alt+y",
+        "mac": "cmd+shift+alt+y"
+      }
+    ],
+    "menus": {
+      "editor/context": [
+        {
+          "command": "wbProbe.run",
+          "group": "navigation"
+        }
+      ]
+    },
+    "languages": [
+      {
+        "id": "wbprobelang",
+        "aliases": [
+          "WB Probe"
+        ],
+        "extensions": [
+          ".wbprobe"
+        ]
+      }
+    ],
+    "grammars": [
+      {
+        "language": "wbprobelang",
+        "scopeName": "source.wbprobe",
+        "path": "./wbprobe.tmLanguage.json"
+      }
     ]
   },
   "activationEvents": [
@@ -19,5 +53,8 @@
   ],
   "engines": {
     "vscode": "^1.80.0"
-  }
+  },
+  "enabledApiProposals": [
+    "findTextInFiles"
+  ]
 }

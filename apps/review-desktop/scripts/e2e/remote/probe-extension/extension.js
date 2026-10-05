@@ -5,6 +5,10 @@
 // "<action>: ALLOWED". Task 9's journey reuses it. The log goes to
 // $WB_PROBE_LOG_DIR/probe.log when set, else to the extension's global-storage
 // folder on the remote (printed on the first line).
+//
+// In a Source window (a workspace file, which the review window's host never
+// has) it waits for the journey's source-go.json, then runs the same actions
+// and the Source window's own into source-probe.log.
 const fs = require("node:fs");
 
 const path = require("node:path");
@@ -56,9 +60,9 @@ function readConfig(context) {
   }
 }
 
-async function run(context) {
+async function run(context, logName = "probe.log", extra) {
   const dir = process.env.WB_PROBE_LOG_DIR || context.globalStorageUri.fsPath;
-  const logFile = path.join(dir, "probe.log");
+  const logFile = path.join(dir, logName);
   fs.mkdirSync(dir, { recursive: true });
   fs.writeFileSync(logFile, `log: ${logFile}\n`);
   const log = (line) => fs.appendFileSync(logFile, `${line}\n`);
@@ -401,6 +405,8 @@ async function run(context) {
     log,
   );
 
+  if (extra) await extra({ log, dir, localHosts });
+
   try {
     vscode.window.showInformationMessage("wb probe: guard check ran");
     log("showInformationMessage: ALLOWED");
@@ -413,18 +419,355 @@ async function run(context) {
   return logFile;
 }
 
+// Window commands a Source window's host must not see.
+const WINDOW_COMMANDS = [
+  "workbench.action.files.openFile",
+  "vscode.openFolder",
+  "workbench.action.reloadWindow",
+  "workbench.action.quickOpen",
+  "_workbench.downloadResource",
+  "editor.action.clipboardCopyAction",
+  "workbench.action.openSettingsJson",
+];
+
+/** Waits for the journey's source-go.json: it opens laptop documents in the window first. */
+async function sourceGo(context) {
+  const file = path.join(context.extensionPath, "source-go.json");
+
+  for (let i = 0; i < 1200; i++) {
+    try {
+      return JSON.parse(fs.readFileSync(file, "utf8"));
+    } catch {
+      await new Promise((resolve) => setTimeout(resolve, 500));
+    }
+  }
+
+  throw new Error("no source-go.json within 10 minutes");
+}
+
+/** Breach when it found something; refused when it threw or found nothing. */
+async function finds(name, attempt, log) {
+  await refuses(
+    name,
+    async () => {
+      const found = await attempt();
+
+      if (found) return found;
+      throw new Error("nothing returned");
+    },
+    log,
+  );
+}
+
+/** The stage 2 actions, then the Source window's own, into source-probe.log. */
+async function sourceRun(context) {
+  const go = await sourceGo(context);
+  const folder = vscode.workspace.workspaceFolders[0].uri;
+  const laptopFolder = windowUri("vscode-local", go.laptopFolder);
+
+  await run(context, "source-probe.log", async ({ log, dir }) => {
+    log(
+      `window: remoteName ${vscode.env.remoteName}, folder ${folder.toString()}, workspace file ${vscode.workspace.workspaceFile}`,
+    );
+
+    // Laptop files and documents.
+    await refuses(
+      "read the laptop's settings.json through vscode-local",
+      async () =>
+        `${(await vscode.workspace.fs.readFile(windowUri("vscode-local", go.laptopFile))).length} bytes`,
+      log,
+    );
+    await refuses(
+      "openTextDocument on the laptop's settings.json",
+      async () =>
+        `${(await vscode.workspace.openTextDocument(windowUri("vscode-local", go.laptopFile))).getText().length} chars`,
+      log,
+    );
+    await refuses(
+      "openTextDocument on the laptop's empty Source side",
+      async () =>
+        `${(await vscode.workspace.openTextDocument(windowUri("vscode-userdata", go.emptyFile))).uri}`,
+      log,
+    );
+    await finds(
+      "see the laptop's open documents",
+      async () => {
+        const seen = vscode.workspace.textDocuments.filter(
+          (d) => d.uri.scheme !== "file" || d.getText().includes(go.secret),
+        );
+
+        log(
+          `open documents: ${vscode.workspace.textDocuments.map((d) => d.uri.toString()).join(", ")}`,
+        );
+
+        return seen.length && seen.map((d) => d.uri.toString()).join(", ");
+      },
+      log,
+    );
+
+    // Commands: the allow-list and the host's own, never the window's.
+    const commands = await vscode.commands.getCommands();
+
+    fs.writeFileSync(
+      path.join(dir, "source-commands.json"),
+      JSON.stringify(commands),
+    );
+    log(`command count: ${commands.length}`);
+    await finds(
+      "see the window's commands",
+      async () =>
+        WINDOW_COMMANDS.filter((id) => commands.includes(id)).join(", "),
+      log,
+    );
+    await refuses(
+      "executeCommand workbench.action.quickOpen with arguments",
+      () =>
+        vscode.commands.executeCommand(
+          "workbench.action.quickOpen",
+          "wbprobecommand",
+        ),
+      log,
+    );
+
+    // Search: own files answer; laptop folders, another host and the
+    // laptop's open buffers do not.
+    await observe(
+      "search this remote's own files",
+      async () => {
+        const own = await vscode.workspace.findFiles("**/needle.md");
+        const ownText = [];
+
+        await vscode.workspace.findTextInFiles(
+          { pattern: "wbprobe-needle" },
+          {},
+          (result) => ownText.push(result),
+        );
+
+        return `${own.length} file(s), ${ownText.length} text match(es)`;
+      },
+      log,
+    );
+    await finds(
+      "findFiles in a laptop folder",
+      async () =>
+        (
+          await vscode.workspace.findFiles(
+            new vscode.RelativePattern(laptopFolder, "**/*"),
+          )
+        ).length,
+      log,
+    );
+    await finds(
+      "findTextInFiles in a laptop folder",
+      async () => {
+        const results = [];
+
+        await vscode.workspace.findTextInFiles(
+          { pattern: "status" },
+          { include: new vscode.RelativePattern(laptopFolder, "**/*") },
+          (result) => results.push(result),
+        );
+
+        return results.length;
+      },
+      log,
+    );
+    await finds(
+      "findFiles on another host",
+      async () =>
+        (
+          await vscode.workspace.findFiles(
+            new vscode.RelativePattern(
+              vscode.Uri.parse(`vscode-remote://${go.otherAuthority}/`),
+              "**/*",
+            ),
+          )
+        ).length,
+      log,
+    );
+    await finds(
+      "text search learns a laptop buffer (results or limitHit)",
+      async () => {
+        const results = [];
+
+        const complete = await vscode.workspace.findTextInFiles(
+          { pattern: go.secret },
+          { maxResults: 1 },
+          (result) => results.push(result),
+        );
+
+        return (
+          (results.length || complete.limitHit) &&
+          `${results.length} result(s), limitHit ${complete.limitHit}`
+        );
+      },
+      log,
+    );
+
+    // Writes: the window's edits are refused; the host's own disk is its own.
+    await refuses(
+      "applyEdit on this remote's checkout",
+      async () => {
+        const edit = new vscode.WorkspaceEdit();
+        edit.insert(
+          vscode.Uri.joinPath(folder, "f.ts"),
+          new vscode.Position(0, 0),
+          "wb-probe\n",
+        );
+
+        if (await vscode.workspace.applyEdit(edit))
+          return "applyEdit returned true";
+        throw new Error("applyEdit returned false");
+      },
+      log,
+    );
+    const bytes = Buffer.from("wb-probe");
+
+    const own = vscode.Uri.from({
+      scheme: "vscode-remote",
+      authority: go.authority,
+      path: `${folder.path}/probe-own.txt`,
+    });
+
+    await observe(
+      "workspace.fs.writeFile on this remote's checkout through the window",
+      async () => {
+        await vscode.workspace.fs.writeFile(own, bytes);
+
+        return "allowed (own files)";
+      },
+      log,
+    );
+    await observe(
+      "workspace.fs.writeFile on a file: path (this host's own disk here)",
+      async () => {
+        await vscode.workspace.fs.writeFile(
+          windowUri("file", go.fileProbe),
+          bytes,
+        );
+
+        return "written";
+      },
+      log,
+    );
+
+    const laptopFile = windowUri("vscode-local", `${go.laptopFolder}/order.ts`);
+
+    for (const [name, target] of [
+      [
+        "a laptop file through vscode-local",
+        windowUri("vscode-local", `${go.laptopRoot}/probe-local.txt`),
+      ],
+      [
+        "another host's file",
+        vscode.Uri.parse(`vscode-remote://${go.otherAuthority}/tmp/probe.txt`),
+      ],
+      [
+        "the laptop's empty Source side",
+        windowUri("vscode-userdata", go.emptyFile),
+      ],
+    ])
+      await refuses(
+        `workspace.fs.writeFile on ${name}`,
+        async () => {
+          await vscode.workspace.fs.writeFile(target, bytes);
+
+          return "written";
+        },
+        log,
+      );
+
+    await refuses(
+      "workspace.fs.delete on a laptop file",
+      async () => {
+        await vscode.workspace.fs.delete(laptopFile);
+
+        return "deleted";
+      },
+      log,
+    );
+    await refuses(
+      "workspace.fs.rename on a laptop file",
+      async () => {
+        await vscode.workspace.fs.rename(
+          laptopFile,
+          windowUri("vscode-local", `${go.laptopFolder}/order-renamed.ts`),
+        );
+
+        return "renamed";
+      },
+      log,
+    );
+
+    // Settings from the remote change nothing, here or in the window.
+    const settings = path.join(folder.fsPath, ".vscode", "settings.json");
+
+    fs.mkdirSync(path.dirname(settings), { recursive: true });
+
+    // The guard passes on changes only for the host's own keys, so a change
+    // to editor.fontSize must never arrive: a timeout is the expected outcome.
+    const changed = new Promise((resolve) => {
+      const listener = vscode.workspace.onDidChangeConfiguration((event) => {
+        if (event.affectsConfiguration("editor.fontSize")) {
+          listener.dispose();
+          resolve("changed");
+        }
+      });
+
+      setTimeout(() => {
+        listener.dispose();
+        resolve("no change event within 10 s");
+      }, 10000);
+    });
+
+    fs.writeFileSync(
+      settings,
+      JSON.stringify({
+        "editor.fontSize": 41,
+        "files.readonlyInclude": { "**/*": false },
+        "files.readonlyExclude": { "**/*": true },
+        "window.title": "wb probe runtime title",
+      }),
+    );
+    log("write .vscode/settings.json: written");
+    log(`editor.fontSize change event: ${await changed}`);
+    await finds(
+      "read back editor.fontSize from .vscode/settings.json",
+      async () => {
+        const config = vscode.workspace.getConfiguration("editor");
+        const inspected = config.inspect("fontSize");
+
+        log(`editor.fontSize read back: ${config.get("fontSize")}`);
+
+        return (
+          ([40, 41].includes(config.get("fontSize")) ||
+            inspected?.globalValue !== undefined ||
+            inspected?.workspaceValue !== undefined ||
+            inspected?.workspaceFolderValue !== undefined) &&
+          JSON.stringify(inspected)
+        );
+      },
+      log,
+    );
+  });
+}
+
 function activate(context) {
   context.subscriptions.push(
     vscode.commands.registerCommand("wbProbe.run", () => run(context)),
   );
-  run(context).catch((error) => {
+
+  const source = vscode.workspace.workspaceFile !== undefined;
+  const logName = source ? "source-probe.log" : "probe.log";
+
+  (source ? sourceRun(context) : run(context)).catch((error) => {
     try {
       const dir =
         process.env.WB_PROBE_LOG_DIR || context.globalStorageUri.fsPath;
 
       fs.mkdirSync(dir, { recursive: true });
       fs.appendFileSync(
-        path.join(dir, "probe.log"),
+        path.join(dir, logName),
         `probe crashed: ${String((error && error.stack) || error)}\n`,
       );
     } catch {}
