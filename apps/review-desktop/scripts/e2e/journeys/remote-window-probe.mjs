@@ -568,7 +568,7 @@ function assertDefaults(state) {
 }
 
 /** Types into f.ts; returns the read-only notice, after checking the text did not change. */
-async function typeInto(source, ctx) {
+export async function typeInto(source, ctx) {
   const before = await inSource(source, fileText);
 
   await source.locator(".monaco-editor .view-lines").first().click();
@@ -598,7 +598,7 @@ async function quickInputVisible(page) {
   });
 }
 
-async function quickRows(page) {
+export async function quickRows(page) {
   return page
     .locator(".quick-input-list .monaco-list-row")
     .allInnerTexts()
@@ -606,7 +606,7 @@ async function quickRows(page) {
 }
 
 /** The window's own logs, where `[Remote guard]` lines go. */
-async function windowLog(ctx) {
+export async function windowLog(ctx) {
   const { readdir } = await import("node:fs/promises");
   const root = path.join(ctx.userData, "logs");
 
@@ -627,7 +627,7 @@ async function windowLog(ctx) {
  * Runs `fn` in the Source window with its services, reached through its
  * extension service instance: the journey needs no hook in the product.
  */
-async function inSource(page, fn, ...args) {
+export async function inSource(page, fn, ...args) {
   const cdp = await page.context().newCDPSession(page);
 
   try {
@@ -675,7 +675,7 @@ async function inSource(page, fn, ...args) {
 
 // The functions below run in the Source window.
 
-async function windowState({ service, get, imp }) {
+export async function windowState({ service, get, imp }) {
   const [config, keybindings, languages, editors, workspace, environment, tm] =
     await Promise.all([
       get(
@@ -794,7 +794,7 @@ async function revertAll({ get }) {
   return editors.revertAll({ includeUntitled: true });
 }
 
-async function fileText({ get }) {
+export async function fileText({ get }) {
   const models = await get(
     "vs/editor/common/services/model.js",
     "IModelService",
@@ -806,7 +806,7 @@ async function fileText({ get }) {
     ?.getValue();
 }
 
-async function focusFile({ get, imp }, resource) {
+export async function focusFile({ get, imp }, resource) {
   const editors = await get(
     "vs/workbench/services/editor/common/editorService.js",
     "IEditorService",
@@ -822,7 +822,7 @@ async function focusFile({ get, imp }, resource) {
   return true;
 }
 
-async function pointAt({ get }, line, word) {
+export async function pointAt({ get }, line, word) {
   const editor = (
     await get("vs/editor/browser/services/codeEditorService.js", "ICodeEditorService")
   ).getActiveCodeEditor();
