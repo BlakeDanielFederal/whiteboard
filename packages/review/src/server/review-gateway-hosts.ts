@@ -205,7 +205,7 @@ export function createGatewayHosts(input: {
       host.detail = given.problem.detail;
     } else if (!given.endpoint)
       host.detail = `Waiting for a connection to ${given.alias}.`;
-    else host.agent = new http.Agent({ keepAlive: true });
+    else host.agent = new http.Agent({ keepAlive: true, timeout: 60_000 });
 
     return host;
   }
@@ -383,6 +383,7 @@ export function send(
     body?: Buffer | Readable;
     signal: AbortSignal;
   },
+  retry = true,
 ): Promise<http.IncomingMessage> {
   return new Promise((resolve, reject) => {
     if (!remote.endpoint) {
@@ -409,7 +410,16 @@ export function send(
     });
     outgoing.on("error", (error) => {
       release();
-      reject(error);
+
+      if (
+        retry &&
+        outgoing.reusedSocket &&
+        !request.signal.aborted &&
+        !(request.body instanceof Readable) &&
+        errorCode(error) === "ECONNRESET"
+      )
+        resolve(send(remote, request, false));
+      else reject(error);
     });
 
     if (request.body instanceof Readable) request.body.pipe(outgoing);
