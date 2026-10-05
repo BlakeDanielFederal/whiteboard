@@ -366,7 +366,15 @@ one of these entries:
   `RemoteExtensionHost` builds its own connection options, so its data
   provider can now pass `isolatePermanentFailure` into them. Every remote's
   extension host in a Whiteboard window sets it, so one remote's failed
-  extension host connection does not end the other remotes.
+  extension host connection does not end the other remotes. Its data provider
+  is public, so a Source window bound to a Whiteboard host can rebuild the
+  host upstream's factory made, with the same data, inside the remote guard.
+- `src/vs/workbench/services/extensions/common/abstractExtensionService.ts`:
+  `_acquireInternalAPI` is protected, not private, so the navigator window's
+  extension service can create a Whiteboard host's extension host manager
+  inside the remote guard (`review/services/remote/reviewRemoteWindowScope.ts`);
+  the manager creates the host's main-thread peers. Upstream's
+  `_doCreateExtensionHostManager` is already protected.
 - `extensions/package.json` and the extension `package.json`/`package-lock.json`
   files: `@vscode/extension-telemetry` is hoisted to the shared extensions
   install (github keeps its own ^1.0.0 copy; the shared copy is ^0.9.8). The

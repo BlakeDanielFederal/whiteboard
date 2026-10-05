@@ -1243,7 +1243,7 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 
 	//#region Called by extension host
 
-	private _acquireInternalAPI(extensionHost: IExtensionHost): IInternalExtensionService {
+	protected _acquireInternalAPI(extensionHost: IExtensionHost): IInternalExtensionService {
 		return {
 			_activateById: (extensionId: ExtensionIdentifier, reason: ExtensionActivationReason): Promise<void> => {
 				return this._activateById(extensionId, reason);

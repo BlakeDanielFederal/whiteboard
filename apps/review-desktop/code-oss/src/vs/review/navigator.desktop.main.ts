@@ -47,6 +47,10 @@ import { ILanguageFeaturesService } from '../editor/common/services/languageFeat
 import { SymbolNavigationAnchor } from '../editor/contrib/gotoSymbol/browser/goToCommands.js';
 import { CommandsRegistry, ICommandService } from '../platform/commands/common/commands.js';
 import { IEditorService } from '../workbench/services/editor/common/editorService.js';
+import { NativeExtensionService } from '../workbench/services/extensions/electron-browser/nativeExtensionService.js';
+import { IExtensionService, type IExtensionHost } from '../workbench/services/extensions/common/extensions.js';
+import type { IExtensionHostManager } from '../workbench/services/extensions/common/extensionHostManagers.js';
+import { ReviewRemoteWindowExtensionHosts } from './services/remote/reviewRemoteWindowScope.js';
 
 class NavigatorDefaults {
 	constructor(@IStorageService storage: IStorageService) {
@@ -59,6 +63,17 @@ class NavigatorDefaults {
 }
 
 registerWorkbenchContribution2('review.navigator.defaults', NavigatorDefaults, WorkbenchPhase.BlockStartup);
+
+class NavigatorExtensionService extends NativeExtensionService {
+	private readonly remoteHosts = this._register(new ReviewRemoteWindowExtensionHosts(this._instantiationService));
+
+	protected override _doCreateExtensionHostManager(extensionHost: IExtensionHost, initialActivationEvents: string[]): IExtensionHostManager {
+		return this.remoteHosts.create(extensionHost, initialActivationEvents, this._acquireInternalAPI(extensionHost))
+			?? super._doCreateExtensionHostManager(extensionHost, initialActivationEvents);
+	}
+}
+
+registerSingleton(IExtensionService, NavigatorExtensionService, InstantiationType.Eager);
 
 CommandsRegistry.registerCommand('review.action.showReferencesInSource', async (accessor, resource: string, lineNumber: number, column: number) => {
 	const editorService = accessor.get(IEditorService);

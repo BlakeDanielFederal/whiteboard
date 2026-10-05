@@ -65,7 +65,7 @@ export class RemoteExtensionHost extends Disposable implements IExtensionHost {
 
 	constructor(
 		public readonly runningLocation: RemoteRunningLocation,
-		private readonly _initDataProvider: IRemoteExtensionHostDataProvider,
+		public readonly _initDataProvider: IRemoteExtensionHostDataProvider,
 		@IRemoteSocketFactoryService private readonly remoteSocketFactoryService: IRemoteSocketFactoryService,
 		@IWorkspaceContextService private readonly _contextService: IWorkspaceContextService,
 		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
