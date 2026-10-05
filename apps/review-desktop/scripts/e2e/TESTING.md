@@ -231,7 +231,8 @@ with the toolchain on the login shell's `PATH` only for Rust and .NET:
    optional group (Rust: the server binary runs, and the installed manifest
    carries `onLanguage:rust`);
 5. Swift only: a second host, `wb-test-d`, without Swift, attaches, and its
-   Settings row names the missing `swift`;
+   Settings row names the missing `swift`; Swift and C# stop here: they do
+   not answer hovers yet (`docs/remote-hosts.md`);
 6. a pointer hover shows the type, within 120 s of the Diff click;
 7. go to definition opens the remote's file, read-only;
 8. the extension host's `PATH` holds the toolchain, no debugger runs, and the

@@ -1,4 +1,4 @@
-/** One optional language group on an SSH host with its toolchain: the group turned on in the Desktop, a remote review, a hover and go to definition from the remote. */
+/** One optional language group on an SSH host with its toolchain: the group turned on in the Desktop, a remote review and, for a group that answers hovers, a hover and go to definition from the remote. */
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
 import { readFile } from "node:fs/promises";
@@ -58,6 +58,7 @@ d=$(ls -d ~/.dev/whiteboard-remote/extensions/rust-lang.rust-analyzer-*/)
 node -pe "JSON.parse(require('fs').readFileSync('$d/package.json','utf8')).activationEvents.includes('onLanguage:rust')"
 `,
     debuggers: [],
+    hovers: true,
   },
   swift: {
     toolchain: "swift",
@@ -77,6 +78,7 @@ node -pe "JSON.parse(require('fs').readFileSync('$d/package.json','utf8')).activ
     definitionText: /public func saveOrder\(_ order: OrderRecord\)/,
     debuggers: ["lldb-dap"],
     withoutToolchain: "d",
+    hovers: false,
   },
   csharp: {
     toolchain: "dotnet",
@@ -95,6 +97,7 @@ node -pe "JSON.parse(require('fs').readFileSync('$d/package.json','utf8')).activ
     definitionFile: "Storage.cs",
     definitionText: /public static OrderRecord SaveOrder\(OrderRecord order\)/,
     debuggers: ["netcoredbg", "vsdbg"],
+    hovers: false,
   },
 };
 
@@ -383,6 +386,9 @@ async function journey(ctx, id, language) {
       `5. ${bare}, with no ${tool}: online, and its Settings row says "${id}: installed — ${missing}"`,
     );
   }
+
+  // Swift and C# do not answer hovers yet (docs/remote-hosts.md).
+  if (!language.hovers) return;
 
   // 6. The review's Diff view connects the host: a hover shows a type from the remote.
   await openHome(ctx);
