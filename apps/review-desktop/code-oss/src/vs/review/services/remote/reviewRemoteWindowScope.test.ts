@@ -95,6 +95,7 @@ function sourceWindow() {
 		registerSearchResultProvider: (scheme: string) => { reached.push(`search provider ${scheme}`); return { dispose() { } }; },
 		fileSearch: record("fileSearch"),
 	});
+	fake(ILanguageFeaturesService, new Proxy({}, { get: () => ({ register: () => ({ dispose() { } }) }) }));
 	fake(IRemoteAuthorityResolverService, { resolveAuthority: (name: string) => { reached.push(`resolve ${name}`); return new Promise(() => { }); } });
 	for (const id of [
 		ILanguageFeaturesService, IWorkspaceContextService, IExtensionStatusBarItemService, INotificationService, IProgressService, IExtensionsWorkbenchService,

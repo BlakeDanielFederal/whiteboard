@@ -20,6 +20,7 @@ import { ActivationKind, ExtensionHostExtensions, IExtensionService, type IExten
 import { RemoteExtensionHost } from "../../../workbench/services/extensions/common/remoteExtensionHost.js";
 import { ISearchService } from "../../../workbench/services/search/common/search.js";
 import { isReviewRemoteAuthority, override, ReviewRemoteRefusals } from "./guard/reviewRemoteGuard.js";
+import { reviewRemoteLanguageFeatures } from "./guard/reviewRemoteLanguageFeatures.js";
 import { ReviewRemoteSearchService } from "./guard/reviewRemoteSearchService.js";
 import { ownsRemoteResource, reviewRemoteScope } from "./reviewRemoteScope.js";
 
@@ -39,7 +40,7 @@ export function reviewRemoteWindowScope(input: {
 			refusals: new ReviewRemoteRefusals(authority, () => authority.slice(PREFIX.length, PREFIX.length + 8), window.get(ILogService)),
 			extensions: () => extensionService.extensions.filter((extension) => ownsRemoteResource(authority, extension.extensionLocation)),
 			activate: input.activate,
-			languageFeatures: window.get(ILanguageFeaturesService),
+			languageFeatures: reviewRemoteLanguageFeatures(window.get(ILanguageFeaturesService), authority),
 			workspace: window.get(IWorkspaceContextService),
 			resolver: window.get(IRemoteAuthorityResolverService),
 			ownFiles: window.get(IFileService),

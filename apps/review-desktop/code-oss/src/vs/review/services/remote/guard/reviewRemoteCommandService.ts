@@ -17,7 +17,7 @@ import { IReviewRemoteRefusals, type ReviewRemoteRefusals } from "./reviewRemote
 const LANGUAGE_API = "a `vscode.execute…` API command; it runs on this host's own providers (the scope's registry and models) and opens only this host's files";
 
 export const REMOTE_WINDOW_COMMANDS: ReadonlyMap<string, string> = new Map([
-	["setContext", "language extensions set context keys when they start; here those keys would change the laptop's menus, so the call succeeds and does nothing"],
+	["_setContext", "`setContext`: the keys would change the laptop's menus, so the call succeeds and does nothing"],
 	["_executeHoverProvider", LANGUAGE_API],
 	["_executeDefinitionProvider", LANGUAGE_API],
 	["_executeDeclarationProvider", LANGUAGE_API],
@@ -31,6 +31,12 @@ export function reviewRemoteRelayCommand(authority: string): string {
 	return `_whiteboard.remoteCommand.${authority}`;
 }
 
+/** A command a host's UI carries, rewritten to run through its guard when the user clicks it. */
+export function reviewRemoteRelay(authority: string, command: Command): Command {
+	const relay = reviewRemoteRelayCommand(authority);
+	return command.id === relay ? command : { ...command, id: relay, arguments: [command.id, ...(command.arguments ?? [])] };
+}
+
 export class ReviewRemoteCommandService extends Disposable implements ICommandService {
 	declare readonly _serviceBrand: undefined;
 	readonly onWillExecuteCommand = Event.None;
@@ -42,8 +48,11 @@ export class ReviewRemoteCommandService extends Disposable implements ICommandSe
 		@IReviewRemoteRefusals private readonly refusals: ReviewRemoteRefusals,
 	) {
 		super();
-		this._register(CommandsRegistry.registerCommand(reviewRemoteRelayCommand(refusals.authority), (_accessor, id: unknown, ...args: unknown[]) =>
-			typeof id === "string" ? this.executeCommand(id, ...args) : Promise.reject(this.refusals.refuse("running window commands"))));
+		this._register(CommandsRegistry.registerCommand(reviewRemoteRelayCommand(refusals.authority), async (_accessor, id: unknown, ...args: unknown[]) => {
+			const own = typeof id === "string" && this.own.get(id);
+			if (!own) throw this.refusals.refuse("running window commands", typeof id === "string" ? id : undefined);
+			return own(...args);
+		}));
 	}
 
 	addOwn(id: string, run: (...args: unknown[]) => unknown) {
@@ -62,14 +71,14 @@ export class ReviewRemoteCommandService extends Disposable implements ICommandSe
 	}
 
 	relay(command: Command): Command {
-		return { ...command, id: reviewRemoteRelayCommand(this.refusals.authority), arguments: [command.id, ...(command.arguments ?? [])] };
+		return reviewRemoteRelay(this.refusals.authority, command);
 	}
 
 	async executeCommand<R = unknown>(id: string, ...args: unknown[]): Promise<R | undefined> {
 		const own = this.own.get(id);
 		if (own) return (await own(...args)) as R;
 		if (!REMOTE_WINDOW_COMMANDS.has(id)) throw this.refusals.refuse("running window commands", id);
-		if (id === "setContext") return undefined;
+		if (id === "_setContext") return undefined;
 		const command = CommandsRegistry.getCommand(id);
 		if (!command) throw new Error(`command '${id}' not found`);
 		return this.instantiationService.invokeFunction(command.handler, ...args) as R;

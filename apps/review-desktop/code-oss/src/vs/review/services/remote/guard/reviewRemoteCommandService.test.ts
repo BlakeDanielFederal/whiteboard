@@ -20,7 +20,7 @@ function windowCommands(t: { after(fn: () => void): void }) {
 	const ran: string[] = [];
 	const store = new DisposableStore();
 	t.after(() => store.dispose());
-	for (const id of ["_executeHoverProvider", "setContext", "vscode.openFolder", "workbench.action.openSettings", "_workbench.open"]) {
+	for (const id of ["_executeHoverProvider", "_setContext", "vscode.openFolder", "workbench.action.openSettings", "_workbench.open"]) {
 		store.add(CommandsRegistry.registerCommand(id, (accessor) => {
 			ran.push(`${id} in ${accessor.get(IWhere).name}`);
 			return "the window's";
@@ -46,10 +46,11 @@ function host(t: { after(fn: () => void): void }, store: DisposableStore, author
 
 test("a listed command runs with the host's own services; setContext succeeds and does nothing", async (t) => {
 	const { ran, store } = windowCommands(t);
-	const { actor } = host(t, store, A);
+	const { actor, warnings } = host(t, store, A);
 	assert.equal(await actor.$executeCommand("_executeHoverProvider", []), "the window's");
-	assert.equal(await actor.$executeCommand("setContext", ["typescript.isManagedFile", true]), undefined);
+	assert.equal(await actor.$executeCommand("_setContext", ["typescript.isManagedFile", true]), undefined);
 	assert.deepEqual(ran, [`_executeHoverProvider in ${A}'s scope`]);
+	assert.deepEqual(warnings, []);
 });
 
 test("the window's other commands are refused, whoever asks, and logged once", async (t) => {
@@ -70,7 +71,7 @@ test("a host's own commands stay out of the window's registry, and a window comm
 	assert.equal(CommandsRegistry.getCommand("wbProbe.hello"), undefined);
 	assert.equal(await actor.$executeCommand("wbProbe.hello", [1]), `${A}'s`);
 	assert.deepEqual(executed, [["wbProbe.hello", 1]]);
-	assert.deepEqual((await actor.$getCommands()).sort(), ["_executeHoverProvider", "setContext", "wbProbe.hello"]);
+	assert.deepEqual((await actor.$getCommands()).sort(), ["_executeHoverProvider", "_setContext", "wbProbe.hello"]);
 
 	assert.throws(() => actor.$registerCommand("workbench.action.openSettings"), refused);
 	assert.equal(await CommandsRegistry.getCommand("workbench.action.openSettings")?.handler({ get: () => ({ name: "the window" }) } as never), "the window's");
@@ -92,7 +93,7 @@ test("two hosts registering the same command id each run their own", async (t) =
 	assert.deepEqual([a.warnings, b.warnings], [[], []]);
 });
 
-test("a host's relay command runs its own commands and the list, and refuses the rest", async (t) => {
+test("a host's relay command runs only its own commands, never the window's", async (t) => {
 	const { ran, store } = windowCommands(t);
 	const { actor, commands } = host(t, store, A);
 	actor.$registerCommand("wbProbe.hello");
@@ -101,5 +102,6 @@ test("a host's relay command runs its own commands and the list, and refuses the
 	const relay = CommandsRegistry.getCommand(reviewRemoteRelayCommand(A))!.handler;
 	await assert.rejects(Promise.resolve(relay({} as never, ...relayed.arguments!)), refused);
 	assert.equal(await relay({} as never, "wbProbe.hello"), `${A}'s`);
+	for (const id of ["_executeHoverProvider", "_setContext"]) await assert.rejects(Promise.resolve(relay({} as never, id)), refused, id);
 	assert.deepEqual(ran, []);
 });
