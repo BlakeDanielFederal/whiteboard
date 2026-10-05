@@ -1,17 +1,13 @@
 import { spawn } from "node:child_process";
-import { existsSync } from "node:fs";
-import path from "node:path";
 import { createInterface } from "node:readline";
 
+import { diffrBinaryPath } from "@dev.fast/diffr";
 import {
   STRUCTURAL_DIFF_WIRE_VERSION,
   type StructuralDiffEvent,
   type StructuralProblem,
   decodeStructuralDiffEvent,
 } from "@dev.fast/review-protocol";
-import { findReviewPackageRoot } from "@review/package-paths";
-
-import { installedFullDiffr } from "./diffr-languages.js";
 
 export type DiffComparison =
   | { kind: "trees"; base: string; head: string }
@@ -26,27 +22,13 @@ export interface StructuralDiffRequest {
   signal: AbortSignal;
 }
 
-export function diffrExecutable(
-  packageRoot = findReviewPackageRoot(import.meta.url),
-): string {
-  if (process.env.REVIEW_DIFFR_BINARY) return process.env.REVIEW_DIFFR_BINARY;
-
-  const full = installedFullDiffr(packageRoot);
-
-  if (full) return full;
-
-  const bundled = path.join(
-    packageRoot,
-    "bin",
-    process.platform === "win32" ? "diffr.exe" : "diffr",
-  );
-
-  return existsSync(bundled) ? bundled : "diffr";
+export function diffrExecutable(): string {
+  return process.env.REVIEW_DIFFR_BINARY || diffrBinaryPath() || "diffr";
 }
 
 export function diffrMissingError(): Error {
   return new Error(
-    `Cannot find diffr at ${diffrExecutable()}. Whiteboard Desktop bundles it at bin/diffr under its runtime; in a checkout, run \`pnpm --filter @dev.fast/whiteboard ensure:diffr\` or install diffr on PATH, or set REVIEW_DIFFR_BINARY to its executable.`,
+    `Cannot find diffr at ${diffrExecutable()}. Install diffr on PATH, or set REVIEW_DIFFR_BINARY to its executable.`,
   );
 }
 
