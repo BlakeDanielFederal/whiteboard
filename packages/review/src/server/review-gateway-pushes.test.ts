@@ -3,6 +3,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import { DatabaseSync } from "node:sqlite";
 
 import {
   type JsonValue,
@@ -24,6 +25,22 @@ import {
 } from "./review-gateway-test-utils.js";
 
 const version = readReviewPackageVersion(import.meta.url);
+
+// Another host on the same home: the store picks the review up from the database.
+function copyReview(from: string, to: string, title: string) {
+  const db = new DatabaseSync(path.join(root, "laptop", "review-api.db"));
+
+  try {
+    db.prepare(
+      "INSERT INTO reviews SELECT ?,version,next_id FROM reviews WHERE id=?",
+    ).run(to, from);
+    db.prepare(
+      "INSERT INTO versions SELECT ?,version,json_set(snapshot,'$.reviewId',?,'$.title',?) FROM versions WHERE review_id=?",
+    ).run(to, to, title, from);
+  } finally {
+    db.close();
+  }
+}
 
 let root: string;
 
@@ -541,17 +558,7 @@ it("keeps a local review on the laptop when a remote lists its id, for every rou
     laptop.logged.filter((line) => line.includes(`${onLaptop} is also listed`)),
   ).toHaveLength(1);
 
-  const { pins } = laptop.local.store.read(onLaptop);
-
-  if (!pins) throw new Error("The seeded review has no pins.");
-
-  await laptop.local.store.importVersion({
-    reviewId: remoteOnly,
-    title: "Imported",
-    pins,
-    document: [],
-    createdAt: new Date().toISOString(),
-  });
+  copyReview(onLaptop, remoteOnly, "Imported");
 
   expect(
     (await laptop.api<{ reviewId: string; host?: string }[]>("")).find(
@@ -607,17 +614,7 @@ it("routes an id to the laptop as soon as the laptop gains it, after a remote se
 
   await expect.poll(hostOf).toBe("wb-a");
 
-  const { pins } = laptop.local.store.read(local);
-
-  if (!pins) throw new Error("The seeded review has no pins.");
-
-  await laptop.local.store.importVersion({
-    reviewId,
-    title: "Now local",
-    pins,
-    document: [],
-    createdAt: new Date().toISOString(),
-  });
+  copyReview(local, reviewId, "Now local");
 
   const read = await laptop.request(`/${reviewId}?full=true`);
   expect(read.headers.has(REVIEW_HOST_HEADER)).toBe(false);
