@@ -52,6 +52,9 @@ import { IExtensionService, type IExtensionHost } from '../workbench/services/ex
 import type { IExtensionHostManager } from '../workbench/services/extensions/common/extensionHostManagers.js';
 import type { IExtensionDescription } from '../platform/extensions/common/extensions.js';
 import { registersContributions, reviewRemoteExtensionsScanner, ReviewRemoteWindowExtensionHosts } from './services/remote/reviewRemoteWindowScope.js';
+import { ReviewExtensionGalleryManifestService, ReviewExtensionManagementServerService } from './services/remote/reviewRemoteWindowExtensionManagement.js';
+import { IExtensionManagementServerService } from '../workbench/services/extensionManagement/common/extensionManagement.js';
+import { IExtensionGalleryManifestService } from '../platform/extensionManagement/common/extensionGalleryManifest.js';
 import { IRemoteAuthorityResolverService, type ResolverResult } from '../platform/remote/common/remoteAuthorityResolver.js';
 import { IRemoteExtensionsScannerService } from '../platform/remote/common/remoteExtensionsScanner.js';
 import { IMainProcessService } from '../platform/ipc/common/mainProcessService.js';
@@ -127,6 +130,8 @@ class NavigatorExtensionService extends NativeExtensionService {
 }
 
 registerSingleton(IExtensionService, NavigatorExtensionService, InstantiationType.Eager);
+registerSingleton(IExtensionManagementServerService, ReviewExtensionManagementServerService, InstantiationType.Delayed);
+registerSingleton(IExtensionGalleryManifestService, ReviewExtensionGalleryManifestService, InstantiationType.Eager);
 
 CommandsRegistry.registerCommand('review.action.setSourceTitle', (accessor, title: unknown) => {
 	if (!isReviewSourceTitle(title)) return;
