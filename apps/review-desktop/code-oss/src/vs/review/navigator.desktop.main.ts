@@ -51,7 +51,8 @@ import { NativeExtensionService } from '../workbench/services/extensions/electro
 import { IExtensionService, type IExtensionHost } from '../workbench/services/extensions/common/extensions.js';
 import type { IExtensionHostManager } from '../workbench/services/extensions/common/extensionHostManagers.js';
 import type { IExtensionDescription } from '../platform/extensions/common/extensions.js';
-import { registersContributions, ReviewRemoteWindowExtensionHosts } from './services/remote/reviewRemoteWindowScope.js';
+import { registersContributions, reviewRemoteExtensionsScanner, ReviewRemoteWindowExtensionHosts } from './services/remote/reviewRemoteWindowScope.js';
+import { IRemoteExtensionsScannerService } from '../platform/remote/common/remoteExtensionsScanner.js';
 
 class NavigatorDefaults {
 	constructor(@IStorageService storage: IStorageService) {
@@ -67,6 +68,8 @@ registerWorkbenchContribution2('review.navigator.defaults', NavigatorDefaults, W
 
 class NavigatorExtensionService extends NativeExtensionService {
 	private readonly remoteHosts = this._register(new ReviewRemoteWindowExtensionHosts(this._instantiationService));
+	protected override readonly _remoteExtensionsScannerService = this._instantiationService.invokeFunction((accessor) =>
+		reviewRemoteExtensionsScanner(accessor.get(IRemoteExtensionsScannerService), this._environmentService.remoteAuthority, this._logService));
 
 	protected override _doCreateExtensionHostManager(extensionHost: IExtensionHost, initialActivationEvents: string[]): IExtensionHostManager {
 		return this.remoteHosts.create(extensionHost, initialActivationEvents, this._acquireInternalAPI(extensionHost))

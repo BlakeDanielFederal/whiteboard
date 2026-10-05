@@ -26,6 +26,7 @@ import { IOpenerService } from "../../../platform/opener/common/opener.js";
 import { IProductService } from "../../../platform/product/common/productService.js";
 import { IProgressService } from "../../../platform/progress/common/progress.js";
 import { IRemoteAuthorityResolverService } from "../../../platform/remote/common/remoteAuthorityResolver.js";
+import type { IRemoteExtensionsScannerService } from "../../../platform/remote/common/remoteExtensionsScanner.js";
 import { IRemoteSocketFactoryService } from "../../../platform/remote/common/remoteSocketFactoryService.js";
 import { IRequestService } from "../../../platform/request/common/request.js";
 import { ISecretStorageService } from "../../../platform/secrets/common/secrets.js";
@@ -53,7 +54,7 @@ import { ITextFileService } from "../../../workbench/services/textfile/common/te
 import { IWorkingCopyFileService } from "../../../workbench/services/workingCopy/common/workingCopyFileService.js";
 import { REMOTE_WINDOW_COMMANDS } from "./guard/reviewRemoteCommandService.js";
 import { IWebviewWorkbenchServiceId } from "./guard/reviewRemoteWebviewWorkbenchService.js";
-import { ReviewRemoteWindowExtensionHosts, reviewRemoteWindowScope } from "./reviewRemoteWindowScope.js";
+import { reviewRemoteExtensionsScanner, ReviewRemoteWindowExtensionHosts, reviewRemoteWindowScope } from "./reviewRemoteWindowScope.js";
 
 const W = "whiteboard+abc";
 const own = URI.parse(`vscode-remote://${W}/home/dev/proj/f.ts`);
@@ -211,3 +212,21 @@ test("a Whiteboard host's extension host is told only of that host's own extensi
 	hosts.dispose();
 });
 
+test("a Source window takes from its host's scan only the extensions on its own authority", async () => {
+	const scanned = [
+		extension("own.ext", URI.parse(`vscode-remote://${W}/home/dev/.vscode-server/extensions/own`)),
+		extension("laptop.ext", URI.file("/Users/dev/.vscode/extensions/laptop")),
+		extension("upper.ext", URI.parse("vscode-remote://WHITEBOARD+ABC/home/dev/.vscode-server/extensions/upper")),
+	];
+	const warnings: string[] = [];
+	const logService = { warn: (message: string) => warnings.push(message) } as unknown as ILogService;
+	const base = { scanExtensions: async () => scanned } as unknown as IRemoteExtensionsScannerService;
+
+	const scanner = reviewRemoteExtensionsScanner(base, W, logService);
+	assert.deepEqual((await scanner.scanExtensions()).map((e) => e.identifier.value), ["own.ext"]);
+	await scanner.scanExtensions();
+	assert.deepEqual(warnings, [`[Remote guard] ${W}: refused extensions the host reports outside its own authority`]);
+
+	assert.equal(reviewRemoteExtensionsScanner(base, "ssh-remote+box", logService), base);
+	assert.equal(reviewRemoteExtensionsScanner(base, undefined, logService), base);
+});

@@ -11,6 +11,7 @@ import { IFileService } from "../../../platform/files/common/files.js";
 import type { IInstantiationService } from "../../../platform/instantiation/common/instantiation.js";
 import { ILogService } from "../../../platform/log/common/log.js";
 import { IRemoteAuthorityResolverService } from "../../../platform/remote/common/remoteAuthorityResolver.js";
+import type { IRemoteExtensionsScannerService } from "../../../platform/remote/common/remoteExtensionsScanner.js";
 import { IWorkspaceContextService } from "../../../platform/workspace/common/workspace.js";
 import { ExtensionHostManager } from "../../../workbench/services/extensions/common/extensionHostManager.js";
 import type { IExtensionHostManager } from "../../../workbench/services/extensions/common/extensionHostManagers.js";
@@ -41,6 +42,20 @@ export function reviewRemoteWindowScope(input: {
 			ownFiles: window.get(IFileService),
 		}, window);
 	}));
+}
+
+/** In a Whiteboard host's window, the host's scan keeps only extensions on the window's own authority. */
+export function reviewRemoteExtensionsScanner(scanner: IRemoteExtensionsScannerService, authority: string | null | undefined, logService: ILogService): IRemoteExtensionsScannerService {
+	if (!isReviewRemoteAuthority(authority)) return scanner;
+	const refusals = new ReviewRemoteRefusals(authority, () => authority.slice(PREFIX.length, PREFIX.length + 8), logService);
+	return override(scanner, {
+		scanExtensions: async () => {
+			const extensions = await scanner.scanExtensions();
+			const own = extensions.filter(({ extensionLocation }) => isReviewRemoteAuthority(extensionLocation.authority) && ownsRemoteResource(authority, extensionLocation));
+			if (own.length < extensions.length) refusals.refuse("extensions the host reports outside its own authority");
+			return own;
+		},
+	});
 }
 
 /** A Source window registers none of its Whiteboard host's manifest contributions; the extensions still activate. */
