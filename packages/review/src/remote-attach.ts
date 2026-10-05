@@ -16,10 +16,6 @@ import {
 } from "./server/background-server";
 import { diffrExecutable, fetchedDiffrPath } from "./server/structural-diff";
 
-export const REMOTE_ATTACH_BEGIN = "WHITEBOARD-REMOTE-BEGIN";
-
-export const REMOTE_ATTACH_END = "WHITEBOARD-REMOTE-END";
-
 const DIFFR_FETCH_TIMEOUT_MS = 15_000;
 
 interface EnsureDiffrInput {

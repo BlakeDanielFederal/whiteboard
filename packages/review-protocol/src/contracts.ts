@@ -583,6 +583,10 @@ export interface ReviewCanvasSettingsContent {
   install?: ReviewCanvasInstallContent;
 }
 
+export const REVIEW_REMOTE_ATTACH_BEGIN = "WHITEBOARD-REMOTE-BEGIN";
+
+export const REVIEW_REMOTE_ATTACH_END = "WHITEBOARD-REMOTE-END";
+
 /** Workspace attachment identity is independent of the displayed source generation. */
 export interface ReviewLanguageEnvironment {
   /** Absent for a caller on another machine. */
