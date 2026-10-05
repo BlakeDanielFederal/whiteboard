@@ -3,6 +3,7 @@ import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
 
 import { withFileLock } from "@dev.fast/trace-core";
+import { fetchedDiffrPath } from "@review/server/structural-diff.js";
 
 import { openLocalReviewStore } from "./local-data.js";
 import { initializeReviewStoreSchema } from "./store-schema.js";
@@ -30,7 +31,10 @@ export async function openReviewProfile(
       ])
         await importHeadlessStore(home, source);
 
-      return openLocalReviewStore(path.join(home, "review-api.db"), options);
+      return openLocalReviewStore(path.join(home, "review-api.db"), {
+        ...options,
+        fetchedDiffr: fetchedDiffrPath(home),
+      });
     },
   );
 
