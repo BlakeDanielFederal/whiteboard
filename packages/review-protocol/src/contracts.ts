@@ -850,6 +850,36 @@ export interface ReviewServerHealthWithToken extends ReviewServerHealth {
   commit: string | null;
 }
 
+export const ReviewGatewayHostSchema = z.strictObject({
+  alias: requiredString,
+  endpoint: z
+    .strictObject({ url: requiredString, token: requiredString })
+    .optional(),
+  problem: z
+    .strictObject({
+      state: z.enum(["unreachable", "not-installed", "auth-failed"]),
+      detail: stringAllowEmpty,
+    })
+    .optional(),
+});
+
+export type ReviewGatewayHost = z.infer<typeof ReviewGatewayHostSchema>;
+
+export interface ReviewGatewayHostState {
+  alias: string;
+  serverId?: string;
+  state:
+    | "connecting"
+    | "online"
+    | "offline"
+    | "incompatible"
+    | "duplicate"
+    | "unreachable"
+    | "not-installed"
+    | "auth-failed";
+  detail?: string;
+}
+
 export const ReviewRepositoryIdentitySchema = z.strictObject({
   kind: z.enum(["git", "jj", "none"], {
     error: "must be git, jj, or none",
