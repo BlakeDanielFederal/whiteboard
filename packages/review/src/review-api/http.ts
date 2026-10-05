@@ -74,6 +74,7 @@ import {
   inspectSnapshot,
 } from "./store.js";
 import { listPinnedTraces, readStoredTrace } from "./traces.js";
+import type { WorkspaceStatus } from "./workspaces.js";
 
 export interface AskHost {
   threads: AskThreads;
@@ -153,6 +154,24 @@ export interface ReviewApiHooks {
 /** A gateway forwarding from another machine; it gets no local paths. */
 const remoteCaller = (context: Context) =>
   context.req.header(REVIEW_CLIENT_HEADER) === REVIEW_CLIENT_REMOTE;
+
+// Acquisition errors and preparation logs can quote local paths.
+export const REMOTE_CHECKOUT_ISSUE =
+  "The checkout for language features is not available on the remote machine.";
+
+export const REMOTE_STRUCTURAL_DIFF_ERROR =
+  "The structural diff failed on the remote machine.";
+
+const workspaceFor = (context: Context, status: WorkspaceStatus) =>
+  remoteCaller(context)
+    ? {
+        id: status.id,
+        commit: status.commit,
+        generation: status.generation,
+        state: status.state,
+        ...(status.issue && { issue: REMOTE_CHECKOUT_ISSUE }),
+      }
+    : status;
 
 /** Both hosts mount this behind their token authentication. */
 export function createReviewApi(
@@ -861,11 +880,7 @@ export function createReviewApi(
               identity: createHash("sha256")
                 .update(environment.identity)
                 .digest("hex"),
-              // An acquisition error can quote local paths.
-              ...(environment.issue && {
-                issue:
-                  "The checkout for language features is not available on the remote machine.",
-              }),
+              ...(environment.issue && { issue: REMOTE_CHECKOUT_ISSUE }),
             }
           : environment,
       );
@@ -875,11 +890,15 @@ export function createReviewApi(
         .strictObject({ retry: z.boolean().optional() })
         .parse(await readBoundedRequestJson(context.req.raw));
 
+      const issues = await data.environmentIssues(
+        readReview(context.req.param("id")),
+        input.retry,
+      );
+
       return context.json({
-        issues: await data.environmentIssues(
-          readReview(context.req.param("id")),
-          input.retry,
-        ),
+        issues: remoteCaller(context)
+          ? issues.map(({ side }) => ({ side, message: REMOTE_CHECKOUT_ISSUE }))
+          : issues,
       });
     });
     app.post("/workspace-cleanup", async (context) => {
@@ -890,18 +909,29 @@ export function createReviewApi(
       if (input.workspaceId)
         await data.workspaces.retryCleanup(input.workspaceId);
 
-      return context.json({ failures: data.workspaces.failures() });
+      return context.json({
+        failures: data.workspaces
+          .failures()
+          .map((status) => workspaceFor(context, status)),
+      });
     });
     app.get("/:id/workspaces", (context) => {
       readReview(context.req.param("id"));
 
-      return context.json(data.workspaces.list(context.req.param("id")));
+      return context.json(
+        data.workspaces
+          .list(context.req.param("id"))
+          .map((status) => workspaceFor(context, status)),
+      );
     });
     app.post("/:id/workspaces/:workspaceId/retry", async (context) => {
       return context.json(
-        await data.workspaces.retry(
-          context.req.param("id"),
-          context.req.param("workspaceId"),
+        workspaceFor(
+          context,
+          await data.workspaces.retry(
+            context.req.param("id"),
+            context.req.param("workspaceId"),
+          ),
         ),
       );
     });
@@ -979,7 +1009,10 @@ export function createReviewApi(
           } catch (error) {
             send({
               type: "error",
-              message: error instanceof Error ? error.message : String(error),
+              // Checkout and diffr errors can quote local paths.
+              message: remoteCaller(context)
+                ? REMOTE_STRUCTURAL_DIFF_ERROR
+                : errorMessage(error),
             });
           } finally {
             if (!abort.signal.aborted) controller.close();
