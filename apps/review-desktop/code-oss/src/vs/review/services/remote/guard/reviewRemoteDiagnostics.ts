@@ -23,7 +23,7 @@ export function reviewRemoteDiagnostics(base: IMarkerService, refusals: ReviewRe
 		return result;
 	};
 	return override(base, {
-		changeOne: (owner, resource, markers) => base.changeOne(owner, resource, markers.map(clean)),
+		changeOne: (owner, resource, markers) => base.changeOne(owner, resource, (markers ?? []).map(clean)),
 		changeAll: (owner, data) => base.changeAll(owner, data.map((entry) => ({ ...entry, marker: clean(entry.marker) }))),
 	});
 }

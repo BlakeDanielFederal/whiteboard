@@ -31,3 +31,11 @@ test("a host's diagnostics keep web code links and own related locations only; e
 		`[Remote guard] ${A}: refused diagnostic locations outside this remote`,
 	]);
 });
+
+test("a host clearing a file's diagnostics with no markers, as the extension host sends it, clears them", () => {
+	const markers = new MarkerService();
+	const diagnostics = reviewRemoteDiagnostics(markers, new ReviewRemoteRefusals(A, () => "wb-test-a", {} as ILogService));
+	diagnostics.changeOne("probe", own, [{ message: "m", severity: MarkerSeverity.Error, startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 2 }]);
+	diagnostics.changeOne("probe", own, null as unknown as IMarkerData[]);
+	assert.deepEqual(markers.read({ owner: "probe" }), []);
+});
