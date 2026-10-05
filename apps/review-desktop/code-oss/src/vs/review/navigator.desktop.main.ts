@@ -52,7 +52,13 @@ import { IExtensionService, type IExtensionHost } from '../workbench/services/ex
 import type { IExtensionHostManager } from '../workbench/services/extensions/common/extensionHostManagers.js';
 import type { IExtensionDescription } from '../platform/extensions/common/extensions.js';
 import { registersContributions, reviewRemoteExtensionsScanner, ReviewRemoteWindowExtensionHosts } from './services/remote/reviewRemoteWindowScope.js';
+import { IRemoteAuthorityResolverService, type ResolverResult } from '../platform/remote/common/remoteAuthorityResolver.js';
 import { IRemoteExtensionsScannerService } from '../platform/remote/common/remoteExtensionsScanner.js';
+import { IMainProcessService } from '../platform/ipc/common/mainProcessService.js';
+import { REVIEW_DESKTOP_CHANNEL } from './common/reviewDesktopBootstrap.js';
+import { isReviewRemoteAuthority } from './services/remote/guard/reviewRemoteGuard.js';
+import { reloadWhenOnline, reviewWindowAuthorityResolver, reviewWindowHosts } from './services/remote/reviewWindowAuthorityResolver.js';
+import { IHostService } from '../workbench/services/host/browser/host.js';
 
 class NavigatorDefaults {
 	constructor(@IStorageService storage: IStorageService) {
@@ -68,8 +74,26 @@ registerWorkbenchContribution2('review.navigator.defaults', NavigatorDefaults, W
 
 class NavigatorExtensionService extends NativeExtensionService {
 	private readonly remoteHosts = this._register(new ReviewRemoteWindowExtensionHosts(this._instantiationService));
+	private readonly windowHosts = this._instantiationService.invokeFunction((accessor) => reviewWindowHosts(accessor.get(IMainProcessService).getChannel(REVIEW_DESKTOP_CHANNEL)));
+	protected override readonly _remoteAuthorityResolverService = this._instantiationService.invokeFunction((accessor) =>
+		reviewWindowAuthorityResolver(accessor.get(IRemoteAuthorityResolverService), this.windowHosts));
 	protected override readonly _remoteExtensionsScannerService = this._instantiationService.invokeFunction((accessor) =>
 		reviewRemoteExtensionsScanner(accessor.get(IRemoteExtensionsScannerService), this._environmentService.remoteAuthority, this._logService));
+	private retrying = false;
+
+	protected override async _resolveAuthority(remoteAuthority: string): Promise<ResolverResult> {
+		if (!isReviewRemoteAuthority(remoteAuthority)) return super._resolveAuthority(remoteAuthority);
+		try {
+			return await this._remoteAuthorityResolverService.resolveAuthority(remoteAuthority);
+		} catch (error) {
+			if (!this.retrying) {
+				this.retrying = true;
+				const host = this._instantiationService.invokeFunction((accessor) => accessor.get(IHostService));
+				this._register(reloadWhenOnline(this.windowHosts, remoteAuthority.slice('whiteboard+'.length), () => void host.reload()));
+			}
+			throw error;
+		}
+	}
 
 	protected override _doCreateExtensionHostManager(extensionHost: IExtensionHost, initialActivationEvents: string[]): IExtensionHostManager {
 		return this.remoteHosts.create(extensionHost, initialActivationEvents, this._acquireInternalAPI(extensionHost))
