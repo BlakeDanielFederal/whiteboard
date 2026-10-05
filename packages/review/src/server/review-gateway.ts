@@ -5,7 +5,6 @@ import type { ReadableStream as WebReadableStream } from "node:stream/web";
 import {
   type JsonValue,
   REVIEW_CLIENT_HEADER,
-  REVIEW_CLIENT_REMOTE,
   REVIEW_HOST_HEADER,
   type ReviewGatewayHost,
   type ReviewGatewayHostState,
@@ -15,22 +14,27 @@ import {
 import { z } from "zod";
 
 import { StreamLimitError, readBoundedStream } from "./bounded-stream.js";
+import type { ReviewDesktopVerbRelay } from "./global-verb-relay.js";
 import { DEFAULT_MAX_REQUEST_BYTES } from "./http-json.js";
 import {
+  FIRST_BYTE_TIMEOUT_MS,
   type GatewayRemote,
+  NO_ANSWER,
+  UUID,
   createGatewayHosts,
   errorText,
   readBody,
+  remoteHeaders,
   send,
 } from "./review-gateway-hosts.js";
 import { openGatewayMemory } from "./review-gateway-memory.js";
+import { createGatewayPushes } from "./review-gateway-pushes.js";
+import {
+  type Located,
+  createGatewayStreams,
+  downDetail,
+} from "./review-gateway-streams.js";
 import { serverJson } from "./review-server-core.js";
-
-const FIRST_BYTE_TIMEOUT_MS = 10_000;
-
-const NO_ANSWER = `it did not answer within ${FIRST_BYTE_TIMEOUT_MS / 1_000} seconds`;
-
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 const LAPTOP_ROUTES = new Set([
   "repositories",
@@ -41,7 +45,6 @@ const LAPTOP_ROUTES = new Set([
   "status",
   "instructions",
   "sharing",
-  "watch",
   "commands",
 ]);
 
@@ -109,25 +112,36 @@ export function createReviewGateway(input: {
   local(request: Request): Response | Promise<Response>;
   version: string;
   home: string;
+  relay: ReviewDesktopVerbRelay;
+  heartbeatMs?: number;
   log?(message: string): void;
 }) {
   const log = input.log ?? (() => {});
   const memory = openGatewayMemory(input.home, log);
+  let changing = false;
+  let closed = false;
 
   const hosts = createGatewayHosts({
     version: input.version,
     log,
     remembered: (serverId) => memory.alias(serverId),
     machine: (serverId, alias) => memory.rename(serverId, alias),
+    ...(input.heartbeatMs !== undefined && { heartbeatMs: input.heartbeatMs }),
+    changed() {
+      if (changing) return;
+      changing = true;
+      queueMicrotask(() => {
+        changing = false;
+
+        if (closed) return;
+        streams.changed();
+        pushes.changed();
+      });
+    },
   });
 
   const laptopIds = new Set<string>();
   const lookups = new Map<string, Promise<Owner>>();
-
-  const remoteHeaders = (remote: GatewayRemote) => ({
-    "x-review-token": remote.endpoint?.token ?? "",
-    [REVIEW_CLIENT_HEADER]: REVIEW_CLIENT_REMOTE,
-  });
 
   async function ownership(remote: GatewayRemote, reviewId: string) {
     const abort = new AbortController();
@@ -153,7 +167,9 @@ export function createReviewGateway(input: {
     }
   }
 
-  async function lookup(reviewId: string): Promise<Owner> {
+  async function onLaptop(reviewId: string) {
+    if (laptopIds.has(reviewId)) return true;
+
     const laptop = await input.local(
       new Request(
         `http://gateway/reviews-api/${encodeURIComponent(reviewId)}/activity`,
@@ -162,11 +178,20 @@ export function createReviewGateway(input: {
 
     await laptop.body?.cancel();
 
-    if (laptop.ok) {
-      laptopIds.add(reviewId);
+    if (laptop.ok) laptopIds.add(reviewId);
 
-      return undefined;
-    }
+    return laptop.ok;
+  }
+
+  const order = () =>
+    hosts
+      .states()
+      .flatMap(
+        (state) => state.serverId ?? memory.serverIdOf(state.alias) ?? [],
+      );
+
+  async function lookup(reviewId: string): Promise<Owner> {
+    if (await onLaptop(reviewId)) return undefined;
 
     const online = hosts.online();
     const found = Promise.withResolvers<Owner>();
@@ -201,28 +226,38 @@ export function createReviewGateway(input: {
     return found.promise;
   }
 
+  function locate(reviewId: string): Located {
+    if (!UUID.test(reviewId) || laptopIds.has(reviewId)) return "laptop";
+    const known = memory.owner(reviewId, order());
+
+    if (!known) return undefined;
+    const remote = hosts.serving(known.serverId);
+
+    if (remote) return { remote };
+    const down = hosts.unavailable(known.serverId, known.alias);
+
+    return down && { down };
+  }
+
   async function ownerOf(reviewId: string): Promise<Owner> {
-    if (!UUID.test(reviewId) || laptopIds.has(reviewId)) return undefined;
-    const known = memory.owner(reviewId);
+    const located = locate(reviewId);
 
-    if (known) {
-      const remote = hosts.serving(known.serverId);
+    if (located === "laptop") return undefined;
 
-      if (remote) {
+    if (located && "remote" in located) {
+      const { remote } = located;
+
+      if (remote.serverId !== undefined)
         memory.remember(
-          known.serverId,
-          hosts.machineAlias(known.serverId) ?? remote.alias,
+          remote.serverId,
+          hosts.machineAlias(remote.serverId) ?? remote.alias,
           reviewId,
         );
 
-        return { remote };
-      }
-
-      const down = hosts.unavailable(known.serverId, known.alias);
-
-      if (down) return { down };
+      return located;
     }
 
+    if (located) return located;
     let pending = lookups.get(reviewId);
 
     if (!pending) {
@@ -245,10 +280,7 @@ export function createReviewGateway(input: {
   }
 
   function unavailable(down: ReviewGatewayHostState) {
-    return answer(down.alias, 503, {
-      ok: false,
-      error: down.detail ?? `${down.alias} is ${down.state}.`,
-    });
+    return answer(down.alias, 503, { ok: false, error: downDetail(down) });
   }
 
   async function forward(
@@ -432,6 +464,12 @@ export function createReviewGateway(input: {
     if (first === "commands" && !rest.length && request.method === "POST")
       return command(request);
 
+    if (request.method === "GET" && !rest.length) {
+      if (first === "") return streams.list(request);
+
+      if (first === "watch") return streams.watch(request);
+    }
+
     let reviewId: string;
 
     try {
@@ -468,11 +506,54 @@ export function createReviewGateway(input: {
     return forward(owner.remote, request, { reviewId, route });
   }
 
+  const streams = createGatewayStreams({
+    hosts,
+    memory,
+    local: input.local,
+    locate,
+    lookup: ownerOf,
+    log,
+  });
+
+  async function claim(remote: GatewayRemote, reviewId: string) {
+    if (await onLaptop(reviewId)) return `${reviewId} belongs to the laptop.`;
+    const known = memory.owner(reviewId, order());
+
+    if (known && known.serverId !== remote.serverId)
+      return `${reviewId} belongs to ${known.alias}.`;
+
+    if (remote.serverId === undefined)
+      return `${remote.alias} has not reported its server id.`;
+
+    memory.remember(
+      remote.serverId,
+      hosts.machineAlias(remote.serverId) ?? remote.alias,
+      reviewId,
+    );
+
+    return undefined;
+  }
+
+  const pushes = createGatewayPushes({
+    hosts,
+    relay: input.relay,
+    claim,
+    log,
+  });
+
+  const stopWatchingWindows = input.relay.onAttachedChange?.(() => {
+    if (!closed) pushes.changed();
+  });
+
   return {
     fetch: handle,
     setHosts: (list: ReviewGatewayHost[]) => hosts.set(list),
     hosts: () => hosts.states(),
     async close() {
+      closed = true;
+      stopWatchingWindows?.();
+      streams.close();
+      pushes.close();
       hosts.close();
       await memory.flush();
     },
