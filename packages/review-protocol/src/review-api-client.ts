@@ -45,6 +45,14 @@ export interface ReviewApiSummary {
   dismissedAt: string | null;
   /** An agent holds a live lease; absent on shared reviews. */
   working?: boolean;
+  host?: string;
+  hostState?:
+    | "online"
+    | "connecting"
+    | "offline"
+    | "incompatible"
+    | "duplicate";
+  available?: { sourceWindows: boolean; languageFeatures: boolean };
 }
 
 export type ReviewStreamSnapshot<Snapshot extends object = JsonObject> =
