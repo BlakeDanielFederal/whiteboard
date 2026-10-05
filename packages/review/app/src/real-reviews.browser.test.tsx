@@ -11,17 +11,16 @@ import { afterEach, expect, it } from "vitest";
 import { mountReviewCanvas as mount } from "./desktop-entry";
 import { fixtureReviewBridge, settled } from "./fixture-review-bridge";
 
-// The archived real reviews as the importer translates them, before ids.
 const goldens = import.meta.glob<{ default: JsonValue }>(
-  "../../src/fixtures/legacy-reviews/*.expected-blocks.json",
+  "./fixtures/saved-reviews/*.json",
   { eager: true },
 );
 
 /** The title heading of each archived review's golden document. */
 const phrases = {
-  "schema4-bug-report-dialog": "Bug reports: screenshots and simpler consent",
-  "schema4-opencode-agentserver": "OpenCode on AgentServer",
-  "schema4-three-minute-tour": "Review Desktop: three-minute tour",
+  "bug-report-dialog": "Bug reports: screenshots and simpler consent",
+  "opencode-agentserver": "OpenCode on AgentServer",
+  "three-minute-tour": "Review Desktop: three-minute tour",
 };
 
 let canvas: ReturnType<typeof mount> | undefined;
@@ -35,10 +34,10 @@ it.each(Object.keys(phrases) as (keyof typeof phrases)[])(
   "renders the real review %s through the JSON canvas",
   async (name) => {
     const file = Object.keys(goldens).find((key) =>
-      key.endsWith(`/${name}.expected-blocks.json`),
+      key.endsWith(`/${name}.json`),
     )!;
 
-    // Ids are assigned exactly as ReviewStore.importVersion assigns them.
+    // Assign ids as current authoring does before rendering.
     const blocks = documentSchema.parse(goldens[file]!.default);
     let nextId = 0;
 
