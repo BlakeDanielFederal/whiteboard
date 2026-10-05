@@ -8,7 +8,7 @@
 // own entry point; the editor/extension-host services are shared.
 import './editor.common.main.js';
 import './editor.desktop.main.js';
-import { reviewConfigurationDefaults } from './common/reviewConfigurationDefaults.js';
+import { reviewConfigurationDefaults, reviewSourceWindowDefaults } from './common/reviewConfigurationDefaults.js';
 import '../workbench/browser/workbench.zenMode.contribution.js';
 import '../workbench/browser/actions/layoutActions.js';
 import '../workbench/browser/parts/editor/editorParts.js';
@@ -59,6 +59,25 @@ import { REVIEW_DESKTOP_CHANNEL } from './common/reviewDesktopBootstrap.js';
 import { isReviewRemoteAuthority } from './services/remote/guard/reviewRemoteGuard.js';
 import { reloadWhenOnline, reviewWindowAuthorityResolver, reviewWindowHosts } from './services/remote/reviewWindowAuthorityResolver.js';
 import { IHostService } from '../workbench/services/host/browser/host.js';
+import { DesktopMain } from '../workbench/electron-browser/desktop.main.js';
+import type { INativeWindowConfiguration } from '../platform/window/common/window.js';
+import type { WorkspaceService } from '../workbench/services/configuration/browser/configurationService.js';
+import { isReviewSourceTitle, reviewSourceWindowConfiguration, type ReviewSourceWindowConfiguration } from './services/configuration/reviewSourceWindowConfiguration.js';
+
+const SOURCE_TITLE_KEY = 'review.source.title';
+let sourceWindow: ReviewSourceWindowConfiguration<WorkspaceService> | undefined;
+
+class NavigatorDesktopMain extends DesktopMain {
+	protected override async createWorkspaceService(...args: Parameters<DesktopMain['createWorkspaceService']>): Promise<WorkspaceService> {
+		const [, environment, , , , , , logService] = args;
+		sourceWindow = reviewSourceWindowConfiguration(await super.createWorkspaceService(...args), logService, isReviewRemoteAuthority(environment.remoteAuthority));
+		return sourceWindow.service;
+	}
+}
+
+export function main(configuration: INativeWindowConfiguration): Promise<void> {
+	return new NavigatorDesktopMain(configuration).open();
+}
 
 class NavigatorDefaults {
 	constructor(@IStorageService storage: IStorageService) {
@@ -67,6 +86,8 @@ class NavigatorDefaults {
 		if (storage.get(key, StorageScope.PROFILE) === undefined) {
 			storage.store(key, false, StorageScope.PROFILE, StorageTarget.USER);
 		}
+		const title = storage.getObject(SOURCE_TITLE_KEY, StorageScope.WORKSPACE);
+		if (isReviewSourceTitle(title)) sourceWindow?.setTitle(title);
 	}
 }
 
@@ -106,6 +127,13 @@ class NavigatorExtensionService extends NativeExtensionService {
 }
 
 registerSingleton(IExtensionService, NavigatorExtensionService, InstantiationType.Eager);
+
+CommandsRegistry.registerCommand('review.action.setSourceTitle', (accessor, title: unknown) => {
+	if (!isReviewSourceTitle(title)) return;
+	const value = { side: title.side, title: title.title };
+	accessor.get(IStorageService).store(SOURCE_TITLE_KEY, value, StorageScope.WORKSPACE, StorageTarget.MACHINE);
+	sourceWindow?.setTitle(value);
+});
 
 CommandsRegistry.registerCommand('review.action.showReferencesInSource', async (accessor, resource: string, lineNumber: number, column: number) => {
 	const editorService = accessor.get(IEditorService);
@@ -158,7 +186,6 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerDefaultCon
 		'workbench.colorTheme': reviewConfigurationDefaults['workbench.colorTheme'],
 		'workbench.preferredDarkColorTheme': reviewConfigurationDefaults['workbench.preferredDarkColorTheme'],
 		'workbench.preferredLightColorTheme': reviewConfigurationDefaults['workbench.preferredLightColorTheme'],
+		...reviewSourceWindowDefaults,
 	},
 }]);
-
-export { main } from '../workbench/electron-browser/desktop.main.js';
