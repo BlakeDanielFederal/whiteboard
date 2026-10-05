@@ -1,11 +1,14 @@
+import { once } from "node:events";
 import { cp, mkdtemp, rm } from "node:fs/promises";
+import http from "node:http";
+import net, { type AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
 import { readReviewPackageVersion } from "@review/package-paths.js";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 
-import { createGatewayHosts } from "./review-gateway-hosts.js";
+import { createGatewayHosts, readBody, send } from "./review-gateway-hosts.js";
 import {
   startFake,
   startRemote,
@@ -251,3 +254,45 @@ it("leaves a host in backoff alone when only another host changes, and checks it
     .poll(() => gateway.states()[0]?.state, { timeout: 1_000 })
     .toBe("online");
 }, 20_000);
+
+it("sends a request again when the host closed the kept-alive socket it reused", async () => {
+  let requests = 0;
+
+  const server = net.createServer((socket) => {
+    socket.on("data", () => {
+      requests += 1;
+
+      if (requests === 2) socket.destroy();
+      else socket.write("HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nok");
+    });
+  });
+
+  server.listen(0, "127.0.0.1");
+  await once(server, "listening");
+  closes.push(() => server.close());
+  const agent = new http.Agent({ keepAlive: true });
+  closes.push(() => agent.destroy());
+
+  // SAFETY: a TCP listener's address() is an AddressInfo.
+  const { port } = server.address() as AddressInfo;
+
+  const remote = {
+    alias: "devbox",
+    endpoint: { url: `http://127.0.0.1:${port}`, token: "" },
+    agent,
+  };
+
+  const get = async () => {
+    const response = await send(remote, {
+      method: "GET",
+      path: "/health",
+      signal: new AbortController().signal,
+    });
+
+    return (await readBody(response, 64)).toString();
+  };
+
+  expect(await get()).toBe("ok");
+  expect(await get()).toBe("ok");
+  expect(requests).toBe(3);
+});
