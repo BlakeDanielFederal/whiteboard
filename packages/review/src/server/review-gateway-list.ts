@@ -38,10 +38,9 @@ const hostStateOf = (
 ): NonNullable<ReviewApiSummary["hostState"]> => {
   if (serving) return "online";
 
-  if (state.state === "incompatible" || state.state === "connecting")
-    return state.state;
-
-  return "offline";
+  return state.state === "online" || state.state === "duplicate"
+    ? "offline"
+    : state.state;
 };
 
 function remoteEntries(mode: ListMode, source: ListSource) {

@@ -91,7 +91,7 @@ export async function runDesktopHost(
   await shared.load();
 
   const log = (message: string) =>
-    process.stderr.write(`[Whiteboard gateway] ${message}\n`);
+    process.stdout.write(`[Whiteboard gateway] ${message}\n`);
 
   const server = createGlobalReviewServer({
     ...serverInput,

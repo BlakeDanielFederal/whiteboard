@@ -195,6 +195,7 @@ it("answers per-review telemetry for a remote review itself and refuses laptop-o
     ["GET", "agent-traces"],
     ["GET", "workspaces"],
     ["POST", "environment"],
+    ["GET", "language-context?side=head"],
   ] as const) {
     const refused = await request(`/${reviewId}/${route}`, {
       method,
@@ -265,7 +266,6 @@ it("streams a remote answer line by line and closes the remote connection when t
 it.each([
   ["file", "GET", "localPath"],
   ["file", "GET", "localRoot"],
-  ["language-context", "GET", "rootPath"],
   ["navigator", "POST", "workspacePath"],
   ["navigator", "POST", "filePath"],
 ])(
@@ -331,7 +331,7 @@ it("reaches the laptop for the scratchpad and shared reviews, even when a remote
   ).toEqual([]);
 });
 
-it("answers 503 with the install command for a review on another version, also from its memory file", async () => {
+it("answers 503 naming the version to install for a review on another version, also from its memory file", async () => {
   const a = await startRemote(path.join(root, "a"));
   const onA = await seed(a, "On a");
 
@@ -353,9 +353,7 @@ it("answers 503 with the install command for a review on another version, also f
   expect(response.status).toBe(503);
   expect(response.headers.get(REVIEW_HOST_HEADER)).toBe("wb-a");
   expect(await response.json()).toMatchObject({
-    error: expect.stringContaining(
-      "npm install -g @dev.fast/whiteboard@0.0.0-other",
-    ),
+    error: expect.stringContaining("Install Whiteboard 0.0.0-other on wb-a."),
   });
 });
 
@@ -936,3 +934,160 @@ it("holds a later remembered alias until the first alias answers", async () => {
     .toEqual({ [serverId]: { alias: "wb-a", reviewIds: [reviewId] } });
   expect(c.requests.some((entry) => entry.url?.includes(reviewId))).toBe(false);
 });
+
+it("refuses a remote's snapshot of another review, and passes its own byte for byte", async () => {
+  const reviewId = randomUUID();
+  const own = `{"reviewId":"${reviewId}",  "title":"Own"}`;
+
+  const fake = await startFake({
+    version,
+    reviewIds: [reviewId],
+    handle(request, response) {
+      if (!request.url?.startsWith(`/reviews-api/${reviewId}?`)) return false;
+      response.setHeader("content-type", "application/json");
+      response.end(
+        request.url.includes("version=")
+          ? own
+          : JSON.stringify({ reviewId: "scratchpad", title: "Other" }),
+      );
+
+      return true;
+    },
+  });
+
+  const { request, gateway, logged } = await startGateway([
+    { alias: "wb-a", endpoint: fake.endpoint },
+  ]);
+
+  await expect.poll(() => gateway.hosts()[0]?.state).toBe("online");
+
+  const other = await request(`/${reviewId}?full=true`);
+  expect(other.status).toBe(502);
+  expect(await other.json()).toEqual({
+    ok: false,
+    error: "wb-a answered with another review, so the answer was refused.",
+  });
+  expect(logged).toContain(
+    `Refused wb-a's answer for ${reviewId}: it carried another review.`,
+  );
+
+  const mine = await request(`/${reviewId}?full=true&version=1`);
+  expect(mine.status).toBe(200);
+  expect(await mine.text()).toBe(own);
+});
+
+it("answers 504 for an answer that stalls after its headers, and keeps the host online", async () => {
+  const reviewId = randomUUID();
+
+  const fake = await startFake({
+    version,
+    reviewIds: [reviewId],
+    handle(request, response) {
+      if (!request.url?.startsWith(`/reviews-api/${reviewId}/file`))
+        return false;
+      response.writeHead(200, { "content-type": "application/json" });
+      response.write('{"text":"');
+
+      return true;
+    },
+  });
+
+  const { request, gateway } = await startGateway([
+    { alias: "wb-a", endpoint: fake.endpoint },
+  ]);
+
+  await expect.poll(() => gateway.hosts()[0]?.state).toBe("online");
+
+  const started = Date.now();
+  const stalled = await request(`/${reviewId}/file?side=head&file=a.ts`);
+
+  expect(stalled.status).toBe(504);
+  expect(await stalled.json()).toEqual({
+    ok: false,
+    error: "wb-a did not answer: its answer stalled for 10 seconds.",
+  });
+  expect(Date.now() - started).toBeLessThan(11_500);
+  expect(gateway.hosts()[0]?.state).toBe("online");
+}, 15_000);
+
+it("passes a whole answer that arrives slowly but steadily, past 10 seconds", async () => {
+  const reviewId = randomUUID();
+  const timers: NodeJS.Timeout[] = [];
+
+  cleanups.push(async () => {
+    for (const timer of timers) clearInterval(timer);
+  });
+
+  const fake = await startFake({
+    version,
+    reviewIds: [reviewId],
+    handle(request, response) {
+      if (!request.url?.startsWith(`/reviews-api/${reviewId}/file`))
+        return false;
+      response.writeHead(200, { "content-type": "application/json" });
+      response.write('{"text":"');
+      let sent = 0;
+
+      const timer = setInterval(() => {
+        if (++sent <= 12) return void response.write("x");
+        clearInterval(timer);
+        response.end('"}');
+      }, 1_000);
+
+      timers.push(timer);
+
+      return true;
+    },
+  });
+
+  const { request, gateway } = await startGateway([
+    { alias: "wb-a", endpoint: fake.endpoint },
+  ]);
+
+  await expect.poll(() => gateway.hosts()[0]?.state).toBe("online");
+
+  const slow = await request(`/${reviewId}/file?side=head&file=a.ts`);
+
+  expect(slow.status).toBe(200);
+  expect(await slow.json()).toEqual({ text: "x".repeat(12) });
+  expect(gateway.hosts()[0]?.state).toBe("online");
+}, 20_000);
+
+it("ends a forwarded stream when the heartbeat finds its host gone", async () => {
+  const reviewId = randomUUID();
+  let hang = false;
+
+  const fake = await startFake({
+    version,
+    reviewIds: [reviewId],
+    handle(request, response) {
+      if (request.url?.startsWith(`/reviews-api/${reviewId}/structural-diff`)) {
+        response.writeHead(200, { "content-type": "application/x-ndjson" });
+        response.write('{"type":"file"}\n');
+
+        return true;
+      }
+
+      return hang;
+    },
+  });
+
+  const laptop = await startLaptopGateway(
+    root,
+    [{ alias: "wb-a", endpoint: fake.endpoint }],
+    { heartbeatMs: 1_000 },
+  );
+
+  await expect.poll(() => laptop.gateway.hosts()[0]?.state).toBe("online");
+
+  const stream = await laptop.request(`/${reviewId}/structural-diff`);
+  expect(stream.status).toBe(200);
+  const read = stream.text();
+
+  hang = true;
+  const started = Date.now();
+
+  await expect(read).rejects.toThrow("terminated");
+  expect(laptop.gateway.hosts()[0]?.state).toBe("offline");
+  expect(Date.now() - started).toBeLessThan(1_000 + 3_000 + 500);
+}, 10_000);
