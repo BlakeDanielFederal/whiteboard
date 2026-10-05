@@ -1,8 +1,10 @@
 import type http from "node:http";
 
 import {
+  type JsonObject,
   type ReviewApiSummary,
   type ReviewGatewayHostState,
+  isJsonObject,
   parseJsonText,
 } from "@dev.fast/review-protocol";
 import { coverageModeSchema } from "@review/review-api/review-progress.js";
@@ -49,7 +51,11 @@ const lineSchema = z.discriminatedUnion("kind", [
     mode: z.enum(LIST_MODES),
     reviews: z.array(z.unknown()),
   }),
-  z.object({ kind: z.literal("review"), reviewId: z.string() }),
+  z.object({
+    kind: z.literal("review"),
+    reviewId: z.string(),
+    value: z.unknown().optional(),
+  }),
 ]);
 
 export type Located =
@@ -60,6 +66,20 @@ export type Located =
 
 export const downDetail = (down: ReviewGatewayHostState) =>
   down.detail ?? `${down.alias} is ${down.state}.`;
+
+export const isSnapshotOf = (
+  value: unknown,
+  reviewId: string,
+): value is JsonObject =>
+  UUID.test(reviewId) && isJsonObject(value) && value.reviewId === reviewId;
+
+export function withoutTutorial(value: JsonObject): JsonObject | undefined {
+  if (!isJsonObject(value.origin) || !("tutorial" in value.origin))
+    return undefined;
+  const { tutorial: _, ...origin } = value.origin;
+
+  return { ...value, origin };
+}
 
 const watchPath = (subscriptions: object[]) =>
   `/reviews-api/watch?subscriptions=${encodeURIComponent(JSON.stringify(subscriptions))}`;
@@ -78,12 +98,15 @@ export function createGatewayStreams(input: {
   local(request: Request): Response | Promise<Response>;
   locate(reviewId: string): Located;
   lookup(reviewId: string): Promise<Located>;
+  onLaptop(reviewId: string): void;
   log(message: string): void;
 }) {
   const { hosts, memory } = input;
   const feeds = new Map<GatewayRemote, AbortController>();
   const clients = new Set<Client>();
+  const passThrough = new Set<() => void>();
   const conflicts = new Set<string>();
+  const refused = new Set<string>();
   let onlineKey = "";
 
   const merge = (mode: ListMode, laptop: ReviewApiSummary[]) =>
@@ -97,6 +120,9 @@ export function createGatewayStreams(input: {
         list: (serverId, listMode) => memory.list(serverId, listMode),
       },
       (entry) => {
+        if (laptop.some((local) => local.reviewId === entry.reviewId))
+          input.onLaptop(entry.reviewId);
+
         if (conflicts.has(entry.reviewId)) return;
         conflicts.add(entry.reviewId);
         input.log(
@@ -170,6 +196,7 @@ export function createGatewayStreams(input: {
     const laptopLists = new Map<ListMode, ReviewApiSummary[]>();
     const reportedDown = new Set<string>();
     const resolving = new Set<string>();
+    const looked = new Set<string>();
     const unclaimed = new Set<string>();
 
     const upstreams = new Map<
@@ -290,13 +317,50 @@ export function createGatewayStreams(input: {
           readLines(body, (text) => {
             const line = parseLine(text);
 
-            if (line?.kind === "review" && ids.has(line.reviewId))
-              emitReview(line.reviewId, text);
+            if (line?.kind !== "review" || !ids.has(line.reviewId)) return;
+            const { reviewId, value } = line;
+
+            if (value === undefined) return emitReview(reviewId, text);
+
+            if (isSnapshotOf(value, reviewId)) {
+              const stripped = withoutTutorial(value);
+
+              return emitReview(
+                reviewId,
+                stripped
+                  ? JSON.stringify({
+                      kind: "review",
+                      reviewId,
+                      value: stripped,
+                    })
+                  : text,
+              );
+            }
+
+            if (!refused.has(`${remote.alias} ${reviewId}`)) {
+              refused.add(`${remote.alias} ${reviewId}`);
+              input.log(
+                `Refused ${remote.alias}'s update for ${reviewId}: it carried another review.`,
+              );
+            }
+
+            emitReview(
+              reviewId,
+              JSON.stringify({
+                kind: "review",
+                reviewId,
+                error: `${remote.alias} answered with another review, so the answer was refused.`,
+              }),
+            );
           }),
       });
 
     const where = (reviewId: string): Located =>
-      unclaimed.has(reviewId) ? "laptop" : input.locate(reviewId);
+      unclaimed.has(reviewId)
+        ? "laptop"
+        : looked.has(reviewId)
+          ? input.locate(reviewId)
+          : undefined;
 
     const resolve = (reviewId: string) => {
       if (resolving.has(reviewId)) return;
@@ -307,6 +371,7 @@ export function createGatewayStreams(input: {
         .catch(() => undefined)
         .then(() => {
           resolving.delete(reviewId);
+          looked.add(reviewId);
 
           if (input.locate(reviewId) === undefined) unclaimed.add(reviewId);
           client.refresh();
@@ -397,8 +462,30 @@ export function createGatewayStreams(input: {
     });
   }
 
+  async function passLaptop(request: Request): Promise<Response> {
+    const response = await input.local(request);
+
+    if (!response.body) return response;
+    let stop = () => {};
+
+    const { readable, writable } = new TransformStream<Uint8Array, Uint8Array>({
+      start(controller) {
+        stop = () => controller.terminate();
+      },
+    });
+
+    passThrough.add(stop);
+    void response.body
+      .pipeTo(writable)
+      .catch(() => undefined)
+      .finally(() => passThrough.delete(stop));
+
+    return new Response(readable, response);
+  }
+
   return {
     watch(request: Request): Response | Promise<Response> {
+      if (!hosts.states().length) return passLaptop(request);
       let subscriptions: z.infer<typeof subscriptionsSchema>;
 
       try {
@@ -416,7 +503,7 @@ export function createGatewayStreams(input: {
     async list(request: Request): Promise<Response> {
       const response = await input.local(request);
 
-      if (!response.ok) return response;
+      if (!response.ok || !hosts.states().length) return response;
 
       const mode =
         coverageModeSchema.safeParse(
@@ -430,6 +517,11 @@ export function createGatewayStreams(input: {
     },
     changed() {
       syncFeeds();
+
+      if (hosts.states().length) {
+        for (const stop of passThrough) stop();
+        passThrough.clear();
+      }
 
       const key = JSON.stringify(
         hosts.online().map((remote) => [remote.alias, remote.serverId]),
@@ -445,6 +537,8 @@ export function createGatewayStreams(input: {
     close() {
       for (const abort of feeds.values()) abort.abort();
       feeds.clear();
+
+      for (const stop of passThrough) stop();
 
       for (const client of clients) client.stop();
     },

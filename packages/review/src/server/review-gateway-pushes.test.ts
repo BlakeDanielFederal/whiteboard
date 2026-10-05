@@ -7,6 +7,7 @@ import path from "node:path";
 import {
   type JsonValue,
   REVIEW_HOST_HEADER,
+  ReviewApiClient,
   type ReviewVerbRequest,
   parseReviewDesktopVerbFrame,
 } from "@dev.fast/review-protocol";
@@ -120,7 +121,7 @@ it("opens a review a remote creates with open: true, and knows its owner before 
     laptop.localPaths.filter(
       (entry) => entry === `/reviews-api/${reviewId}/activity`,
     ),
-  ).toHaveLength(1);
+  ).toHaveLength(2);
 });
 
 async function pushingRemote(frames: JsonValue[] = []) {
@@ -400,4 +401,293 @@ it("attaches to remotes only while a window is attached to the laptop", async ()
 
   detaches.splice(0).forEach((detach) => detach());
   await expect.poll(async () => (await a.health()).desktopAttached).toBe(false);
+});
+
+it("keeps a local review on the laptop when a remote lists its id, for every route", async () => {
+  const relay = new GlobalReviewDesktopVerbRelay({ maxClients: 1 });
+  const received = attachWindow(relay);
+  const laptop = await startGateway(root, [], { relay });
+  const onLaptop = await seed(laptop.api, root, "Local original");
+  const remoteOnly = randomUUID();
+
+  const summary = (reviewId: string, title: string) => ({
+    reviewId,
+    version: 1,
+    title,
+    createdAt: new Date(0).toISOString(),
+    repositoryName: "project",
+    viewedAt: null,
+    dismissedAt: null,
+  });
+
+  const impostor = { ...summary(onLaptop, "Remote impostor"), document: [] };
+  const results: JsonValue[] = [];
+  let control: ServerResponse | undefined;
+
+  const fake = await startFake({
+    version,
+    reviewIds: [onLaptop, remoteOnly],
+    handle(request, response) {
+      if (request.url?.startsWith("/reviews-api/watch")) {
+        response.setHeader("content-type", "application/x-ndjson");
+        response.write(
+          `${JSON.stringify({
+            kind: "list",
+            mode: "structural",
+            reviews: [
+              summary(onLaptop, "Remote impostor"),
+              summary(remoteOnly, "Remote only"),
+            ],
+          })}\n`,
+        );
+        response.write(
+          `${JSON.stringify({ kind: "review", reviewId: onLaptop, value: impostor })}\n`,
+        );
+
+        return true;
+      }
+
+      if (request.url === "/control") {
+        response.setHeader("content-type", "text/event-stream");
+        response.write(": attached\n\n");
+        control = response;
+
+        return true;
+      }
+
+      if (request.url === "/control/result") {
+        let body = "";
+        request.on("data", (chunk: Buffer) => (body += chunk.toString()));
+        request.on("end", () => {
+          results.push(JSON.parse(body));
+          response.end('{"ok":true}');
+        });
+
+        return true;
+      }
+
+      return false;
+    },
+  });
+
+  laptop.gateway.setHosts([{ alias: "wb-a", endpoint: fake.endpoint }]);
+
+  await expect
+    .poll(async () =>
+      (await laptop.request(`/${remoteOnly}`)).headers.get(REVIEW_HOST_HEADER),
+    )
+    .toBe("wb-a");
+
+  const read = await laptop.request(`/${onLaptop}?full=true`);
+  expect(read.headers.has(REVIEW_HOST_HEADER)).toBe(false);
+  expect(await read.json()).toMatchObject({ title: "Local original" });
+
+  const list = (
+    await laptop.api<{ reviewId: string; title: string; host?: string }[]>("")
+  ).filter((entry) => entry.reviewId !== "scratchpad");
+
+  expect(list.map(({ title, host }) => ({ title, host }))).toEqual([
+    { title: "Local original", host: undefined },
+    { title: "Remote only", host: "wb-a" },
+  ]);
+
+  const client = new ReviewApiClient({
+    serverUrl: laptop.url,
+    token: "laptop-token",
+  });
+
+  const abort = new AbortController();
+  detaches.push(() => abort.abort());
+
+  for await (const line of client.watch(
+    [{ reviewId: onLaptop, mode: "structural" }],
+    abort.signal,
+  )) {
+    expect(line).toMatchObject({
+      kind: "review",
+      reviewId: onLaptop,
+      value: { title: "Local original" },
+    });
+    break;
+  }
+
+  const renamed = await laptop.request("/commands", {
+    method: "POST",
+    body: JSON.stringify({
+      operation: { type: "rename", reviewId: onLaptop, title: "Renamed" },
+    }),
+  });
+
+  expect(renamed.status).toBe(200);
+  expect(renamed.headers.has(REVIEW_HOST_HEADER)).toBe(false);
+  expect(laptop.local.store.summary(onLaptop)?.title).toBe("Renamed");
+
+  control?.write(
+    `data: ${JSON.stringify(verb("push", { name: "openApiReview", args: { reviewId: onLaptop, title: "I" } }))}\n\n`,
+  );
+  await vi.waitFor(() => expect(results).toHaveLength(1));
+  expect(results).toEqual([
+    {
+      id: "push",
+      response: { ok: false, error: `${onLaptop} belongs to the laptop.` },
+    },
+  ]);
+  expect(received).toEqual([]);
+
+  expect(
+    fake.requests.filter((request) => request.url?.includes(onLaptop)),
+  ).toEqual([]);
+  expect(
+    laptop.logged.filter((line) => line.includes(`${onLaptop} is also listed`)),
+  ).toHaveLength(1);
+
+  const { pins } = laptop.local.store.read(onLaptop);
+
+  if (!pins) throw new Error("The seeded review has no pins.");
+
+  await laptop.local.store.importVersion({
+    reviewId: remoteOnly,
+    title: "Imported",
+    pins,
+    document: [],
+    createdAt: new Date().toISOString(),
+  });
+
+  expect(
+    (await laptop.api<{ reviewId: string; host?: string }[]>("")).find(
+      (entry) => entry.reviewId === remoteOnly,
+    ),
+  ).not.toHaveProperty("host");
+  expect(
+    (await laptop.request(`/${remoteOnly}?full=true`)).headers.has(
+      REVIEW_HOST_HEADER,
+    ),
+  ).toBe(false);
+});
+
+it("routes an id to the laptop as soon as the laptop gains it, after a remote served it", async () => {
+  const laptop = await startGateway(root, []);
+  const local = await seed(laptop.api, root, "Local");
+  const reviewId = randomUUID();
+
+  const fake = await startFake({
+    version,
+    reviewIds: [reviewId],
+    handle(request, response) {
+      if (!request.url?.startsWith("/reviews-api/watch")) return false;
+      response.setHeader("content-type", "application/x-ndjson");
+      response.write(
+        `${JSON.stringify({
+          kind: "list",
+          mode: "structural",
+          reviews: [
+            {
+              reviewId,
+              version: 1,
+              title: "Remote",
+              createdAt: new Date(0).toISOString(),
+              repositoryName: "project",
+              viewedAt: null,
+              dismissedAt: null,
+            },
+          ],
+        })}\n`,
+      );
+
+      return true;
+    },
+  });
+
+  laptop.gateway.setHosts([{ alias: "wb-a", endpoint: fake.endpoint }]);
+
+  const hostOf = async () =>
+    (await laptop.request(`/${reviewId}?full=true`)).headers.get(
+      REVIEW_HOST_HEADER,
+    );
+
+  await expect.poll(hostOf).toBe("wb-a");
+
+  const { pins } = laptop.local.store.read(local);
+
+  if (!pins) throw new Error("The seeded review has no pins.");
+
+  await laptop.local.store.importVersion({
+    reviewId,
+    title: "Now local",
+    pins,
+    document: [],
+    createdAt: new Date().toISOString(),
+  });
+
+  const read = await laptop.request(`/${reviewId}?full=true`);
+  expect(read.headers.has(REVIEW_HOST_HEADER)).toBe(false);
+  expect(await read.json()).toMatchObject({ title: "Now local" });
+
+  const renamed = await laptop.request("/commands", {
+    method: "POST",
+    body: JSON.stringify({
+      operation: { type: "rename", reviewId, title: "Renamed here" },
+    }),
+  });
+
+  expect(renamed.headers.has(REVIEW_HOST_HEADER)).toBe(false);
+  expect(laptop.local.store.summary(reviewId)?.title).toBe("Renamed here");
+});
+
+it("follows a local review on the laptop when its first request is a watch and a remote lists it", async () => {
+  const laptop = await startGateway(root, []);
+  const local = await seed(laptop.api, root, "Local");
+  const other = randomUUID();
+
+  const summary = (reviewId: string, title: string) => ({
+    reviewId,
+    version: 1,
+    title,
+    createdAt: new Date(0).toISOString(),
+    repositoryName: "project",
+    viewedAt: null,
+    dismissedAt: null,
+  });
+
+  const fake = await startFake({
+    version,
+    reviewIds: [local, other],
+    handle(request, response) {
+      if (!request.url?.startsWith("/reviews-api/watch")) return false;
+      response.setHeader("content-type", "application/x-ndjson");
+      response.write(
+        `${JSON.stringify({ kind: "list", mode: "structural", reviews: [summary(local, "Impostor"), summary(other, "Other")] })}\n`,
+      );
+
+      return true;
+    },
+  });
+
+  laptop.gateway.setHosts([{ alias: "wb-a", endpoint: fake.endpoint }]);
+
+  await expect
+    .poll(async () =>
+      (await laptop.request(`/${other}`)).headers.get(REVIEW_HOST_HEADER),
+    )
+    .toBe("wb-a");
+
+  const client = new ReviewApiClient({
+    serverUrl: laptop.url,
+    token: "laptop-token",
+  });
+
+  const abort = new AbortController();
+  detaches.push(() => abort.abort());
+
+  for await (const line of client.watch(
+    [{ reviewId: local, mode: "structural" }],
+    abort.signal,
+  )) {
+    expect(line).toMatchObject({ reviewId: local, value: { title: "Local" } });
+    break;
+  }
+
+  expect(
+    fake.requests.filter((request) => request.url?.includes(local)),
+  ).toEqual([]);
 });

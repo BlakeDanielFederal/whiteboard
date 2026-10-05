@@ -33,6 +33,8 @@ import {
   type Located,
   createGatewayStreams,
   downDetail,
+  isSnapshotOf,
+  withoutTutorial,
 } from "./review-gateway-streams.js";
 import { serverJson } from "./review-server-core.js";
 
@@ -58,7 +60,6 @@ const FORWARDED_ROUTES: readonly (readonly [string, RegExp])[] = [
   ["GET", /^stack$/],
   ["GET", /^tree$/],
   ["GET", /^file$/],
-  ["GET", /^language-context$/],
   ["GET", /^resources\/[^/]+$/],
   ["GET", /^maps\/[^/]+$/],
   ["POST", /^navigator$/],
@@ -76,6 +77,14 @@ const PATH_FIELDS = new Set([
 ]);
 
 const PATH_ROUTE_MAX_BYTES = 64 * 1024 * 1024;
+
+const BODY_IDLE_MS = 10_000;
+
+const BODY_MAX_MS = 120_000;
+
+const STALLED = `its answer stalled for ${BODY_IDLE_MS / 1_000} seconds`;
+
+const TOO_LONG = `its answer took longer than ${BODY_MAX_MS / 1_000} seconds`;
 
 const HOP_HEADERS = new Set([
   "connection",
@@ -134,6 +143,10 @@ export function createReviewGateway(input: {
         changing = false;
 
         if (closed) return;
+        const online = new Set(hosts.online());
+
+        for (const [abort, remote] of streaming)
+          if (!online.has(remote)) abort.abort();
         streams.changed();
         pushes.changed();
       });
@@ -142,6 +155,7 @@ export function createReviewGateway(input: {
 
   const laptopIds = new Set<string>();
   const lookups = new Map<string, Promise<Owner>>();
+  const streaming = new Map<AbortController, GatewayRemote>();
 
   async function ownership(remote: GatewayRemote, reviewId: string) {
     const abort = new AbortController();
@@ -191,8 +205,6 @@ export function createReviewGateway(input: {
       );
 
   async function lookup(reviewId: string): Promise<Owner> {
-    if (await onLaptop(reviewId)) return undefined;
-
     const online = hosts.online();
     const found = Promise.withResolvers<Owner>();
     let owner: GatewayRemote | undefined;
@@ -240,6 +252,7 @@ export function createReviewGateway(input: {
   }
 
   async function ownerOf(reviewId: string): Promise<Owner> {
+    if (UUID.test(reviewId)) await onLaptop(reviewId);
     const located = locate(reviewId);
 
     if (located === "laptop") return undefined;
@@ -370,15 +383,58 @@ export function createReviewGateway(input: {
 
     out.set(REVIEW_HOST_HEADER, remote.alias);
 
-    if (options.route && PATH_ROUTES.has(options.route)) {
+    const snapshot =
+      options.route === "" &&
+      status === 200 &&
+      url.searchParams.get("full") === "true";
+
+    if (snapshot || (options.route && PATH_ROUTES.has(options.route))) {
+      let cut: string | undefined;
+
+      const cutAfter = (ms: number, reason: string) =>
+        setTimeout(() => {
+          cut = reason;
+          abort.abort();
+        }, ms);
+
+      let idle = cutAfter(BODY_IDLE_MS, STALLED);
+      const whole = cutAfter(BODY_MAX_MS, TOO_LONG);
       let body: Buffer;
 
       try {
-        body = await readBody(response, PATH_ROUTE_MAX_BYTES);
+        body = await readBody(response, PATH_ROUTE_MAX_BYTES, () => {
+          clearTimeout(idle);
+          idle = cutAfter(BODY_IDLE_MS, STALLED);
+        });
       } catch (error) {
+        return answer(remote.alias, cut ? 504 : 502, {
+          ok: false,
+          error: `${remote.alias} did not answer: ${cut ?? errorText(error)}.`,
+        });
+      } finally {
+        clearTimeout(idle);
+        clearTimeout(whole);
+      }
+
+      if (snapshot) {
+        const value = parseBody(body);
+
+        if (isSnapshotOf(value, options.reviewId)) {
+          const stripped = withoutTutorial(value);
+
+          return new Response(
+            stripped ? JSON.stringify(stripped) : new Uint8Array(body),
+            { status, headers: out },
+          );
+        }
+
+        log(
+          `Refused ${remote.alias}'s answer for ${options.reviewId}: it carried another review.`,
+        );
+
         return answer(remote.alias, 502, {
           ok: false,
-          error: `${remote.alias} did not answer: ${errorText(error)}.`,
+          error: `${remote.alias} answered with another review, so the answer was refused.`,
         });
       }
 
@@ -403,6 +459,9 @@ export function createReviewGateway(input: {
 
       return new Response(null, { status, headers: out });
     }
+
+    streaming.set(abort, remote);
+    response.on("close", () => streaming.delete(abort));
 
     // SAFETY: Node's Response takes its own web stream; the DOM type only
     // names the same object.
@@ -481,7 +540,14 @@ export function createReviewGateway(input: {
     if (!reviewId || LAPTOP_ROUTES.has(reviewId)) return input.local(request);
     const owner = await ownerOf(reviewId);
 
-    if (!owner) return input.local(request);
+    if (!owner) {
+      const response = await input.local(request);
+
+      if (response.status === 404) laptopIds.delete(reviewId);
+
+      return response;
+    }
+
     const route = rest.join("/");
     const alias = "remote" in owner ? owner.remote.alias : owner.down.alias;
 
@@ -512,6 +578,7 @@ export function createReviewGateway(input: {
     local: input.local,
     locate,
     lookup: ownerOf,
+    onLaptop: (reviewId) => laptopIds.add(reviewId),
     log,
   });
 
@@ -563,14 +630,9 @@ export function createReviewGateway(input: {
 export type ReviewGateway = ReturnType<typeof createReviewGateway>;
 
 function pathField(body: Buffer): string | undefined {
-  let value: JsonValue;
+  const value = parseBody(body);
 
-  try {
-    value = parseJsonText(body.toString());
-  } catch {
-    return "an unreadable body";
-  }
-
+  if (value === undefined) return "an unreadable body";
   const pending = [value];
 
   for (let next = pending.pop(); next !== undefined; next = pending.pop()) {
@@ -583,4 +645,12 @@ function pathField(body: Buffer): string | undefined {
   }
 
   return undefined;
+}
+
+function parseBody(body: Buffer): JsonValue | undefined {
+  try {
+    return parseJsonText(body.toString());
+  } catch {
+    return undefined;
+  }
 }

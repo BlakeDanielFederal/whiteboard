@@ -330,6 +330,45 @@ async function rawLines(url: string, token: string, reviewId: string) {
   };
 }
 
+it("passes the laptop's list and stream through as they are while no host is set, then ends the stream when one is", async () => {
+  const laptop = await startGateway(root, []);
+  const a = await startRemote(path.join(root, "a"));
+  await seed(a.api, root, "On a");
+
+  const watch = `/reviews-api/watch?subscriptions=${encodeURIComponent(
+    JSON.stringify([{ reviewId: null, mode: "structural" }]),
+  )}`;
+
+  const firstLine = async (response: Response) => {
+    const reader = response.body!.getReader();
+    stops.push(() => void reader.cancel().catch(() => undefined));
+    let text = "";
+
+    while (!text.includes("\n"))
+      text += Buffer.from((await reader.read()).value!).toString();
+
+    return { line: text.slice(0, text.indexOf("\n")), reader };
+  };
+
+  const through = await firstLine(
+    await fetch(`${laptop.url}${watch}`, {
+      headers: { "x-review-token": "laptop-token" },
+    }),
+  );
+
+  expect(through.line).toBe((await firstLine(await laptop.direct(watch))).line);
+  expect(await (await laptop.request("")).text()).toBe(
+    await (await laptop.direct("/reviews-api")).text(),
+  );
+
+  laptop.gateway.setHosts([{ alias: "wb-a", endpoint: a.endpoint }]);
+
+  for (;;) if ((await through.reader.read()).done) break;
+
+  const merged = follow(laptop.url, [{ reviewId: null }]);
+  await merged.until((line) => entry(line, "On a")?.host === "wb-a");
+});
+
 it("forwards a remote's review line byte for byte", async () => {
   const a = await startRemote(path.join(root, "a"));
   const onA = await seed(a.api, root, "On a");
@@ -806,4 +845,94 @@ it("closes a client's streams to remotes when the client leaves", async () => {
 
   abort.abort();
   await closed.promise;
+});
+
+it("refuses a remote's review line that carries another review, once in the log", async () => {
+  const reviewId = randomUUID();
+  const other = randomUUID();
+
+  const fake = await startFake({
+    version,
+    reviewIds: [reviewId],
+    handle(request, response) {
+      if (!request.url?.startsWith("/reviews-api/watch")) return false;
+      response.setHeader("content-type", "application/x-ndjson");
+
+      for (const id of [other, "scratchpad", other])
+        response.write(
+          `${JSON.stringify({ kind: "review", reviewId, value: { reviewId: id, version: 1 } })}\n`,
+        );
+
+      return true;
+    },
+  });
+
+  const laptop = await startGateway(root, [
+    { alias: "wb-a", endpoint: fake.endpoint },
+  ]);
+
+  await expect.poll(() => laptop.gateway.hosts()[0]?.state).toBe("online");
+
+  const stream = follow(laptop.url, [{ reviewId, mode: "structural" }]);
+
+  expect(
+    errorOf(await stream.until((line) => !!errorOf(line, reviewId)), reviewId),
+  ).toBe("wb-a answered with another review, so the answer was refused.");
+  await new Promise((resolve) => setTimeout(resolve, 200));
+  expect(stream.all.some((line) => valueOf(line, reviewId))).toBe(false);
+  expect(
+    laptop.logged.filter((line) => line.startsWith("Refused wb-a's update")),
+  ).toEqual([
+    `Refused wb-a's update for ${reviewId}: it carried another review.`,
+  ]);
+});
+
+it("takes the tutorial marker off a remote's snapshot, in a read and in a line", async () => {
+  const reviewId = randomUUID();
+
+  const snapshot = JSON.stringify({
+    reviewId,
+    version: 1,
+    origin: { tutorial: true, branch: "main" },
+  });
+
+  const fake = await startFake({
+    version,
+    reviewIds: [reviewId],
+    handle(request, response) {
+      if (request.url?.startsWith("/reviews-api/watch")) {
+        response.setHeader("content-type", "application/x-ndjson");
+        response.write(
+          `{"kind":"review","reviewId":"${reviewId}","value":${snapshot}}\n`,
+        );
+
+        return true;
+      }
+
+      if (!request.url?.startsWith(`/reviews-api/${reviewId}?`)) return false;
+      response.setHeader("content-type", "application/json");
+      response.end(snapshot);
+
+      return true;
+    },
+  });
+
+  const laptop = await startGateway(root, [
+    { alias: "wb-a", endpoint: fake.endpoint },
+  ]);
+
+  await expect.poll(() => laptop.gateway.hosts()[0]?.state).toBe("online");
+
+  expect(await laptop.api(`/${reviewId}?full=true`)).toMatchObject({
+    reviewId,
+    origin: { branch: "main" },
+  });
+  expect(
+    (await laptop.api<{ origin: object }>(`/${reviewId}?full=true`)).origin,
+  ).not.toHaveProperty("tutorial");
+
+  const stream = follow(laptop.url, [{ reviewId, mode: "structural" }]);
+  const line = await stream.until((next) => !!valueOf(next, reviewId));
+  expect(valueOf(line, reviewId)).toMatchObject({ origin: { branch: "main" } });
+  expect(valueOf(line, reviewId)?.origin).not.toHaveProperty("tutorial");
 });

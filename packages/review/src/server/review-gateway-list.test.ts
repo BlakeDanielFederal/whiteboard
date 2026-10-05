@@ -136,7 +136,7 @@ it("puts the alias in front of the group key and keeps the label", () => {
   });
 });
 
-it("keeps the last list of a host that is connecting, offline or incompatible", () => {
+it("keeps the last list of a host that is connecting, offline, incompatible or unreachable, with its state", () => {
   const merged = mergeLists(
     "structural",
     [],
@@ -163,7 +163,7 @@ it("keeps the last list of a host that is connecting, offline or incompatible", 
     ["starting", "starting", "connecting"],
     ["gone", "gone", "offline"],
     ["old", "old", "incompatible"],
-    ["unreached", "unreached", "offline"],
+    ["unreached", "unreached", "unreachable"],
   ]);
 });
 

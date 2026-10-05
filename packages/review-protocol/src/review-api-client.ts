@@ -1,5 +1,7 @@
 import type { JsonObject } from "@dev.fast/json";
 
+import type { ReviewGatewayHostState } from "./contracts.js";
+
 /** List metadata for the authenticated local catalog; document contents stay in snapshots. */
 export interface ReviewApiSummary {
   reviewId: string;
@@ -46,12 +48,7 @@ export interface ReviewApiSummary {
   /** An agent holds a live lease; absent on shared reviews. */
   working?: boolean;
   host?: string;
-  hostState?:
-    | "online"
-    | "connecting"
-    | "offline"
-    | "incompatible"
-    | "duplicate";
+  hostState?: Exclude<ReviewGatewayHostState["state"], "duplicate">;
   available?: { sourceWindows: boolean; languageFeatures: boolean };
 }
 
