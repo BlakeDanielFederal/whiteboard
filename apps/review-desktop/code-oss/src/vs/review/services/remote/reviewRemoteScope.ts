@@ -8,6 +8,7 @@ import { Disposable, type IDisposable } from "../../../base/common/lifecycle.js"
 import type { URI } from "../../../base/common/uri.js";
 import { IBulkEditService } from "../../../editor/browser/services/bulkEditService.js";
 import type { ITextModel } from "../../../editor/common/model.js";
+import { ILanguageConfigurationService, LanguageConfigurationService } from "../../../editor/common/languages/languageConfigurationRegistry.js";
 import { ILanguageFeaturesService } from "../../../editor/common/services/languageFeatures.js";
 import { IModelService } from "../../../editor/common/services/model.js";
 import { ITextModelService } from "../../../editor/common/services/resolverService.js";
@@ -60,6 +61,7 @@ import { SearchService } from "../../../workbench/services/search/common/searchS
 import { ITextFileService } from "../../../workbench/services/textfile/common/textfiles.js";
 import { IWorkingCopyFileService } from "../../../workbench/services/workingCopy/common/workingCopyFileService.js";
 import { IWorkspaceEditingService } from "../../../workbench/services/workspaces/common/workspaceEditing.js";
+import { ILanguageStatusService } from "../../../workbench/services/languageStatus/common/languageStatusService.js";
 import { ReviewRemoteBulkEditService } from "./guard/reviewRemoteBulkEditService.js";
 import { ReviewRemoteCanonicalUriService } from "./guard/reviewRemoteCanonicalUriService.js";
 import { ReviewRemoteClipboardService } from "./guard/reviewRemoteClipboardService.js";
@@ -79,9 +81,10 @@ import { reviewRemoteEditorService } from "./guard/reviewRemoteEditorService.js"
 import { reviewRemoteEnvironmentService } from "./guard/reviewRemoteEnvironmentService.js";
 import { reviewRemoteExtensionService } from "./guard/reviewRemoteExtensionService.js";
 import { reviewRemoteFileService } from "./guard/reviewRemoteFileService.js";
-import { IReviewRemoteExtensions, IReviewRemoteRefusals, override, ownsRemoteResource, ReviewRemoteRefusals } from "./guard/reviewRemoteGuard.js";
+import { IReviewRemoteExtensions, IReviewRemoteRefusals, override, ownsRemoteResource, type ReviewRemoteRefusals } from "./guard/reviewRemoteGuard.js";
 import { reviewRemoteLabelService } from "./guard/reviewRemoteLabelService.js";
 import { reviewRemoteLanguagePackService } from "./guard/reviewRemoteLanguagePackService.js";
+import { reviewRemoteLanguageStatusService } from "./guard/reviewRemoteLanguageStatusService.js";
 import { ReviewRemoteLoggerService } from "./guard/reviewRemoteLoggerService.js";
 import { reviewRemoteOpenerService } from "./guard/reviewRemoteOpenerService.js";
 import "./guard/reviewRemotePeers.js";
@@ -232,7 +235,7 @@ export class ReviewRemoteWorkspace extends Disposable implements IWorkspaceConte
 
 export function reviewRemoteScope(input: {
 	authority: string;
-	name: () => string;
+	refusals: ReviewRemoteRefusals;
 	extensions: readonly IExtensionDescription[];
 	activate: (event: string) => Promise<void>;
 	languageFeatures: ILanguageFeaturesService;
@@ -242,11 +245,12 @@ export function reviewRemoteScope(input: {
 }, window: ServicesAccessor): ServiceCollection {
 	const { authority } = input;
 	const logService = window.get(ILogService);
-	const refusals = new ReviewRemoteRefusals(authority, input.name, logService);
+	const { refusals } = input;
 	const groups = reviewRemoteEditorGroupsService(window.get(IEditorGroupsService), refusals);
 	const environment = reviewRemoteEnvironmentService(window.get(IWorkbenchEnvironmentService));
 	return new ServiceCollection(
 		[ILanguageFeaturesService, input.languageFeatures],
+		[ILanguageConfigurationService, new SyncDescriptor(LanguageConfigurationService)],
 		[IModelService, reviewRemoteModelService(window.get(IModelService), authority)],
 		[IWorkspaceContextService, input.workspace],
 		[IMarkerService, reviewRemoteDiagnostics(reviewRemoteMarkerService(window.get(IMarkerService), authority), refusals)],
@@ -289,5 +293,6 @@ export function reviewRemoteScope(input: {
 		[INotificationService, reviewRemoteNotificationService(window.get(INotificationService), refusals)],
 		[IProgressService, reviewRemoteProgressService(window.get(IProgressService), refusals)],
 		[IExtensionStatusBarItemService, new SyncDescriptor(ReviewRemoteStatusBarItemService, [window.get(IExtensionStatusBarItemService)])],
+		[ILanguageStatusService, reviewRemoteLanguageStatusService(window.get(ILanguageStatusService), refusals)],
 	);
 }

@@ -7,9 +7,11 @@ import { Disposable } from "../../../../base/common/lifecycle.js";
 import { IInstantiationService } from "../../../../platform/instantiation/common/instantiation.js";
 import { MainContext } from "../../../../workbench/api/common/extHost.protocol.js";
 import { extHostCustomer, type IExtHostContext } from "../../../../workbench/services/extensions/common/extHostCustomers.js";
+import type { ProxyIdentifier } from "../../../../workbench/services/extensions/common/proxyIdentifier.js";
 import { ReviewRemoteCommands } from "./reviewRemoteCommandService.js";
 import { ReviewRemoteOutputService } from "./reviewRemoteOutputService.js";
 import { ReviewRemoteQuickOpen } from "./reviewRemoteQuickOpen.js";
+import { ReviewRemoteTextEditors } from "./reviewRemoteTextEditors.js";
 import { ReviewRemoteTreeViews } from "./reviewRemoteTreeViews.js";
 
 @extHostCustomer
@@ -21,5 +23,10 @@ export class ReviewRemoteGuardedPeers extends Disposable {
 		context.set(MainContext.MainThreadOutputService, this._register(instantiationService.createInstance(ReviewRemoteOutputService, context)));
 		context.set(MainContext.MainThreadQuickOpen, this._register(instantiationService.createInstance(ReviewRemoteQuickOpen, context)));
 		context.set(MainContext.MainThreadTreeViews, this._register(instantiationService.createInstance(ReviewRemoteTreeViews, context)));
+		const editors = this._register(instantiationService.createInstance(ReviewRemoteTextEditors, context));
+		const set = context.set.bind(context);
+		context.set = ((identifier: ProxyIdentifier<unknown>, instance: unknown) =>
+			set(identifier, identifier === MainContext.MainThreadTextEditors ? editors : instance)) as IExtHostContext["set"];
+		context.set(MainContext.MainThreadTextEditors, editors);
 	}
 }

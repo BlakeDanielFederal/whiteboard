@@ -5,7 +5,7 @@
 
 import { Event } from "../../../../base/common/event.js";
 import { deepClone } from "../../../../base/common/objects.js";
-import type { IConfigurationChange, IConfigurationChangeEvent, IConfigurationData, IConfigurationService } from "../../../../platform/configuration/common/configuration.js";
+import type { IConfigurationChange, IConfigurationChangeEvent, IConfigurationData, IConfigurationOverrides, IConfigurationService } from "../../../../platform/configuration/common/configuration.js";
 import { ConfigurationModel } from "../../../../platform/configuration/common/configurationModels.js";
 import { Extensions, type IConfigurationRegistry } from "../../../../platform/configuration/common/configurationRegistry.js";
 import type { IExtensionDescription } from "../../../../platform/extensions/common/extensions.js";
@@ -13,7 +13,7 @@ import type { ILogService } from "../../../../platform/log/common/log.js";
 import { Registry } from "../../../../platform/registry/common/platform.js";
 import { override, type ReviewRemoteRefusals } from "./reviewRemoteGuard.js";
 
-export function remoteContributedSettings(extensions: readonly IExtensionDescription[]): Map<string, unknown> {
+function remoteContributedSettings(extensions: readonly IExtensionDescription[]): Map<string, unknown> {
 	const registered = Registry.as<IConfigurationRegistry>(Extensions.Configuration).getConfigurationProperties();
 	const settings = new Map<string, unknown>();
 	for (const extension of extensions) {
@@ -56,13 +56,23 @@ export function reviewRemoteConfigurationService(
 		keys: change.keys.filter((key) => settings.has(key)),
 		overrides: change.overrides.map(([id, keys]): [string, string[]] => [id, keys.filter((key) => settings.has(key))]).filter(([, keys]) => keys.length > 0),
 	});
+	const within = (key: string, section: string) => key === section || key.startsWith(`${section}.`) || section.startsWith(`${key}.`);
+	const affects = (e: IConfigurationChangeEvent, change: IConfigurationChange, section: string, overrides?: IConfigurationOverrides) => {
+		if (within("telemetry", section)) return e.affectsConfiguration(section, overrides);
+		if (![...settings.keys()].some((key) => within(key, section))) {
+			refusals.refuse("telling which of your settings changed");
+			return false;
+		}
+		const keys = [...change.keys, ...change.overrides.flatMap(([, keys]) => keys)];
+		return keys.some((key) => within(key, section)) && e.affectsConfiguration(section, overrides);
+	};
 	const writes = "changing settings";
 	return override(base, {
 		getConfigurationData: data,
 		onDidChangeConfiguration: Event.filter(
 			Event.map(base.onDidChangeConfiguration, (e): IConfigurationChangeEvent => {
 				const change = filter(e.change);
-				return { source: e.source, change, affectedKeys: new Set(change.keys), affectsConfiguration: (key, overrides) => e.affectsConfiguration(key, overrides) };
+				return { source: e.source, change, affectedKeys: new Set(change.keys), affectsConfiguration: (section, overrides) => affects(e, change, section, overrides) };
 			}),
 			(e) => e.change.keys.length > 0 || e.change.overrides.length > 0 || e.affectsConfiguration("telemetry"),
 		),

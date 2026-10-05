@@ -45,12 +45,14 @@ import { RemoteExtensionHost } from "../../../workbench/services/extensions/comm
 import { RemoteExtensionEnvironmentChannelClient } from "../../../workbench/services/remote/common/remoteAgentEnvironmentChannel.js";
 import { REMOTE_FILE_SYSTEM_CHANNEL_NAME } from "../../../workbench/services/remote/common/remoteFileSystemProviderClient.js";
 import { IReviewDesktopConnectionService, type ReviewRemoteLanguageEndpoint } from "../reviewDesktopConnectionService.js";
+import { ReviewRemoteRefusals } from "./guard/reviewRemoteGuard.js";
 import type { ReviewRemoteFileSystemRouter } from "./reviewRemoteFileSystemRouter.js";
 import { ownsRemoteResource, ReviewRemoteWorkspace, reviewRemoteResolver, reviewRemoteScope } from "./reviewRemoteScope.js";
 
 export interface IReviewRemoteHost {
 	readonly authority: string;
 	readonly languageFeatures: ILanguageFeaturesService;
+	readonly refusals: ReviewRemoteRefusals;
 	addRoot(root: URI): Promise<IDisposable>;
 	activateByEvent(event: string): Promise<void>;
 }
@@ -61,20 +63,26 @@ export interface IReviewRemoteSession extends IDisposable {
 	close(): Promise<void>;
 }
 
-export function reviewRemoteRetryDelay(failures: number): number {
+function reviewRemoteRetryDelay(failures: number): number {
 	return Math.min(60_000, 1_000 * 2 ** failures);
 }
 
 const STABLE_MS = 60_000;
 
+const PROBE_MS = 5_000;
+
 export class ReviewRemoteHost extends Disposable implements IReviewRemoteHost {
 	readonly languageFeatures: ILanguageFeaturesService = new LanguageFeaturesService();
 	readonly workspace: ReviewRemoteWorkspace;
+	readonly refusals: ReviewRemoteRefusals;
 	alias: string | undefined;
 	private session: IReviewRemoteSession | undefined;
 	private connecting: Promise<boolean> | undefined;
 	private failures = 0;
 	private waiting = false;
+	private probing: Promise<boolean> | undefined;
+	private probed = -Infinity;
+	private probedEndpoint: string | undefined;
 	private readonly retry = this._register(new TimeoutTimer());
 	private readonly activations = new Set<string>();
 
@@ -82,17 +90,36 @@ export class ReviewRemoteHost extends Disposable implements IReviewRemoteHost {
 		readonly serverId: string,
 		readonly authority: string,
 		private readonly open: (host: ReviewRemoteHost) => Promise<IReviewRemoteSession | undefined>,
+		private readonly endpoint: () => Promise<string | undefined>,
 		private readonly logService: ILogService,
 	) {
 		super();
 		this.workspace = this._register(new ReviewRemoteWorkspace(`whiteboard-remote-${serverId}`));
+		this.refusals = new ReviewRemoteRefusals(authority, () => this.alias ?? serverId.slice(0, 8), logService);
 	}
 
 	connect(): Promise<boolean> {
 		if (this.session) return Promise.resolve(true);
-		if (this._store.isDisposed || this.waiting) return Promise.resolve(false);
+		if (this._store.isDisposed) return Promise.resolve(false);
+		if (this.waiting) return this.probe();
 		this.connecting ??= this.attempt().finally(() => (this.connecting = undefined));
 		return this.connecting;
+	}
+
+	private probe(): Promise<boolean> {
+		if (this.probing || Date.now() - this.probed < PROBE_MS) return this.probing ?? Promise.resolve(false);
+		this.probed = Date.now();
+		this.probing = (async () => {
+			const endpoint = await this.endpoint().catch(() => undefined);
+			if (this.waiting && endpoint && endpoint !== this.probedEndpoint) {
+				this.probedEndpoint = endpoint;
+				this.retry.cancel();
+				this.waiting = false;
+				this.failures = 0;
+			}
+			return this.waiting ? false : this.connect();
+		})().finally(() => (this.probing = undefined));
+		return this.probing;
 	}
 
 	private async attempt(): Promise<boolean> {
@@ -254,7 +281,7 @@ export class ReviewRemoteSession extends Disposable implements IReviewRemoteSess
 
 		const scope = this._register(this.instantiationService.createChild(this.instantiationService.invokeFunction((window) => reviewRemoteScope({
 			authority,
-			name: () => this.host.alias ?? this.host.serverId.slice(0, 8),
+			refusals: this.host.refusals,
 			extensions,
 			activate: (event) => this.activateByEvent(event),
 			languageFeatures: this.host.languageFeatures,

@@ -29,7 +29,7 @@ import { withCurrentLocalContext } from "./reviewLocalRequest.js";
 import { acquireReviewLanguageRoot, reviewLanguageRoot } from "./reviewLocalWorkspace.js";
 import { ReviewLanguageEnvironmentRequests } from "./reviewLanguageEnvironmentRequests.js";
 import { watchAttachedReviewModels, withRetainedSource } from "./reviewSourceModelLifecycle.js";
-import { ownsRemoteResource, ReviewRemoteRefusals } from "./remote/guard/reviewRemoteGuard.js";
+import { ownsRemoteResource } from "./remote/guard/reviewRemoteGuard.js";
 import type { IReviewRemoteHost } from "./remote/reviewRemoteHost.js";
 import { IReviewRemoteHostsService } from "./remote/reviewRemoteHosts.js";
 
@@ -38,7 +38,7 @@ const REMOTE_ANSWER_MS = 5_000;
 interface LocalSource {
 	identity: string;
 	root: URI;
-	remote?: { host: IReviewRemoteHost; refusals: ReviewRemoteRefusals };
+	remote?: IReviewRemoteHost;
 	reference: IReference<IResolvedTextEditorModel>;
 	retain(): IDisposable | undefined;
 	dispose(): void;
@@ -50,7 +50,6 @@ export class ReviewLocalLanguageFeatures extends Disposable {
 	private readonly sources = new Map<ITextModel, { identity: string; root: string; pending: Promise<LocalSource | undefined> }>();
 	private readonly remoteReviews = new Set<string>();
 	private readonly remoteRoots = new Map<string, URI>();
-	private readonly refusals = new Map<string, ReviewRemoteRefusals>();
 	private readonly environments = new ReviewLanguageEnvironmentRequests();
 	private readonly roots = new Map<string, number>();
 	private readonly uncertainRoots = new Set<string>();
@@ -205,7 +204,7 @@ export class ReviewLocalLanguageFeatures extends Disposable {
 			const owner = toDisposable(() => lifetime.release());
 			return {
 				root, reference, identity,
-				remote: host && { host, refusals: this.refusalsFor(host) },
+				remote: host,
 				retain: () => {
 					if (owned.isDisposed) return undefined;
 					lifetime.acquire();
@@ -272,14 +271,8 @@ export class ReviewLocalLanguageFeatures extends Disposable {
 		}
 	}
 
-	private refusalsFor(host: IReviewRemoteHost): ReviewRemoteRefusals {
-		let refusals = this.refusals.get(host.authority);
-		if (!refusals) this.refusals.set(host.authority, refusals = new ReviewRemoteRefusals(host.authority, () => host.authority, this.log));
-		return refusals;
-	}
-
 	private registry(source: LocalSource | undefined): ILanguageFeaturesService {
-		return source?.remote?.host.languageFeatures ?? this.languages;
+		return source?.remote?.languageFeatures ?? this.languages;
 	}
 
 	private hover(model: ITextModel, position: Position, token: CancellationToken): Promise<Hover | undefined> {
@@ -321,7 +314,7 @@ export class ReviewLocalLanguageFeatures extends Disposable {
 		await Promise.all([...groups.values()].map(async group => {
 			const target = group[0].uri;
 			const remote = source.remote;
-			if (remote ? !ownsRemoteResource(remote.host.authority, target) : target.scheme !== "file") return;
+			if (remote ? !ownsRemoteResource(remote.authority, target) : target.scheme !== "file") return;
 			const inside = (remote || target.authority === source.root.authority) && target.path.startsWith(prefix);
 			const onHost = () => { for (const location of group) mapped.set(location, location); };
 			if (remote && !inside) return onHost();
