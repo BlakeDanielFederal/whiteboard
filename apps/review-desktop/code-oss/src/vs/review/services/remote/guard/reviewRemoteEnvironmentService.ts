@@ -1,0 +1,16 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) dev.fast. All rights reserved.
+ *  Licensed under the MIT License. See LICENSE in the repository root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+import type { IEnvironmentService } from "../../../../platform/environment/common/environment.js";
+import { override } from "./reviewRemoteGuard.js";
+
+export function reviewRemoteEnvironmentService<T extends IEnvironmentService>(base: T): T {
+	return override(base, {
+		debugExtensionHost: { port: null, break: false },
+		isExtensionDevelopment: false,
+		extensionDevelopmentLocationURI: undefined,
+		extensionTestsLocationURI: undefined,
+	} as Partial<T>);
+}
