@@ -173,8 +173,8 @@ host, in the review's checkout, with the agents and sign-ins already there
 (`claude auth login`, `codex login`, `opencode auth login`,
 `cursor-agent login`, Pi's `/login`). Threads are kept on the host, so every
 laptop that attaches it sees the same history for its reviews. A file that an
-answer names shows as text, because Source windows are not available for a
-remote review.
+answer names opens in a Source window on the host; see
+[Source windows](#source-windows).
 
 ## Remove Whiteboard from a host
 
@@ -300,9 +300,35 @@ laptop:
 
 Each refused action is an error the extension receives.
 
+## Source windows
+
+"Open file", the source tree and Ask's file links open a Source window bound
+to the host. The window shows the host's checkout read-only, with the
+explorer, quick open, text search and the language features above. Its title
+is `<review title> — Source — Whiteboard`.
+
+When the host stops answering, the status bar reads `<alias> — offline,
+reconnecting…` within about 15 seconds, and a warning says the window
+reconnects when the host is back. A window restored while its host is down
+shows the same. The window reconnects by itself, usually within a few seconds
+of the host returning, and the entry goes back to the alias.
+
+Nothing from the host's settings applies in a Source window. The host's
+extensions add no keybindings, menus or settings pages there, and the
+`{@link}` links in TypeScript hovers do nothing.
+
+Not available in a Source window:
+
+- Terminals and source control.
+- Image previews and webviews of files on the host.
+- Watching on musl hosts such as Alpine. The explorer refreshes when the
+  window gets focus. On glibc hosts it updates as files change.
+
+Each Source window runs its own extension host on the host, about 130 MB with
+TypeScript. Close windows you are done with.
+
 ## Not available for remote reviews yet
 
-- Source windows: "Open file" and the source tree are hidden.
 - Sharing.
 - Traces.
 - Scratchpads. The scratchpad is always the laptop's.
