@@ -33,6 +33,7 @@ import { ISecretStorageService } from "../../../platform/secrets/common/secrets.
 import { ISignService } from "../../../platform/sign/common/sign.js";
 import { IStorageService } from "../../../platform/storage/common/storage.js";
 import { ITelemetryService } from "../../../platform/telemetry/common/telemetry.js";
+import { IUriIdentityService } from "../../../platform/uriIdentity/common/uriIdentity.js";
 import { IWorkspaceContextService } from "../../../platform/workspace/common/workspace.js";
 import { IWorkspaceTrustRequestService } from "../../../platform/workspace/common/workspaceTrust.js";
 import { IExtensionStatusBarItemService } from "../../../workbench/api/browser/statusBarExtensionPoint.js";
@@ -49,6 +50,7 @@ import { ExtensionHostExtensions, IExtensionService, type IExtensionHost, type I
 import type { IExtensionDescriptionDelta } from "../../../workbench/services/extensions/common/extensionHostProtocol.js";
 import { RemoteExtensionHost } from "../../../workbench/services/extensions/common/remoteExtensionHost.js";
 import { ILanguageStatusService } from "../../../workbench/services/languageStatus/common/languageStatusService.js";
+import { ISearchService, QueryType, SearchProviderType, type ISearchResultProvider } from "../../../workbench/services/search/common/search.js";
 import { IDefaultLogLevelsService } from "../../../workbench/services/log/common/defaultLogLevels.js";
 import { ITextFileService } from "../../../workbench/services/textfile/common/textfiles.js";
 import { IWorkingCopyFileService } from "../../../workbench/services/workingCopy/common/workingCopyFileService.js";
@@ -89,13 +91,17 @@ function sourceWindow() {
 		extensionDevelopmentLocationURI: undefined,
 		debugExtensionHost: { port: null, break: false },
 	});
+	fake(ISearchService, {
+		registerSearchResultProvider: (scheme: string) => { reached.push(`search provider ${scheme}`); return { dispose() { } }; },
+		fileSearch: record("fileSearch"),
+	});
 	fake(IRemoteAuthorityResolverService, { resolveAuthority: (name: string) => { reached.push(`resolve ${name}`); return new Promise(() => { }); } });
 	for (const id of [
 		ILanguageFeaturesService, IWorkspaceContextService, IExtensionStatusBarItemService, INotificationService, IProgressService, IExtensionsWorkbenchService,
 		IWorkbenchExtensionEnablementService, IModelService, IMarkerService, ITextModelService, ITextFileService, IWorkingCopyFileService, IEditorGroupsService,
 		IEditorService, IOpenerService, IStorageService, ISecretStorageService, IWebviewWorkbenchServiceId, IWebviewViewService, ILabelService, IDecorationsService,
 		IWorkspaceTrustRequestService, IRequestService, ILanguagePackService, IEnvironmentService, IBulkEditService, ILanguageStatusService,
-		IRemoteSocketFactoryService, IExtensionHostDebugService, IProductService, ISignService, IDefaultLogLevelsService, IWorkbenchAssignmentService,
+		IRemoteSocketFactoryService, IExtensionHostDebugService, IProductService, ISignService, IDefaultLogLevelsService, IWorkbenchAssignmentService, IUriIdentityService,
 	] as ServiceIdentifier<unknown>[]) {
 		if (!services.has(id)) fake(id);
 	}
@@ -133,6 +139,18 @@ test("a Source window's scope keeps a remote's extensions to that window's own h
 	for (const kind of ["reading files outside this remote", "changing files outside this remote", "running window commands", "using the clipboard", "downloading", "changing settings"]) {
 		assert.equal(warnings.filter((warning) => warning === `[Remote guard] ${W}: refused ${kind}`).length, 1, kind);
 	}
+});
+
+test("a Source window's search is the window's, so its host's providers reach it, and the host searches only its own files", async () => {
+	const { window, reached, warnings } = sourceWindow();
+	const scope = reviewRemoteWindowScope({ authority: W, services: window, activate: async () => { } });
+	const search = scope.invokeFunction((accessor) => accessor.get(ISearchService));
+	search.registerSearchResultProvider("vscode-remote", SearchProviderType.text, {} as ISearchResultProvider);
+	search.registerSearchResultProvider("file", SearchProviderType.text, {} as ISearchResultProvider);
+	assert.deepEqual(reached, ["search provider vscode-remote"]);
+	await assert.rejects(search.fileSearch({ type: QueryType.File, folderQueries: [{ folder: URI.file("/Users/me") }] }), refused);
+	assert.deepEqual(reached, ["search provider vscode-remote"]);
+	assert.equal(warnings.filter((warning) => warning === `[Remote guard] ${W}: refused searching outside this remote`).length, 1);
 });
 
 test("only a whiteboard+ window's remote extension host is rebuilt, with its manager, inside the guard", () => {

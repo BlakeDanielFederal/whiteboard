@@ -8,6 +8,7 @@ import { Schemas } from "../../../base/common/network.js";
 import { ILanguageFeaturesService } from "../../../editor/common/services/languageFeatures.js";
 import { ExtensionIdentifierSet, type ExtensionIdentifier, type IExtensionDescription } from "../../../platform/extensions/common/extensions.js";
 import { IFileService } from "../../../platform/files/common/files.js";
+import { SyncDescriptor } from "../../../platform/instantiation/common/descriptors.js";
 import type { IInstantiationService } from "../../../platform/instantiation/common/instantiation.js";
 import { ILogService } from "../../../platform/log/common/log.js";
 import { IRemoteAuthorityResolverService } from "../../../platform/remote/common/remoteAuthorityResolver.js";
@@ -17,7 +18,9 @@ import { ExtensionHostManager } from "../../../workbench/services/extensions/com
 import type { IExtensionHostManager } from "../../../workbench/services/extensions/common/extensionHostManagers.js";
 import { ActivationKind, ExtensionHostExtensions, IExtensionService, type IExtensionHost, type IInternalExtensionService } from "../../../workbench/services/extensions/common/extensions.js";
 import { RemoteExtensionHost } from "../../../workbench/services/extensions/common/remoteExtensionHost.js";
+import { ISearchService } from "../../../workbench/services/search/common/search.js";
 import { isReviewRemoteAuthority, override, ReviewRemoteRefusals } from "./guard/reviewRemoteGuard.js";
+import { ReviewRemoteSearchService } from "./guard/reviewRemoteSearchService.js";
 import { ownsRemoteResource, reviewRemoteScope } from "./reviewRemoteScope.js";
 
 const PREFIX = "whiteboard+";
@@ -31,7 +34,7 @@ export function reviewRemoteWindowScope(input: {
 	const { authority, services } = input;
 	return services.createChild(services.invokeFunction((window) => {
 		const extensionService = window.get(IExtensionService);
-		return reviewRemoteScope({
+		const scope = reviewRemoteScope({
 			authority,
 			refusals: new ReviewRemoteRefusals(authority, () => authority.slice(PREFIX.length, PREFIX.length + 8), window.get(ILogService)),
 			extensions: () => extensionService.extensions.filter((extension) => ownsRemoteResource(authority, extension.extensionLocation)),
@@ -41,6 +44,8 @@ export function reviewRemoteWindowScope(input: {
 			resolver: window.get(IRemoteAuthorityResolverService),
 			ownFiles: window.get(IFileService),
 		}, window);
+		scope.set(ISearchService, new SyncDescriptor(ReviewRemoteSearchService, [window.get(ISearchService)]));
+		return scope;
 	}));
 }
 
