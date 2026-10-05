@@ -1,9 +1,11 @@
 import http from "node:http";
 import { Readable } from "node:stream";
 
-import type {
-  ReviewGatewayHost,
-  ReviewGatewayHostState,
+import {
+  REVIEW_CLIENT_HEADER,
+  REVIEW_CLIENT_REMOTE,
+  type ReviewGatewayHost,
+  type ReviewGatewayHostState,
 } from "@dev.fast/review-protocol";
 import { z } from "zod";
 
@@ -11,9 +13,20 @@ import { StreamLimitError } from "./bounded-stream.js";
 
 const HEALTH_TIMEOUT_MS = 3_000;
 
-const FIRST_RETRY_MS = 500;
+const HEARTBEAT_MS = 30_000;
 
-const MAX_RETRY_MS = 30_000;
+export const FIRST_RETRY_MS = 500;
+
+export const MAX_RETRY_MS = 30_000;
+
+export const FIRST_BYTE_TIMEOUT_MS = 10_000;
+
+export const NO_ANSWER = `it did not answer within ${FIRST_BYTE_TIMEOUT_MS / 1_000} seconds`;
+
+export const UUID =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+export const jitter = (ms: number) => ms * (0.75 + Math.random() * 0.5);
 
 const healthSchema = z.object({
   ok: z.literal(true),
@@ -48,6 +61,8 @@ export function createGatewayHosts(input: {
   log?(message: string): void;
   remembered?(serverId: string): string | undefined;
   machine?(serverId: string, alias: string): void;
+  changed?(): void;
+  heartbeatMs?: number;
 }) {
   const log = input.log ?? (() => {});
   let hosts: Host[] = [];
@@ -164,6 +179,8 @@ export function createGatewayHosts(input: {
     for (const alias of reported.keys())
       if (!states.some((state) => state.alias === alias))
         reported.delete(alias);
+
+    input.changed?.();
   }
 
   function dispose(host: Host) {
@@ -194,7 +211,7 @@ export function createGatewayHosts(input: {
   }
 
   function retryLater(host: Host) {
-    const delay = host.retryMs * (0.75 + Math.random() * 0.5);
+    const delay = jitter(host.retryMs);
     host.retryMs = Math.min(host.retryMs * 2, MAX_RETRY_MS);
     host.retry = setTimeout(() => void check(host), delay);
     host.retry.unref();
@@ -266,6 +283,12 @@ export function createGatewayHosts(input: {
         host.status = "online";
         host.detail = undefined;
       }
+
+      host.retry = setTimeout(
+        () => void check(host),
+        input.heartbeatMs ?? HEARTBEAT_MS,
+      );
+      host.retry.unref();
     }
 
     report();
@@ -328,6 +351,11 @@ export function createGatewayHosts(input: {
       report();
       void check(host);
     },
+    recheck(remote: GatewayRemote) {
+      const host = hosts.find((candidate) => candidate === remote);
+
+      if (host && !host.checking) void check(host);
+    },
     close() {
       closed = true;
 
@@ -337,6 +365,11 @@ export function createGatewayHosts(input: {
 }
 
 export type GatewayHosts = ReturnType<typeof createGatewayHosts>;
+
+export const remoteHeaders = (remote: GatewayRemote) => ({
+  "x-review-token": remote.endpoint?.token ?? "",
+  [REVIEW_CLIENT_HEADER]: REVIEW_CLIENT_REMOTE,
+});
 
 export function send(
   remote: GatewayRemote,
