@@ -4,12 +4,15 @@ import path from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 
 import { liveLockOwner, processIsAlive } from "@dev.fast/trace-core";
+import type { ReviewInstanceSelection } from "@review/desktop-discovery.js";
 import { findReviewPackageRoot } from "@review/package-paths.js";
+import { desktopApplicationInstalled } from "@review/review-app-launcher.js";
 import {
   type ReviewServerDiscovery,
   headlessServerLockPath,
   readReviewServerDiscovery,
   readReviewServerHealth,
+  reviewServerStateDir,
 } from "@review/server-discovery.js";
 
 export interface EnsureBackgroundServerInput {
@@ -46,7 +49,10 @@ export async function ensureBackgroundServer(
     if (discovery)
       return { discovery, started: discovery.serverPid === child.pid };
 
-    if (child.error) throw child.error;
+    if (child.error)
+      throw new Error(
+        `Could not start the Whiteboard server: ${child.error.message}`,
+      );
 
     if (child.exited && (await headlessServerOwner(stateDir)) === undefined) {
       if (respawned) break;
@@ -62,6 +68,31 @@ export async function ensureBackgroundServer(
   throw new Error(
     `The Whiteboard server did not become ready${child.exited ? "" : ` within ${Math.round((input.timeoutMs ?? 15_000) / 1_000)} s; process ${child.pid} is still starting`}.${owner !== undefined && owner !== child.pid ? ` Process ${owner} holds its state directory without answering; \`whiteboard server stop\` ends it.` : ""} The end of ${logPath}:\n${await logTail(logPath, logStart)}`,
   );
+}
+
+export async function ensureServerWithoutDesktop(input: {
+  selection: ReviewInstanceSelection;
+  env: NodeJS.ProcessEnv;
+  desktopInstalled?: () => boolean;
+  cli?: readonly string[];
+}) {
+  const { selection, env } = input;
+
+  if (
+    selection.source !== "fallback" ||
+    selection.instances.length !== 0 ||
+    selection.problem ||
+    (input.desktopInstalled ?? (() => desktopApplicationInstalled({ env })))()
+  )
+    return undefined;
+
+  const { discovery } = await ensureBackgroundServer({
+    stateDir: reviewServerStateDir(env),
+    env,
+    cli: input.cli,
+  });
+
+  return discovery;
 }
 
 export async function headlessServerOwner(stateDir: string) {
@@ -96,24 +127,52 @@ export async function stopBackgroundServer(
   throw new Error(`The Whiteboard server (process ${serverPid}) did not stop.`);
 }
 
-interface ServerChild {
+interface DetachedChild {
   pid?: number;
   exited: boolean;
   error?: Error;
 }
 
-async function spawnServer(
+export async function spawnDetached(input: {
+  command: string;
+  args: readonly string[];
+  cwd: string;
+  env: NodeJS.ProcessEnv;
+  log: string;
+}) {
+  const log = await open(input.log, "a", 0o600);
+
+  const child = spawn(input.command, input.args, {
+    cwd: input.cwd,
+    detached: true,
+    env: input.env,
+    stdio: ["ignore", log.fd, log.fd],
+  });
+
+  const state: DetachedChild = { pid: child.pid, exited: false };
+
+  child.once("exit", () => (state.exited = true));
+  child.once("error", (error) => {
+    state.exited = true;
+    state.error = error;
+  });
+  child.unref();
+  await log.close();
+
+  return state;
+}
+
+function spawnServer(
   stateDir: string,
   logPath: string,
   input: EnsureBackgroundServerInput,
 ) {
-  const log = await open(logPath, "a", 0o600);
   const [command, ...cliArgs] = input.cli ?? currentCli();
   const env = input.env ?? process.env;
 
-  const child = spawn(
-    command!,
-    [
+  return spawnDetached({
+    command: command!,
+    args: [
       ...cliArgs,
       "server",
       "start",
@@ -123,40 +182,20 @@ async function spawnServer(
       input.startedBy ?? "cli",
       ...(input.args ?? []),
     ],
-    {
-      cwd: stateDir,
-      detached: true,
-      // Run from source, tsx finds the path aliases only through this.
-      env:
-        cliArgs.at(-1)?.endsWith(".ts") && !env.TSX_TSCONFIG_PATH
-          ? {
-              ...env,
-              TSX_TSCONFIG_PATH: path.join(
-                findReviewPackageRoot(import.meta.url),
-                "tsconfig.json",
-              ),
-            }
-          : env,
-      stdio: ["ignore", log.fd, log.fd],
-    },
-  );
-
-  const state: ServerChild = {
-    pid: child.pid,
-    exited: false,
-  };
-
-  child.once("exit", () => (state.exited = true));
-  child.once("error", (error) => {
-    state.exited = true;
-    state.error = new Error(
-      `Could not start the Whiteboard server: ${error.message}`,
-    );
+    cwd: stateDir,
+    // Run from source, tsx finds the path aliases only through this.
+    env:
+      cliArgs.at(-1)?.endsWith(".ts") && !env.TSX_TSCONFIG_PATH
+        ? {
+            ...env,
+            TSX_TSCONFIG_PATH: path.join(
+              findReviewPackageRoot(import.meta.url),
+              "tsconfig.json",
+            ),
+          }
+        : env,
+    log: logPath,
   });
-  child.unref();
-  await log.close();
-
-  return state;
 }
 
 function currentCli() {
