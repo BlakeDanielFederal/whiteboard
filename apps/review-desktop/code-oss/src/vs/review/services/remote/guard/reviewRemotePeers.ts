@@ -9,6 +9,7 @@ import { MainContext } from "../../../../workbench/api/common/extHost.protocol.j
 import { extHostCustomer, type IExtHostContext } from "../../../../workbench/services/extensions/common/extHostCustomers.js";
 import type { ProxyIdentifier } from "../../../../workbench/services/extensions/common/proxyIdentifier.js";
 import { ReviewRemoteCommands } from "./reviewRemoteCommandService.js";
+import { isReviewRemoteAuthority } from "./reviewRemoteGuard.js";
 import { ReviewRemoteOutputService } from "./reviewRemoteOutputService.js";
 import { ReviewRemoteQuickOpen } from "./reviewRemoteQuickOpen.js";
 import { ReviewRemoteTextEditors } from "./reviewRemoteTextEditors.js";
@@ -18,7 +19,7 @@ import { ReviewRemoteTreeViews } from "./reviewRemoteTreeViews.js";
 export class ReviewRemoteGuardedPeers extends Disposable {
 	constructor(context: IExtHostContext, @IInstantiationService instantiationService: IInstantiationService) {
 		super();
-		if (!context.remoteAuthority?.startsWith("whiteboard+")) return;
+		if (!isReviewRemoteAuthority(context.remoteAuthority)) return;
 		context.set(MainContext.MainThreadCommands, this._register(instantiationService.createInstance(ReviewRemoteCommands, context)));
 		context.set(MainContext.MainThreadOutputService, this._register(instantiationService.createInstance(ReviewRemoteOutputService, context)));
 		context.set(MainContext.MainThreadQuickOpen, this._register(instantiationService.createInstance(ReviewRemoteQuickOpen, context)));

@@ -78,3 +78,11 @@ test("the window's own extension host keeps upstream's peers", () => {
 	new InstantiationService(new ServiceCollection(), true).createInstance(ReviewRemoteGuardedPeers, local).dispose();
 	assert.equal(set.size, 0);
 });
+
+test("an authority that is not exactly a Whiteboard host's keeps upstream's peers, as its extension host does", () => {
+	for (const authority of ["Whiteboard+AAAA-1111", "whiteboard+a/b", "ssh-remote+x"]) {
+		const { context: other, set } = context(authority);
+		new InstantiationService(new ServiceCollection(), true).createInstance(ReviewRemoteGuardedPeers, other).dispose();
+		assert.equal(set.size, 0, authority);
+	}
+});
