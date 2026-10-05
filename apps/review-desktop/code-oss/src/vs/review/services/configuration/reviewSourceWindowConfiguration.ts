@@ -17,14 +17,17 @@ const SIDES: Record<ReviewSourceSide, string> = { live: 'Live source', base: 'Ba
 const PINNED = ['files.readonlyInclude', 'files.readonlyExclude'];
 const TITLE = 'window.title';
 
+export const REVIEW_SOURCE_TITLE_KEY = 'review.source.title';
+
 export interface ReviewSourceTitle {
 	readonly side: ReviewSourceSide;
 	readonly title: string;
+	readonly alias?: string;
 }
 
 export function isReviewSourceTitle(value: unknown): value is ReviewSourceTitle {
-	const { side, title } = (value ?? {}) as Partial<Record<keyof ReviewSourceTitle, unknown>>;
-	return typeof side === 'string' && Object.hasOwn(SIDES, side) && typeof title === 'string';
+	const { side, title, alias } = (value ?? {}) as Partial<Record<keyof ReviewSourceTitle, unknown>>;
+	return typeof side === 'string' && Object.hasOwn(SIDES, side) && typeof title === 'string' && (alias === undefined || typeof alias === 'string');
 }
 
 const within = (key: string, section: string) => key === section || key.startsWith(`${section}.`) || section.startsWith(`${key}.`);
