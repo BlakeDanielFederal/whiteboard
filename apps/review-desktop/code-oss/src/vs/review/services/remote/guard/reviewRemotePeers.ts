@@ -1,0 +1,25 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) dev.fast. All rights reserved.
+ *  Licensed under the MIT License. See LICENSE in the repository root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+import { Disposable } from "../../../../base/common/lifecycle.js";
+import { IInstantiationService } from "../../../../platform/instantiation/common/instantiation.js";
+import { MainContext } from "../../../../workbench/api/common/extHost.protocol.js";
+import { extHostCustomer, type IExtHostContext } from "../../../../workbench/services/extensions/common/extHostCustomers.js";
+import { ReviewRemoteCommands } from "./reviewRemoteCommandService.js";
+import { ReviewRemoteOutputService } from "./reviewRemoteOutputService.js";
+import { ReviewRemoteQuickOpen } from "./reviewRemoteQuickOpen.js";
+import { ReviewRemoteTreeViews } from "./reviewRemoteTreeViews.js";
+
+@extHostCustomer
+export class ReviewRemoteGuardedPeers extends Disposable {
+	constructor(context: IExtHostContext, @IInstantiationService instantiationService: IInstantiationService) {
+		super();
+		if (!context.remoteAuthority?.startsWith("whiteboard+")) return;
+		context.set(MainContext.MainThreadCommands, this._register(instantiationService.createInstance(ReviewRemoteCommands, context)));
+		context.set(MainContext.MainThreadOutputService, this._register(instantiationService.createInstance(ReviewRemoteOutputService, context)));
+		context.set(MainContext.MainThreadQuickOpen, this._register(instantiationService.createInstance(ReviewRemoteQuickOpen, context)));
+		context.set(MainContext.MainThreadTreeViews, this._register(instantiationService.createInstance(ReviewRemoteTreeViews, context)));
+	}
+}
