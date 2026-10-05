@@ -238,6 +238,7 @@ export function reviewRemoteScope(input: {
 	languageFeatures: ILanguageFeaturesService;
 	workspace: ReviewRemoteWorkspace;
 	resolver: IRemoteAuthorityResolverService;
+	ownFiles: IFileService;
 }, window: ServicesAccessor): ServiceCollection {
 	const { authority } = input;
 	const logService = window.get(ILogService);
@@ -253,7 +254,7 @@ export function reviewRemoteScope(input: {
 		[IRemoteAuthorityResolverService, input.resolver],
 		[IReviewRemoteRefusals, refusals],
 		[IReviewRemoteExtensions, { _serviceBrand: undefined, extensions: input.extensions }],
-		[IFileService, reviewRemoteFileService(window.get(IFileService), refusals)],
+		[IFileService, reviewRemoteFileService(window.get(IFileService), refusals, input.ownFiles)],
 		[ITextModelService, reviewRemoteTextModelService(window.get(ITextModelService), refusals)],
 		[ITextFileService, reviewRemoteTextFileService(window.get(ITextFileService), refusals)],
 		[IWorkingCopyFileService, reviewRemoteWorkingCopyFileService(window.get(IWorkingCopyFileService), refusals)],
