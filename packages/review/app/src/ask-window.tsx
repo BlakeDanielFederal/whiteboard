@@ -1,9 +1,9 @@
-import type { AskAgentId } from "@review/ask/thread-state";
 import * as stylex from "@stylexjs/stylex";
 import {
   type PointerEvent,
   type ReactElement,
   type ReactNode,
+  type Ref,
   type RefObject,
   useLayoutEffect,
   useRef,
@@ -17,7 +17,7 @@ import { useReviewDebugSettings } from "./debug-settings";
 import { ChatIcon, CloseIcon, DockIcon, GripIcon, MinusIcon } from "./icons";
 import { appMarker } from "./markers.stylex";
 import { useReviewPanel, useReviewPanelStore } from "./review-panel";
-import type { AskAnchor } from "./review-panel-model";
+import type { AskAnchor, AskPresence } from "./review-panel-model";
 import { useReviewContainer } from "./review-root-context";
 import { elevation, fontSize, radius } from "./scale.stylex";
 import { panelStyles } from "./side-panel-styles";
@@ -30,14 +30,7 @@ import { surfaceStyles } from "./ui/surface";
 import { textStyles } from "./ui/text";
 import { useTooltip } from "./use-tooltip";
 
-/** What the pill says about a conversation it stands in for. */
-export interface AskPresence {
-  /** Absent for the list of conversations, which has no one agent. */
-  agent?: AskAgentId;
-  agentName: string;
-  status: string;
-  tone: "quiet" | "waiting" | "failed";
-}
+export type { AskPresence };
 
 // Clear of the canvas's edges and of what is docked beside the pill.
 const GAP = 24;
@@ -119,11 +112,15 @@ export function AskSlot({ node }: { node: HTMLElement }): ReactElement {
 export function AskWindow({
   actions,
   titleAccessory,
+  onClose,
+  closeRef,
   children,
 }: {
   /** The conversation's own buttons, before dock, minimize and close. */
   actions: ReactNode;
   titleAccessory?: ReactNode;
+  onClose: () => void;
+  closeRef?: Ref<HTMLButtonElement>;
   children: ReactNode;
 }): ReactElement {
   const store = useReviewPanelStore();
@@ -295,9 +292,10 @@ export function AskWindow({
               />
             </IconButton>
             <IconButton
+              ref={closeRef}
               size="large"
               aria-label="Close Ask"
-              onClick={() => store.getState().closeAsk()}
+              onClick={onClose}
             >
               <CloseIcon xstyle={controlStyles.inertIcon} />
             </IconButton>
