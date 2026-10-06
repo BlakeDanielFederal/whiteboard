@@ -1,4 +1,5 @@
 import { Button } from "@canvas/ui/button";
+import { TextField } from "@canvas/ui/text-field";
 import type {
   ReviewGatewayHostState,
   ReviewRemoteHostsSettings,
@@ -145,8 +146,8 @@ export function RemoteHostsSection({
           </span>
         </div>
         <div {...stylex.props(styles.rowControl, local.actions)}>
-          <input
-            {...stylex.props(styles.input, local.alias)}
+          <TextField
+            xstyle={[styles.input, local.alias]}
             aria-label="SSH alias"
             list="remote-host-suggestions"
             value={alias}
