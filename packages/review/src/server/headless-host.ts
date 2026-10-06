@@ -12,6 +12,7 @@ import {
   reviewServerDiscoveryPath,
 } from "@review/server-discovery.js";
 
+import { ensureDiffrConfigMigrated } from "./diffr-config-migration.js";
 import { GlobalReviewDesktopVerbRelay } from "./global-verb-relay.js";
 import { createNodeRequestListener } from "./hono-http.js";
 import {
@@ -19,6 +20,7 @@ import {
   installProcessErrorTelemetry,
 } from "./process-error-telemetry.js";
 import { createWhiteboardCore } from "./review-server-core.js";
+import { diffrExecutable } from "./structural-diff.js";
 import type { ReviewTelemetryCapture } from "./ui-telemetry.js";
 
 interface HeadlessServerInput {
@@ -71,6 +73,8 @@ export function withHeadlessServerLock<T>(
 
 async function serve(input: HeadlessServerInput) {
   if (input.signal.aborted) return;
+
+  await ensureDiffrConfigMigrated(diffrExecutable(), process.env, input.signal);
 
   if (input.telemetry) await drainServerCrashReport(input.telemetry);
 

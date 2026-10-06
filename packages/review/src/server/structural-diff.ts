@@ -43,13 +43,7 @@ export async function* structuralDiff(
   input.signal.throwIfAborted();
   const comparison = input.comparison;
 
-  const args = [
-    "--repo",
-    input.repositoryPath,
-    "--format",
-    "ndjson",
-    "--stream-annotations",
-  ];
+  const args = ["--repo", input.repositoryPath, "--format", "ndjson"];
 
   switch (comparison.kind) {
     case "worktree":
@@ -102,7 +96,6 @@ export async function* structuralDiff(
   let completed = false;
   let aborted: StructuralProblem | undefined;
   let failed = 0;
-  let annotationFailed = false;
   const lines = createInterface({ input: child.stdout, crlfDelay: Infinity });
 
   try {
@@ -134,8 +127,6 @@ export async function* structuralDiff(
 
         failed = event.failed;
         aborted = event.aborted;
-      } else if (event.type === "annotations") {
-        annotationFailed ||= event.error !== undefined;
       } else if (event.type !== "file") {
         throw new Error(`Unexpected diffr event: ${event.type}`);
       }
@@ -150,13 +141,10 @@ export async function* structuralDiff(
       throw new Error("diffr stream ended before completion.");
     }
 
-    // diffr exits 2 for file or enrichment failures already reported by the stream.
+    // diffr exits 2 for file failures already reported by the stream.
     const code = await exited;
 
-    if (
-      code !== 0 &&
-      !(code === 2 && (failed > 0 || annotationFailed || aborted !== undefined))
-    )
+    if (code !== 0 && !(code === 2 && (failed > 0 || aborted !== undefined)))
       throw exitError(code);
   } finally {
     clearTimeout(idle);

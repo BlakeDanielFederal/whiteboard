@@ -114,7 +114,11 @@ const draft = {
   tests: true,
 };
 
-async function fakeDiffr(key = "", summarize: JsonObject = {}) {
+async function fakeDiffr(
+  key = "",
+  summarize: JsonObject = {},
+  classifier?: JsonObject,
+) {
   const root = await mkdtemp(path.join(tmpdir(), "review-diffr-config-"));
   roots.push(root);
 
@@ -125,19 +129,20 @@ async function fakeDiffr(key = "", summarize: JsonObject = {}) {
   await writeFile(
     state,
     JSON.stringify({
-      plugins: {
-        bundled: {
-          summarize: {
-            enabled: false,
-            provider: "gemini",
-            model: "old",
-            tests: false,
-            system_prompt: DEFAULT_PROMPT,
-            ...(key && { api_key: key }),
-            ...summarize,
-          },
-          context: { lines: 3, enabled: true },
+      version: 2,
+      ...(classifier && { classify: { classify: classifier } }),
+      // oxlint-disable-next-line anti-slop/no-shape-in-symbol-names -- Native diffr v2 config key.
+      shape: {
+        summarize: {
+          enabled: false,
+          provider: "gemini",
+          model: "old",
+          tests: false,
+          system_prompt: DEFAULT_PROMPT,
+          ...(key && { api_key: key }),
+          ...summarize,
         },
+        context: { lines: 3, enabled: true },
       },
     }),
   );
@@ -153,23 +158,24 @@ if (args[0] === 'config' && args[1] === 'schema' && process.env.FAIL_SCHEMA) {
   process.exit(2);
 } else if (args[0] === 'config' && args[1] === 'schema') {
   const summarize = ${JSON.stringify(SUMMARIZE_SCHEMA)};
-  console.log(JSON.stringify({ properties: { plugins: { properties: { bundled: { properties: { summarize } } } } } }));
+  // oxlint-disable-next-line anti-slop/no-shape-in-symbol-names -- Native diffr v2 config key.
+  console.log(JSON.stringify({ properties: { ${classifier ? 'classify: { properties: { classify: { properties: { hide: { default: ["generated", "vendored"] } } } } },' : ""} shape: { properties: { summarize } } } }));
 } else if (args[0] === 'config' && args[1] === 'show') {
-  if (!args.includes('--reveal') && config.plugins.bundled.summarize.api_key) config.plugins.bundled.summarize.api_key = '<redacted>';
+  if (!args.includes('--reveal') && config.shape.summarize.api_key) config.shape.summarize.api_key = '<redacted>';
   console.log(JSON.stringify(config));
 } else if (args[0] === 'config' && args[1] === 'set') {
   if (args[2] === process.env.FAIL_KEY) { console.error('command leaked secret: ' + args.join(' ')); process.exit(2); }
   const keys = args[2].split('.'); let object = config;
   for (const part of keys.slice(0,-1)) object = object[part];
   let value = args[3]; try { value = JSON.parse(value); } catch {}
-  // diffr 0.1.10 clears a provider's own settings when the provider changes.
+  // diffr clears a provider's own settings when the provider changes.
   if (process.env.FAKE_RESET && args[2].endsWith('.provider') && object.provider !== value) {
     for (const option of ['api_key', 'endpoint', 'model']) delete object[option];
   }
   object[keys.at(-1)] = value;
   fs.writeFileSync(state, JSON.stringify(config));
  } else if (!args.includes('--no-index')) {
-  console.log(JSON.stringify({type:'start',version:4,lhs:{type:'revision',rev:'base'},rhs:{type:'revision',rev:'head'},files:[]}));
+  console.log(JSON.stringify({type:'start',version:3,lhs:{type:'revision',rev:'base'},rhs:{type:'revision',rev:'head'},files:[]}));
   console.log(JSON.stringify({type:'complete',succeeded:0,failed:0}));
 } else {
   const temporary = require('node:path').join(process.env.XDG_CONFIG_HOME, 'diffr', 'config.toml');
@@ -181,7 +187,7 @@ if (args[0] === 'config' && args[1] === 'schema' && process.env.FAIL_SCHEMA) {
   if (mode === 'hang') { setTimeout(() => {}, 10000); }
   else {
     const file = {rhs:{path:'after.rs',oid:'',mode:''}};
-    console.log(JSON.stringify({type:'annotations',file,annotations:mode === 'empty' ? [] : [{region_id:1,label:'count positive values'}]}));
+    console.log(JSON.stringify({type:'file',file,diff:{type:'text',rhs:{text:'sample',root:{kind:'leaf',id:1,fold_state_id:1,alignment_id:1,start:{line:0,column:0},end:{line:0,column:6},visibility:mode === 'empty' ? undefined : {collapsed:true,label:'count positive values'}}},structural_changes:{base:[],head:[[0,1]]},stats:{textual:{added:1,removed:0},visible:{added:0,removed:0}}}}));
     console.log(JSON.stringify({type:'complete',succeeded:1,failed:0}));
   }
 }
@@ -189,6 +195,8 @@ if (args[0] === 'config' && args[1] === 'schema' && process.env.FAIL_SCHEMA) {
     { mode: 0o755 },
   );
   vi.stubEnv("REVIEW_DIFFR_BINARY", file);
+
+  vi.stubEnv("XDG_CONFIG_HOME", path.join(root, "xdg"));
 
   return {
     root,
@@ -218,15 +226,69 @@ test("detects host environment credentials and missing credentials", async () =>
   expect((await readDiffrConfig()).credentialSource).toBe("environment");
 });
 
+test("reads classifier values and schema defaults without old plugin keys", async () => {
+  await fakeDiffr(
+    "saved-secret",
+    {},
+    { hide: ["test", "custom"], hide_deleted: false },
+  );
+  const config = await readDiffrConfig();
+  expect(config.values).toMatchObject({
+    classify: { classify: { hide: ["test", "custom"], hide_deleted: false } },
+  });
+  expect(config.defaultHiddenTags).toEqual(["generated", "vendored"]);
+  expect(JSON.stringify(config)).not.toContain("saved-secret");
+});
+
+test("writes classifier values without changing credentials", async () => {
+  const fake = await fakeDiffr(
+    "saved-secret",
+    {},
+    { hide: ["custom"], hide_deleted: true },
+  );
+
+  expect(
+    (await setDiffrConfigValue("classify.classify.hide", ["custom"])).changed,
+  ).toBe(false);
+  await setDiffrConfigValue("classify.classify.hide", []);
+  await setDiffrConfigValue("classify.classify.hide_deleted", false);
+  const disabled = JSON.parse(await readFile(fake.state, "utf8"));
+  expect(disabled.classify.classify).toEqual({ hide: [], hide_deleted: false });
+  await setDiffrConfigValue("classify.classify.hide", ["custom"]);
+  const enabled = JSON.parse(await readFile(fake.state, "utf8"));
+  expect(enabled.classify.classify).toEqual({
+    hide: ["custom"],
+    hide_deleted: false,
+  });
+  expect(enabled.shape.summarize.api_key).toBe("saved-secret");
+  expect(enabled.shape["hide-files"]).toBeUndefined();
+});
+
+test("writes the native path of a custom classifier whose name contains spaces", async () => {
+  const fake = await fakeDiffr("saved-secret", {}, { hide: ["team"] });
+  const state = JSON.parse(await readFile(fake.state, "utf8"));
+  state.classify = { "team classifier": state.classify.classify };
+  await writeFile(fake.state, JSON.stringify(state));
+
+  const result = await setDiffrConfigValue("classify.team classifier.hide", []);
+  expect(result.error).toBeUndefined();
+  expect(result.values).toMatchObject({
+    classify: { "team classifier": { hide: [] } },
+  });
+  expect(Object.keys(result.values.classify!)).toEqual(["team classifier"]);
+  expect(JSON.stringify(result)).not.toContain("saved-secret");
+});
+
 test("writes a setting, rereads it, and avoids invalidation for a no-op", async () => {
   await fakeDiffr();
-  expect(
-    (await setDiffrConfigValue("plugins.bundled.context.lines", 3)).changed,
-  ).toBe(false);
-  const result = await setDiffrConfigValue("plugins.bundled.context.lines", 8);
+  expect((await setDiffrConfigValue("shape.context.lines", 3)).changed).toBe(
+    false,
+  );
+  const result = await setDiffrConfigValue("shape.context.lines", 8);
   expect(result).toMatchObject({
     changed: true,
-    values: { plugins: { bundled: { context: { lines: 8 } } } },
+    // oxlint-disable-next-line anti-slop/no-shape-in-symbol-names -- Native diffr v2 config key.
+    values: { shape: { context: { lines: 8 } } },
   });
 });
 
@@ -236,13 +298,12 @@ test("saves credentials and options before enabling and preserves blank keys", a
   const writes = (await fake.calls()).filter((args) => args[1] === "set");
   expect(writes.map((args) => args[2])).toEqual(
     ["api_key", "model", "tests", "enabled"].map(
-      (key) => `plugins.bundled.summarize.${key}`,
+      (key) => `shape.summarize.${key}`,
     ),
   );
   await saveDiffrSummarizer({ ...draft, apiKey: "" });
   expect(
-    JSON.parse(await readFile(fake.state, "utf8")).plugins.bundled.summarize
-      .api_key,
+    JSON.parse(await readFile(fake.state, "utf8")).shape.summarize.api_key,
   ).toBe("test-secret");
 });
 
@@ -251,7 +312,7 @@ test("disables first and serializes concurrent saves", async () => {
   await saveDiffrSummarizer(draft);
   await Promise.all([
     saveDiffrSummarizer({ ...draft, enabled: false, model: "next" }),
-    setDiffrConfigValue("plugins.bundled.context.lines", 9),
+    setDiffrConfigValue("shape.context.lines", 9),
   ]);
 
   const writes = (await fake.calls())
@@ -259,27 +320,28 @@ test("disables first and serializes concurrent saves", async () => {
     .slice(-3);
 
   expect(writes.map((args) => args[2])).toEqual([
-    "plugins.bundled.summarize.enabled",
-    "plugins.bundled.summarize.model",
-    "plugins.bundled.context.lines",
+    "shape.summarize.enabled",
+    "shape.summarize.model",
+    "shape.context.lines",
   ]);
 });
 
 test("partial failure returns current values and invalidates without leaking the key", async () => {
   await fakeDiffr();
-  vi.stubEnv("FAIL_KEY", "plugins.bundled.summarize.model");
+  vi.stubEnv("FAIL_KEY", "shape.summarize.model");
   const result = await saveDiffrSummarizer({ ...draft, apiKey: "test-secret" });
   expect(result.changed).toBe(true);
   expect(result.error).toContain("Some settings were saved");
   expect(result.values).toMatchObject({
-    plugins: { bundled: { summarize: { enabled: false, model: "old" } } },
+    // oxlint-disable-next-line anti-slop/no-shape-in-symbol-names -- Native diffr v2 config key.
+    shape: { summarize: { enabled: false, model: "old" } },
   });
   expect(JSON.stringify(result)).not.toContain("test-secret");
 });
 
 test("failed key saves do not leak args or stderr and do not invalidate", async () => {
   await fakeDiffr();
-  vi.stubEnv("FAIL_KEY", "plugins.bundled.summarize.api_key");
+  vi.stubEnv("FAIL_KEY", "shape.summarize.api_key");
   const result = await saveDiffrSummarizer({ ...draft, apiKey: "test-secret" });
   expect(result.changed).toBe(false);
   expect(result.error).toBeDefined();
@@ -380,12 +442,12 @@ test("saved changes invalidate cached comparisons while no-op saves reuse them",
 
   try {
     await consume();
-    await setDiffrConfigValue("plugins.bundled.context.lines", 3);
+    await setDiffrConfigValue("shape.context.lines", 3);
     await consume();
     expect(
       (await fake.calls()).filter((args) => args[0] === "--repo"),
     ).toHaveLength(1);
-    await setDiffrConfigValue("plugins.bundled.context.lines", 8);
+    await setDiffrConfigValue("shape.context.lines", 8);
     await consume();
     expect(
       (await fake.calls()).filter((args) => args[0] === "--repo"),
@@ -414,7 +476,7 @@ test("saves a changed prompt and leaves an unchanged one alone", async () => {
     systemPrompt: "Be terse.",
   });
   expect(
-    JSON.parse(await readFile(fake.state, "utf8")).plugins.bundled.summarize
+    JSON.parse(await readFile(fake.state, "utf8")).shape.summarize
       .system_prompt,
   ).toBe("Be terse.");
 });
@@ -423,7 +485,7 @@ test("switching providers clears the saved key unless a new one is entered", asy
   const fake = await fakeDiffr("gemini-secret");
 
   const state = async () =>
-    JSON.parse(await readFile(fake.state, "utf8")).plugins.bundled.summarize;
+    JSON.parse(await readFile(fake.state, "utf8")).shape.summarize;
 
   await saveDiffrSummarizer({
     ...draft,
@@ -502,7 +564,7 @@ test("reads the environment key of the saved provider", async () => {
 
 test("a switch clears the saved key before naming the new provider", async () => {
   const fake = await fakeDiffr("gemini-secret");
-  vi.stubEnv("FAIL_KEY", "plugins.bundled.summarize.provider");
+  vi.stubEnv("FAIL_KEY", "shape.summarize.provider");
 
   const result = await saveDiffrSummarizer({
     ...draft,
@@ -512,8 +574,7 @@ test("a switch clears the saved key before naming the new provider", async () =>
 
   expect(result.error).toBeDefined();
 
-  const state = JSON.parse(await readFile(fake.state, "utf8")).plugins.bundled
-    .summarize;
+  const state = JSON.parse(await readFile(fake.state, "utf8")).shape.summarize;
 
   // The failure left the old provider, and no key for it to send.
   expect(state).toMatchObject({ provider: "gemini", api_key: "" });
@@ -525,7 +586,7 @@ test("a new endpoint is treated like a new provider", async () => {
   await expect(testDiffrSummarizer(moved)).rejects.toThrow("Add an API key");
   await saveDiffrSummarizer({ ...moved, enabled: false });
   expect(
-    JSON.parse(await readFile(fake.state, "utf8")).plugins.bundled.summarize,
+    JSON.parse(await readFile(fake.state, "utf8")).shape.summarize,
   ).toMatchObject({ api_key: "", endpoint: "https://proxy.example/v1" });
 });
 
@@ -619,7 +680,7 @@ test("a custom endpoint kept across a provider switch survives diffr clearing it
     apiKey: "openai-key",
   });
   expect(
-    JSON.parse(await readFile(fake.state, "utf8")).plugins.bundled.summarize,
+    JSON.parse(await readFile(fake.state, "utf8")).shape.summarize,
   ).toMatchObject({
     provider: "openai",
     endpoint: "https://gateway.example/v1",

@@ -1,5 +1,6 @@
 import { Button } from "@canvas/ui/button";
 import { TextField, fieldStyles } from "@canvas/ui/text-field";
+import { isBooleanValue, isStringValue } from "@dev.fast/json";
 import {
   type JsonValue,
   type ReviewDiffrConfig,
@@ -13,15 +14,38 @@ import { type ReactNode, useEffect, useRef, useState } from "react";
 import { Choice } from "./settings-choice";
 import { settingsStyles as styles } from "./settings-styles";
 
-const displaySettings = [
-  ["context.enabled", "Collapse unchanged lines"],
-  ["test-bodies.enabled", "Collapse test bodies"],
-  ["deleted-bodies.enabled", "Collapse deleted function bodies"],
-  ["removed-runs.enabled", "Collapse long removed stretches"],
-  ["group.enabled", "Group adjacent folds"],
-  ["hide-files.enabled", "Hide files by tag"],
-  ["hide-files.deleted", "Hide deleted files"],
+const foldSettings = [
+  ["shape.context.enabled", "Collapse unchanged lines"],
+  ["shape.test-bodies.enabled", "Collapse test bodies"],
+  ["shape.deleted-bodies.enabled", "Collapse deleted function bodies"],
+  ["shape.removed-runs.enabled", "Collapse long removed stretches"],
 ] as const;
+
+type DisplaySetting = readonly [key: string, label: string];
+
+function classifierPrefix(config: ReviewDiffrConfig): string | undefined {
+  const entries = config.values.classify;
+
+  if (!isJsonObject(entries)) return;
+  const names = Object.keys(entries);
+
+  if (names.length === 1) return `classify.${names[0]}`;
+}
+
+function displaySettings(config: ReviewDiffrConfig): DisplaySetting[] {
+  const settings: DisplaySetting[] = [...foldSettings];
+  const prefix = classifierPrefix(config);
+
+  if (!prefix) return settings;
+
+  if (Array.isArray(setting(config, `${prefix}.hide`)))
+    settings.push([`${prefix}.hide`, "Hide files by tag"]);
+
+  if (isBooleanValue(setting(config, `${prefix}.hide_deleted`)))
+    settings.push([`${prefix}.hide_deleted`, "Hide deleted files"]);
+
+  return settings;
+}
 
 function setting(
   config: ReviewDiffrConfig,
@@ -29,14 +53,14 @@ function setting(
 ): JsonValue | undefined {
   let value: JsonValue | undefined = config.values;
 
-  for (const part of `plugins.bundled.${key}`.split("."))
+  for (const part of key.split("."))
     value = isJsonObject(value) ? value[part] : undefined;
 
   return value;
 }
 
 function provider(config: ReviewDiffrConfig): string {
-  return String(setting(config, "summarize.provider") ?? "");
+  return String(setting(config, "shape.summarize.provider") ?? "");
 }
 
 /** The provider diffr describes as `id`, if any. */
@@ -50,14 +74,16 @@ function title(config: ReviewDiffrConfig, id: string): string {
 
 function summaryDraft(config: ReviewDiffrConfig): ReviewDiffrSummarizerInput {
   return {
-    enabled: setting(config, "summarize.enabled") === true,
+    enabled: setting(config, "shape.summarize.enabled") === true,
     provider: provider(config),
-    model: String(setting(config, "summarize.model") ?? ""),
-    endpoint: String(setting(config, "summarize.endpoint") ?? ""),
+    model: String(setting(config, "shape.summarize.model") ?? ""),
+    endpoint: String(setting(config, "shape.summarize.endpoint") ?? ""),
     systemPrompt: String(
-      setting(config, "summarize.system_prompt") ?? config.defaultPrompt ?? "",
+      setting(config, "shape.summarize.system_prompt") ??
+        config.defaultPrompt ??
+        "",
     ),
-    tests: setting(config, "summarize.tests") === true,
+    tests: setting(config, "shape.summarize.tests") === true,
     apiKey: "",
   };
 }
@@ -74,6 +100,7 @@ export function DiffrConfigSection({
   const [draft, setDraft] = useState<ReviewDiffrSummarizerInput>();
   const [busy, setBusy] = useState(false);
   const pending = useRef(false);
+  const rememberedTags = useRef<string[] | undefined>(undefined);
   const [error, setError] = useState<string>();
   const [summary, setSummary] = useState<string>();
   const [changed, setChanged] = useState(false);
@@ -85,6 +112,7 @@ export function DiffrConfigSection({
     actions.read().then(
       (result) => {
         if (cancelled) return;
+        rememberTags(result);
         setConfig(result);
         setDraft(summaryDraft(result));
       },
@@ -121,7 +149,16 @@ export function DiffrConfigSection({
     }
   }
 
+  function rememberTags(result: ReviewDiffrConfig) {
+    const prefix = classifierPrefix(result);
+    const tags = prefix ? setting(result, `${prefix}.hide`) : undefined;
+
+    if (Array.isArray(tags) && tags.length)
+      rememberedTags.current = tags.filter(isStringValue);
+  }
+
   function saved(result: ReviewDiffrConfig) {
+    rememberTags(result);
     setConfig(result);
 
     if (result.changed) setChanged(true);
@@ -134,11 +171,14 @@ export function DiffrConfigSection({
     JSON.stringify(draft) !== JSON.stringify(summaryDraft(config));
 
   const unavailable =
-    !config || setting(config, "summarize.enabled") === undefined;
+    !config || setting(config, "shape.summarize.enabled") === undefined;
 
   const summaryValid = !!draft?.model.trim();
   const savedDraft = config && summaryDraft(config);
-  const hiddenTags = config ? setting(config, "hide-files.tags") : undefined;
+  const classifier = config && classifierPrefix(config);
+  const hideKey = classifier ? `${classifier}.hide` : undefined;
+
+  const hiddenTags = config && hideKey ? setting(config, hideKey) : undefined;
 
   return (
     <div {...stylex.props(styles.diffr)}>
@@ -158,23 +198,30 @@ export function DiffrConfigSection({
             {config && (
               <>
                 <h3>Display</h3>
-                {displaySettings.map(([key, label]) => (
+                {displaySettings(config).map(([key, label]) => (
                   <div key={key}>
                     <SettingRow label={label}>
                       <input
                         type="checkbox"
                         aria-label={label}
-                        checked={setting(config, key) === true}
+                        checked={
+                          key === hideKey
+                            ? Array.isArray(hiddenTags) && hiddenTags.length > 0
+                            : setting(config, key) === true
+                        }
                         disabled={busy || setting(config, key) === undefined}
                         onChange={(event) => {
-                          const value = event.target.checked;
+                          const value =
+                            key === hideKey
+                              ? event.target.checked
+                                ? (rememberedTags.current ??
+                                  config.defaultHiddenTags ??
+                                  [])
+                                : []
+                              : event.target.checked;
+
                           void run(async () =>
-                            saved(
-                              await actions.set(
-                                `plugins.bundled.${key}`,
-                                value,
-                              ),
-                            ),
+                            saved(await actions.set(key, value)),
                           );
                         }}
                       />
@@ -184,30 +231,26 @@ export function DiffrConfigSection({
                         Not available in this configuration.
                       </p>
                     )}
-                    {key === "context.enabled" && (
+                    {key === "shape.context.enabled" && (
                       <SettingRow label="Context lines">
                         <ContextLines
-                          value={setting(config, "context.lines")}
+                          value={setting(config, "shape.context.lines")}
                           disabled={busy || setting(config, key) !== true}
                           commit={(value) =>
                             void run(async () =>
                               saved(
-                                await actions.set(
-                                  "plugins.bundled.context.lines",
-                                  value,
-                                ),
+                                await actions.set("shape.context.lines", value),
                               ),
                             )
                           }
                         />
                       </SettingRow>
                     )}
-                    {key === "hide-files.enabled" &&
-                      Array.isArray(hiddenTags) && (
-                        <p {...stylex.props(styles.rowDescription)}>
-                          Tags: {hiddenTags.join(", ")}
-                        </p>
-                      )}
+                    {key === hideKey && Array.isArray(hiddenTags) && (
+                      <p {...stylex.props(styles.rowDescription)}>
+                        Tags: {hiddenTags.join(", ")}
+                      </p>
+                    )}
                   </div>
                 ))}
                 <h3>AI summaries</h3>

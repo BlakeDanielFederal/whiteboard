@@ -12,6 +12,10 @@ export default defineConfig({
         os.tmpdir(),
         `progressive-review-tests-${process.pid}`,
       ),
+      XDG_CONFIG_HOME: path.join(
+        os.tmpdir(),
+        `progressive-review-config-tests-${process.pid}`,
+      ),
       // GitHub Actions exports the repository slug, which the trace code
       // honors over a checkout's remote; scratch repositories in tests must
       // resolve to their own remotes.

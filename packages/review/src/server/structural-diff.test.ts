@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 
 import type { JsonValue } from "@dev.fast/json";
+import { STRUCTURAL_DIFF_WIRE_VERSION } from "@dev.fast/review-protocol";
 import { afterEach, expect, test, vi } from "vitest";
 
 import { type StructuralDiffRequest, structuralDiff } from "./structural-diff";
@@ -23,13 +24,14 @@ async function executable(script: string) {
   const file = path.join(root, "diffr");
   await writeFile(file, `#!${process.execPath}\n${script}`, { mode: 0o755 });
   vi.stubEnv("REVIEW_DIFFR_BINARY", file);
+  vi.stubEnv("XDG_CONFIG_HOME", path.join(root, "config"));
 
   return root;
 }
 
 const START = {
   type: "start",
-  version: 4,
+  version: STRUCTURAL_DIFF_WIRE_VERSION,
   lhs: { type: "revision", rev: "base" },
   rhs: { type: "revision", rev: "head" },
   files: [
@@ -92,7 +94,6 @@ test.each(["trees", "merge-base"] as const)(
       root,
       "--format",
       "ndjson",
-      "--stream-annotations",
       ...(kind === "trees" ? ["base", "head"] : ["base...head"]),
       "--",
       "space name.ts",
@@ -185,7 +186,7 @@ test("streams a large comparison without treating accumulated file bytes as one 
       for (const { file } of files) await write({
         type: 'file', file,
         diff: {
-          type: 'text', rhs: { text: 'x'.repeat(1024 * 1024), regions: [] },
+          type: 'text', rhs: { text: 'x'.repeat(1024 * 1024), root: {kind:'leaf',id:1,fold_state_id:1,alignment_id:1,start:{line:0,column:0},end:{line:0,column:1024*1024}} },
           structural_changes: { base: [], head: [[0, 1]] },
           stats: { textual: { added: 1, removed: 0 }, visible: { added: 1, removed: 0 } },
         },
@@ -313,57 +314,6 @@ test("rendering and coverage share a stream; cancelling one reader preserves the
     }
 
     expect(await readFile(path.join(root, "runs"), "utf8")).toBe("xx");
-  } finally {
-    cache.close();
-  }
-});
-
-test("annotation failure is data, preserves files, and explains exit 2", async () => {
-  const annotation = {
-    type: "annotations",
-    file: FILE,
-    annotations: [],
-    error: { code: "enrichment_failed", message: "offline" },
-  };
-
-  const root = await executable(
-    `${emit(START)} ${emit(BINARY)} ${emit(annotation)} ${emit(COMPLETE)} process.exitCode = 2;`,
-  );
-
-  expect(await collect(request(root))).toEqual([
-    START,
-    BINARY,
-    annotation,
-    COMPLETE,
-  ]);
-});
-
-test("coverage can detach after initial files while summaries continue for later readers", async () => {
-  const { StructuralComparisons } = await import("./structural-comparisons.js");
-
-  const annotation = {
-    type: "annotations",
-    file: FILE,
-    annotations: [{ region_id: 1, label: "summary" }],
-  };
-
-  const root = await executable(`
-    require('node:fs').appendFileSync('runs', 'x');
-    ${emit(START)} ${emit(BINARY)}
-    const timer = setInterval(() => { if(require('node:fs').existsSync('continue')) { clearInterval(timer); ${emit(annotation)} ${emit(COMPLETE)} } }, 10);
-  `);
-
-  const cache = new StructuralComparisons();
-
-  try {
-    for await (const event of cache.stream(request(root)))
-      if (event.type === "file") break;
-    await writeFile(path.join(root, "continue"), "");
-    const events = [];
-
-    for await (const event of cache.stream(request(root))) events.push(event);
-    expect(events).toEqual([START, BINARY, annotation, COMPLETE]);
-    expect(await readFile(path.join(root, "runs"), "utf8")).toBe("x");
   } finally {
     cache.close();
   }

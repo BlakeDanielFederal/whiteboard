@@ -62,6 +62,7 @@ import {
   setDiffrConfigValue,
   testDiffrSummarizer,
 } from "./diffr-config";
+import { ensureDiffrConfigMigrated } from "./diffr-config-migration.js";
 import {
   GlobalReviewDesktopVerbRelay,
   type ReviewDesktopVerbRelay,
@@ -73,6 +74,7 @@ import { reviewLifecycleTelemetry } from "./review-lifecycle-telemetry";
 import { ReviewOpenWatchdog } from "./review-open-watchdog";
 import { createWhiteboardCore, serverJson } from "./review-server-core";
 import { invalidateStructuralComparisons } from "./structural-comparisons.js";
+import { diffrExecutable } from "./structural-diff.js";
 import { createTutorialService } from "./tutorial-service";
 import { captureSanitizedUiTelemetry } from "./ui-telemetry";
 
@@ -567,6 +569,7 @@ export function createGlobalReviewServer(
       return urlForBoundPort();
     },
     listen: async () => {
+      await ensureDiffrConfigMigrated(diffrExecutable());
       scratchpadEnabled = await readScratchpadEnabled();
       boundPort = await listen(httpServer, input.port);
       discovery.url = urlForBoundPort();

@@ -79,7 +79,7 @@ export function structuralContextScopes(diff: StructuralTextDiff) {
 			}
 			region.children.forEach(visit);
 		};
-		source?.regions?.forEach(visit);
+		if (source) visit(source.root);
 		return result;
 	};
 	return { original: scopes(diff.lhs), modified: scopes(diff.rhs) };
@@ -120,7 +120,7 @@ export function structuralHighlights(diff: StructuralTextDiff) {
 			for (let line = start; line < end; line++) changedLines.push(line + 1);
 		}
 		const spans = [];
-		for (const leaf of structuralLeaves(source.regions)) {
+		for (const leaf of structuralLeaves([source.root])) {
 			for (const span of leaf.changed ?? []) {
 				spans.push({
 					startLineNumber: span.line + 1,
@@ -270,8 +270,8 @@ export function structuralContextGaps(
 		for (let index = first; index <= last; index++) if (rows[index][other] !== null) count++;
 		return { start: before + 2, count };
 	};
-	const lhs = knownRegions(diff.lhs?.regions, state);
-	const rhs = knownRegions(diff.rhs?.regions, state);
+	const lhs = knownRegions(diff.lhs ? [diff.lhs.root] : undefined, state);
+	const rhs = knownRegions(diff.rhs ? [diff.rhs.root] : undefined, state);
 	// Leaves pair by alignment; folds pair by fold state, the only identity they share across sides.
 	const usedRhs = new Set<StructuralRegion>();
 	const pairs = (left: StructuralRegion, right: StructuralRegion) => {

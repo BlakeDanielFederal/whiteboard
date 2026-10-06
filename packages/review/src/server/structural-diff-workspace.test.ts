@@ -73,18 +73,22 @@ const {execFileSync} = require('node:child_process');
 const args = process.argv.slice(2);
 const repo = args[args.indexOf('--repo') + 1];
 const revisions = args
-  .slice(args.indexOf('ndjson') + 1, args.indexOf('--'))
-  .filter(arg => arg !== '--stream-annotations');
+  .slice(args.indexOf('ndjson') + 1, args.indexOf('--'));
 const range = revisions.length === 1 ? revisions[0].split('...') : revisions;
 const file = args[args.indexOf('--') + 1];
-const read = rev => execFileSync('git', ['-C', repo, 'show', rev + ':' + file], {encoding:'utf8'});
-console.log(JSON.stringify({type:'start',version:4,lhs:{type:'revision',rev:range[0]},rhs:{type:'revision',rev:range[1]},files:[{file:{rhs:{path:file,oid:range[1],mode:'100644'}},status:'modified'}]}));
-console.log(JSON.stringify({type:'file',file:{rhs:{path:file,oid:range[1],mode:'100644'}},diff:{type:'text',lhs:{text:read(range[0])},rhs:{text:read(range[1])},stats:{textual:{added:1,removed:1},visible:{added:1,removed:1}},structural_changes:{base:[[0,1]],head:[[0,1]]}}}));
+const read = rev => {
+  const text = execFileSync('git', ['-C', repo, 'show', rev + ':' + file], {encoding:'utf8'});
+  const lines = text.split('\\n');
+  return {text,root:{kind:'leaf',id:1,fold_state_id:1,alignment_id:1,start:{line:0,column:0},end:{line:lines.length-1,column:lines.at(-1).length}}};
+};
+console.log(JSON.stringify({type:'start',version:3,lhs:{type:'revision',rev:range[0]},rhs:{type:'revision',rev:range[1]},files:[{file:{rhs:{path:file,oid:range[1],mode:'100644'}},status:'modified'}]}));
+console.log(JSON.stringify({type:'file',file:{rhs:{path:file,oid:range[1],mode:'100644'}},diff:{type:'text',lhs:read(range[0]),rhs:read(range[1]),stats:{textual:{added:1,removed:1},visible:{added:1,removed:1}},structural_changes:{base:[[0,1]],head:[[0,1]]}}}));
 console.log(JSON.stringify({type:'complete',succeeded:1,failed:0}));
 `,
       { mode: 0o755 },
     );
     vi.stubEnv("REVIEW_DIFFR_BINARY", executable);
+    vi.stubEnv("XDG_CONFIG_HOME", path.join(root, "config"));
     const local = openLocalReviewStore(path.join(root, "reviews.db"));
 
     try {

@@ -30,10 +30,10 @@ function leaf(id: number, start: number, end: number, extra: Partial<StructuralL
 }
 function fold(id: number, children: StructuralRegion[], tags: string[] = ["context:body"]): StructuralFold {
 	const first = children[0], last = children[children.length - 1];
-	return { id, fold_state_id: id, kind: "fold", start: first.start, end: last.end, tags, children };
+	return { id, fold_state_id: id, kind: "fold", indent: first.start, start: first.start, end: last.end, tags, children };
 }
 function text(lines: string[], regions: StructuralRegion[]) {
-	return { text: lines.join("\n") + "\n", regions };
+	return { text: lines.join("\n") + "\n", root: {kind: "fold" as const, id: 1000, fold_state_id: 1000, start: {line: 0, column: 0}, end: {line: lines.length, column: 0}, indent: {line: 0, column: 0}, children: regions} };
 }
 const stats = { textual: { added: 0, removed: 0 }, visible: { added: 0, removed: 0 } };
 

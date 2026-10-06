@@ -257,7 +257,6 @@ export async function smokeWindows(app, evidence) {
             repository,
             "--format",
             "ndjson",
-            "--stream-annotations",
             base,
             head,
             "--",

@@ -6,6 +6,12 @@ settings:
 
 catalogs:
   default:
+    '@dev.fast/diffr':
+      specifier: 0.1.12
+      version: 0.1.12
+    toml-eslint-parser:
+      specifier: ^1.0.3
+      version: 1.0.3
     zod:
       specifier: 4.6.5
       version: 4.6.5
@@ -51,8 +57,8 @@ importers:
         version: link:../../packages/review
     devDependencies:
       '@dev.fast/diffr':
-        specifier: 0.1.11
-        version: 0.1.11(zod@4.6.5)
+        specifier: 'catalog:'
+        version: 0.1.12(zod@4.6.5)
       '@dev.fast/review-canvas':
         specifier: workspace:*
         version: link:../../packages/review/app
@@ -120,8 +126,8 @@ importers:
         specifier: 1.5.1
         version: 1.5.1(zod@4.6.5)
       '@dev.fast/diffr':
-        specifier: 0.1.11
-        version: 0.1.11(zod@4.6.5)
+        specifier: 'catalog:'
+        version: 0.1.12(zod@4.6.5)
       '@hono/node-server':
         specifier: 2.0.12
         version: 2.0.12(hono@4.13.5)
@@ -167,6 +173,9 @@ importers:
       smol-toml:
         specifier: 1.8.0
         version: 1.8.0
+      toml-eslint-parser:
+        specifier: 'catalog:'
+        version: 1.0.3
       zod:
         specifier: 'catalog:'
         version: 4.6.5
@@ -217,8 +226,8 @@ importers:
   packages/review-protocol:
     dependencies:
       '@dev.fast/diffr':
-        specifier: 0.1.11
-        version: 0.1.11(zod@4.6.5)
+        specifier: 'catalog:'
+        version: 0.1.12(zod@4.6.5)
       '@dev.fast/json':
         specifier: workspace:*
         version: link:../json
@@ -554,35 +563,35 @@ packages:
     resolution: {integrity: sha512-QxULHAm7cNu72w97JUNCBFODFaXpbDg+dP8b/oWFAZ2MTRppA3U00Y2L1HqaS4J6yBqxwa/Y3nMBaxVKbB/NsA==}
     engines: {node: '>=20.19.0'}
 
-  '@dev.fast/diffr-darwin-arm64@0.1.11':
-    resolution: {integrity: sha512-GcjoOlroyk1gRnHorpxHERooHq41YUBsr84ZHj71yCdQmih6WRGgFBJsSfmXoiie4GRO/kbRgL5tP1ubJhFFUQ==}
+  '@dev.fast/diffr-darwin-arm64@0.1.12':
+    resolution: {integrity: sha512-x7MlUSQ467hE2u19shRZjFonxK1oXat/SRcakJ/hNIM/w5YH0+Sb8UqB2GUwcGXXkqoVQCjN25Kr52O/qmG3hQ==}
     cpu: [arm64]
     os: [darwin]
 
-  '@dev.fast/diffr-darwin-x64@0.1.11':
-    resolution: {integrity: sha512-nQ9kj7fsy8U7Xj5QH2ZBUB9ie/htfzi0X6nVh/6/VlQUJqFWe0CnsyAx/R5k/oNH129n9BnOvzJXMDtv1gTbCg==}
+  '@dev.fast/diffr-darwin-x64@0.1.12':
+    resolution: {integrity: sha512-CuH9D/ETnHA5nVPDgqTxk2nC1Esgn7aNqlLkHdAPkaaTUCV+kwxGcIhr7ldIFAE86f2MWiQ7rDFf49avfV+RmQ==}
     cpu: [x64]
     os: [darwin]
 
-  '@dev.fast/diffr-linux-arm64@0.1.11':
-    resolution: {integrity: sha512-+K8nTmVkc2wVY4lKy6UoH+Sv7rIqbh43w5YqVyiXThHYPd6qY1/jqbtcNhAELeUfPb4S7u1PCAQDK0/u+Pluow==}
+  '@dev.fast/diffr-linux-arm64@0.1.12':
+    resolution: {integrity: sha512-3aNF+7mygPJAPmrWiUP6V8oJ6VBLG9f6Dyk/79Q6+y7e8qh4K1LyCZi2tspIGnQ1ZKw19Q7OUZPBFKv6MOYyyQ==}
     cpu: [arm64]
     os: [linux]
     libc: [glibc]
 
-  '@dev.fast/diffr-linux-x64@0.1.11':
-    resolution: {integrity: sha512-gZrI3C8BubT/q/SnMF85SjQUJU5dXLiLkNZsYy/q4xilOT+muv7i7eRw808771bQ8lgWanBfDNLx0cq3XY/5BA==}
+  '@dev.fast/diffr-linux-x64@0.1.12':
+    resolution: {integrity: sha512-J/jcMBLXLTUvITYoXf3IZqjmknUKJp0aDk0xh5txsYXp5IdPhzX8uSbViXuIE/oMpFx6u0ElayBoilEaioFSmg==}
     cpu: [x64]
     os: [linux]
     libc: [glibc]
 
-  '@dev.fast/diffr-win32-x64@0.1.11':
-    resolution: {integrity: sha512-WHE1daqKnF7Uo/NqvevSEB7IiWWIsFHvYehujwaMWM+5GpJNtz/rI8o9aWGrf1mDcICQwTAaAw3QhZHDY31faw==}
+  '@dev.fast/diffr-win32-x64@0.1.12':
+    resolution: {integrity: sha512-kzhjzEouKwg44UCfWZ1cD2bCvyhKc3uPB8UdgvGJiNburQWBiSnuJR010zIYUk1lVO2T4ruoRKSChF+ha4/igQ==}
     cpu: [x64]
     os: [win32]
 
-  '@dev.fast/diffr@0.1.11':
-    resolution: {integrity: sha512-bG7zvvv5MaWIisUarPuOrTb8KI87HGemhci8sMdsVMJ5bCFN5Ml6D57iOMqzwsGMwZqbWJ8ViHVZzb9f6RAA1g==}
+  '@dev.fast/diffr@0.1.12':
+    resolution: {integrity: sha512-k5eeAhx1roIXS28j0pxMsEwVNWlm0OUAKfEFNeFp96DazYJ0yCM2MY8/1M4s6mkiyzNtEpRV/aYl9qmuLi8M8Q==}
     engines: {node: '>=20'}
     peerDependencies:
       zod: ^4.0.0
@@ -2047,6 +2056,10 @@ packages:
     resolution: {integrity: sha512-/veY75JbMK4j1yjvuUxuVsiS/hr/4iHs9FTT6cgTexxdE0Ly/glccBAkloH/DofkjRbZU3bnoj38mOmhkZ0lHw==}
     engines: {node: '>=12'}
 
+  eslint-visitor-keys@5.0.1:
+    resolution: {integrity: sha512-tD40eHxA35h0PEIZNeIjkHoDR4YjjJp34biM0mDvplBe//mB+IHCqHDGV7pxF+7MklTvighcCPPZC7ynWyjdTA==}
+    engines: {node: ^20.19.0 || ^22.13.0 || >=24}
+
   estree-walker@3.0.3:
     resolution: {integrity: sha512-7RUKfXgSMMkzt6ZuXmqapOurLGPPfgj6l9uRZ7lRGolvk0y2yocc35LdcxKC5PQZdn2DMqioAQ2NoWcrTKmm6g==}
 
@@ -2920,6 +2933,10 @@ packages:
     resolution: {integrity: sha512-o5sSPKEkg/DIQNmH43V0/uerLrpzVedkUh8tGNvaeXpfpuwjKenlSox/2O/BTlZUtEe+JG7s5YhEz608PlAHRA==}
     engines: {node: '>=0.6'}
 
+  toml-eslint-parser@1.0.3:
+    resolution: {integrity: sha512-A5F0cM6+mDleacLIEUkmfpkBbnHJFV1d2rprHU2MXNk7mlxHq2zGojA+SRvQD1RoMo9gqjZPWEaKG4v1BQ48lw==}
+    engines: {node: ^20.19.0 || ^22.13.0 || >=24}
+
   totalist@3.0.1:
     resolution: {integrity: sha512-sf4i37nQ2LBx4m3wB74y+ubopq6W/dIzXg0FDGjsYnZHVa1Da8FH853wlL2gtUhg+xJXjfk3kUZS3BRoQeoQBQ==}
     engines: {node: '>=6'}
@@ -3452,30 +3469,30 @@ snapshots:
 
   '@csstools/css-tokenizer@4.0.0': {}
 
-  '@dev.fast/diffr-darwin-arm64@0.1.11':
+  '@dev.fast/diffr-darwin-arm64@0.1.12':
     optional: true
 
-  '@dev.fast/diffr-darwin-x64@0.1.11':
+  '@dev.fast/diffr-darwin-x64@0.1.12':
     optional: true
 
-  '@dev.fast/diffr-linux-arm64@0.1.11':
+  '@dev.fast/diffr-linux-arm64@0.1.12':
     optional: true
 
-  '@dev.fast/diffr-linux-x64@0.1.11':
+  '@dev.fast/diffr-linux-x64@0.1.12':
     optional: true
 
-  '@dev.fast/diffr-win32-x64@0.1.11':
+  '@dev.fast/diffr-win32-x64@0.1.12':
     optional: true
 
-  '@dev.fast/diffr@0.1.11(zod@4.6.5)':
+  '@dev.fast/diffr@0.1.12(zod@4.6.5)':
     dependencies:
       zod: 4.6.5
     optionalDependencies:
-      '@dev.fast/diffr-darwin-arm64': 0.1.11
-      '@dev.fast/diffr-darwin-x64': 0.1.11
-      '@dev.fast/diffr-linux-arm64': 0.1.11
-      '@dev.fast/diffr-linux-x64': 0.1.11
-      '@dev.fast/diffr-win32-x64': 0.1.11
+      '@dev.fast/diffr-darwin-arm64': 0.1.12
+      '@dev.fast/diffr-darwin-x64': 0.1.12
+      '@dev.fast/diffr-linux-arm64': 0.1.12
+      '@dev.fast/diffr-linux-x64': 0.1.12
+      '@dev.fast/diffr-win32-x64': 0.1.12
 
   '@dual-bundle/import-meta-resolve@4.2.1': {}
 
@@ -4524,6 +4541,8 @@ snapshots:
   escape-html@1.0.3: {}
 
   escape-string-regexp@5.0.0: {}
+
+  eslint-visitor-keys@5.0.1: {}
 
   estree-walker@3.0.3:
     dependencies:
@@ -5618,6 +5637,10 @@ snapshots:
       tldts-core: 7.4.12
 
   toidentifier@1.0.1: {}
+
+  toml-eslint-parser@1.0.3:
+    dependencies:
+      eslint-visitor-keys: 5.0.1
 
   totalist@3.0.1: {}
 
