@@ -9,6 +9,7 @@ import {
 import * as stylex from "@stylexjs/stylex";
 import { useEffect, useState } from "react";
 
+import { CopyableText } from "./copy-text";
 import { settingsStyles as styles } from "./settings-styles";
 import { tokens } from "./tokens.stylex";
 
@@ -126,26 +127,30 @@ export function RemoteHostsSection({
             <div {...stylex.props(styles.rowText)}>
               <span {...stylex.props(styles.rowLabel)}>{name}</span>
               {states ? (
-                <span {...stylex.props(styles.rowDescription, local.detail)}>
-                  {(state?.state ?? "connecting").replace("-", " ")}
-                  {state?.detail ? ` · ${state.detail}` : null}
-                </span>
+                <Detail
+                  failed={state !== undefined && RETRIED.has(state.state)}
+                  text={`${(state?.state ?? "connecting").replace("-", " ")}${state?.detail ? ` · ${state.detail}` : ""}`}
+                />
               ) : null}
               {state?.state === "online" ? (
-                <span {...stylex.props(styles.rowDescription, local.detail)}>
-                  {state.languageFeatures
-                    ? "Language features: available"
-                    : `Language features: unavailable${state.languageFeaturesDetail ? ` — ${plain(state.languageFeaturesDetail)}` : ""}`}
-                </span>
+                <Detail
+                  failed={
+                    !state.languageFeatures && !!state.languageFeaturesDetail
+                  }
+                  text={
+                    state.languageFeatures
+                      ? "Language features: available"
+                      : `Language features: unavailable${state.languageFeaturesDetail ? ` · ${plain(state.languageFeaturesDetail)}` : ""}`
+                  }
+                />
               ) : null}
               {state?.state === "online"
                 ? state.languageGroups?.map(({ group, installed, detail }) => (
-                    <span
+                    <Detail
                       key={group}
-                      {...stylex.props(styles.rowDescription, local.detail)}
-                    >
-                      {`${plain(group)}: ${installed ? "installed" : "not installed"}${detail ? ` — ${plain(detail)}` : ""}`}
-                    </span>
+                      failed={!!detail}
+                      text={`${plain(group)}: ${installed ? "installed" : "not installed"}${detail ? ` · ${plain(detail)}` : ""}`}
+                    />
                   ))
                 : null}
               {state?.state === "online" ? (
@@ -252,7 +257,7 @@ export function RemoteHostsSection({
       </form>
       {error ? (
         <p role="alert" {...stylex.props(styles.error)}>
-          {error}
+          <CopyableText text={error} />
         </p>
       ) : null}
     </section>
@@ -268,7 +273,7 @@ function RemoteHostAgents({
 }) {
   const [agents, setAgents] = useState<ReviewRemoteAgent[] | null>(null);
   const [busy, setBusy] = useState(false);
-  const [result, setResult] = useState<string>();
+  const [result, setResult] = useState<{ text: string; failed: boolean }>();
 
   useEffect(() => {
     let live = true;
@@ -295,20 +300,22 @@ function RemoteHostAgents({
     try {
       const results = await hosts.connectAgents(alias, ids);
 
-      setResult(
-        results
+      setResult({
+        failed: results.some((done) => !done.connected),
+        text: results
           .map((done) =>
             done.connected
               ? `${REVIEW_CLI_INSTALL_TARGET_LABELS[done.id]} is connected on ${alias}.`
               : `${REVIEW_CLI_INSTALL_TARGET_LABELS[done.id]} was not connected on ${alias}: ${done.output || "it printed nothing"}`,
           )
           .join(" "),
-      );
+      });
       setAgents(await hosts.agents(alias));
     } catch (cause) {
-      setResult(
-        `Could not connect agents on ${alias}: ${cause instanceof Error ? cause.message : String(cause)}`,
-      );
+      setResult({
+        failed: true,
+        text: `Could not connect agents on ${alias}: ${cause instanceof Error ? cause.message : String(cause)}`,
+      });
     } finally {
       setBusy(false);
     }
@@ -345,14 +352,33 @@ function RemoteHostAgents({
         </span>
       ))}
       {result ? (
-        <span
-          role="status"
-          {...stylex.props(styles.rowDescription, local.detail)}
-        >
-          {result}
-        </span>
+        <Detail role="status" failed={result.failed} text={result.text} />
       ) : null}
     </>
+  );
+}
+
+/** A row's detail line; a failure reads as an error and copies on click. */
+function Detail({
+  text,
+  failed,
+  role,
+}: {
+  text: string;
+  failed: boolean;
+  role?: "status";
+}) {
+  return (
+    <span
+      role={role}
+      {...stylex.props(
+        styles.rowDescription,
+        local.detail,
+        failed && local.failed,
+      )}
+    >
+      {failed ? <CopyableText text={text} /> : text}
+    </span>
   );
 }
 
@@ -360,6 +386,9 @@ const local = stylex.create({
   detail: {
     overflowWrap: "anywhere",
     userSelect: "text",
+  },
+  failed: {
+    color: tokens.changeRemoved,
   },
   actions: {
     gap: "8px",

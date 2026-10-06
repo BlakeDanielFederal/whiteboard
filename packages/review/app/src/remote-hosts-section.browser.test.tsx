@@ -174,7 +174,7 @@ test("says whether an online host has language features, and why not as one line
   await vi.waitFor(() => expect(rows()[0]).toContain("online"));
   expect(rows()[0]).toContain("Language features: available");
   expect(rows()[1]).toContain(
-    "Language features: unavailable — it runs [e10c782](command:x) <b>new</b> this Desktop 3c82a2a",
+    "Language features: unavailable · it runs [e10c782](command:x) <b>new</b> this Desktop 3c82a2a",
   );
   expect(rows()[2]).not.toContain("Language features");
   expect(section()!.querySelector("a, b")).toBeNull();
@@ -212,15 +212,17 @@ test("lists an online host's language groups after its language features, each w
   await vi.waitFor(() => expect(rows()[0]).toContain("online"));
   expect(
     [
-      ...document.querySelector("[data-remote-host]")!.querySelectorAll("span"),
+      ...document
+        .querySelector("[data-remote-host]")!
+        .querySelectorAll(":scope > div > span"),
     ].map((line) => line.textContent),
   ).toEqual([
     "devbox",
     "online",
     "Language features: available",
     "rust: installed",
-    "swift: installed — swift was not found on the <b>login</b> shell's PATH",
-    "csharp: not installed — download failed",
+    "swift: installed · swift was not found on the <b>login</b> shell's PATH",
+    "csharp: not installed · download failed",
   ]);
   expect(rows()[1]).not.toContain("rust");
   expect(section()!.querySelector("b")).toBeNull();
@@ -504,4 +506,30 @@ test("also removing Whiteboard uninstalls before the host goes, and a failure is
   );
   expect(rows()).toEqual([]);
   expect(order.slice(2)).toEqual(["uninstall box2", "set "]);
+});
+
+test("a failed host's detail copies on click; a healthy one does not", async () => {
+  const writeText = vi
+    .spyOn(navigator.clipboard, "writeText")
+    .mockResolvedValue();
+
+  await render(
+    remoteHosts(
+      ["devbox", "box2"],
+      [
+        { alias: "devbox", serverId: "s1", state: "online" },
+        { alias: "box2", state: "unreachable", detail: "ssh: timed out" },
+      ],
+    ),
+  );
+
+  await vi.waitFor(() =>
+    expect(rows()[1]).toContain("unreachable · ssh: timed out"),
+  );
+  expect(page.getByRole("button", { name: "online" }).query()).toBeNull();
+
+  await page
+    .getByRole("button", { name: "unreachable · ssh: timed out" })
+    .click();
+  expect(writeText).toHaveBeenCalledWith("unreachable · ssh: timed out");
 });
