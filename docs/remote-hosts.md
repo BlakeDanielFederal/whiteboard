@@ -292,10 +292,11 @@ to the host. The window shows the host's checkout read-only, with the
 explorer, quick open, text search and the language features above. Its title
 is `<review title> — Source — Whiteboard`.
 
-When the host stops answering, the status bar reads `<alias> — offline,
-reconnecting…` within about 15 seconds, and a warning says the window
-reconnects when the host is back. A window restored while its host is down
-shows the same. The window reconnects by itself, usually within a few seconds
+When the host stops answering, the status bar reads `<alias> offline` within
+about 15 seconds, and a warning says why. While the host is offline, the
+warning and the status bar entry offer Retry. Other states, such as `Can't sign
+in to <alias>`, are shown as text only. A window restored while its host is
+down shows the same. The window reconnects by itself, usually within a few seconds
 of the host returning, and the entry goes back to the alias.
 
 Not available in a Source window:
