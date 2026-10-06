@@ -39,7 +39,7 @@ import {
 } from "./authoring-cursor";
 import { SaveMarkdown } from "./blocks";
 import { CanvasQueryProvider } from "./canvas-query";
-import { ConnectionContext } from "./connection-chip";
+import { ConnectionContext, HostWaiting } from "./connection-chip";
 import { DisplayedReviewVersionContext } from "./displayed-review-version-context";
 import { DrawQueueProvider } from "./draw-queue-provider";
 import {
@@ -407,7 +407,7 @@ export function ApiCanvas({
     [client, content.reviewId, content.host, data],
   );
 
-  const { host, retryHost } = content;
+  const { host, remoteHosts } = content;
 
   const connection = useMemo(
     () =>
@@ -415,16 +415,11 @@ export function ApiCanvas({
         ? undefined
         : {
             host,
+            hosts: remoteHosts,
             detail: lost,
-            ...(host &&
-              retryHost && {
-                retry: async () => {
-                  await retryHost(host);
-                  client.reconnect();
-                },
-              }),
+            reconnect: () => client.reconnect(),
           },
-    [lost, host, retryHost, client],
+    [lost, host, remoteHosts, client],
   );
 
   // Loads are near-instant, so stay blank until there is data or an error.
@@ -433,7 +428,14 @@ export function ApiCanvas({
   if (!data)
     return (
       <CanvasQueryProvider client={client} reviewId={content.reviewId}>
-        {(error ?? lost) !== undefined && (
+        {error === undefined && host && remoteHosts ? (
+          <HostWaiting
+            host={host}
+            hosts={remoteHosts}
+            reconnect={() => client.reconnect()}
+            lost={lost}
+          />
+        ) : (error ?? lost) !== undefined ? (
           <>
             <p {...stylex.props(styles.error)} role="status">
               {error ?? `Connection lost. Reconnecting… ${lost}`}
@@ -444,7 +446,7 @@ export function ApiCanvas({
               </button>
             )}
           </>
-        )}
+        ) : null}
       </CanvasQueryProvider>
     );
 

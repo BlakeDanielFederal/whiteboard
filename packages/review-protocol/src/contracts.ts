@@ -585,6 +585,14 @@ export interface ReviewCanvasSettingsContent {
   remoteHosts: ReviewRemoteHostsSettings;
 }
 
+/** What a review or Home can do about the host a review lives on. */
+export interface ReviewRemoteHostActions {
+  states(): Promise<ReviewGatewayHostState[]>;
+  retry(alias: string): Promise<void>;
+  install(alias: string): Promise<void>;
+  openSettings(): Promise<void>;
+}
+
 export interface ReviewRemoteHostsSettings {
   enabled: boolean;
   configured: string[];
@@ -751,7 +759,7 @@ export type ReviewCanvasContent =
       version?: number;
       host?: string;
       available?: ReviewApiSummary["available"];
-      retryHost?(alias: string): Promise<void>;
+      remoteHosts?: ReviewRemoteHostActions;
       bridge: ReviewCanvasBridge;
       setTitle?(title: string): void;
       setSourceView?(
@@ -784,7 +792,7 @@ export type ReviewCanvasContent =
       // not support them.
       dismissReview?(uuid: string): Promise<void>;
       restoreReview?(uuid: string): Promise<void>;
-      hostStates?(): Promise<ReviewGatewayHostState[]>;
+      remoteHosts?: ReviewRemoteHostActions;
       // Opens the review and pins its read-only source tree open. Absent when
       // the host cannot show the tree.
       openSourceTree?(uuid: string): void;

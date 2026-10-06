@@ -596,7 +596,7 @@ async function journey(ctx, page, until) {
     for (const text of [title, second]) {
       await row(text).waitFor();
       assert.equal(await row(text).getAttribute("data-unavailable"), "");
-      assert.match(await row(text).innerText(), /incompatible/);
+      assert.match(await row(text).innerText(), /needs an update/);
     }
 
     ctx.check(

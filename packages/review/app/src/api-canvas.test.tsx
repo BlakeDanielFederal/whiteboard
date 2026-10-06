@@ -1384,9 +1384,24 @@ it("shows a lost remote host as a top-bar chip that retries the host and the str
     },
   );
 
-  const retryHost = vi.fn<(alias: string) => Promise<void>>(async () => {
+  const retry = vi.fn<(alias: string) => Promise<void>>(async () => {
     down = false;
   });
+
+  const remoteHosts = {
+    states: async () => [
+      down
+        ? {
+            alias: "wb-a",
+            state: "offline" as const,
+            detail: "wb-a is offline: it did not answer.",
+          }
+        : { alias: "wb-a", state: "online" as const },
+    ],
+    retry,
+    install: async () => {},
+    openSettings: async () => {},
+  };
 
   const container = document.createElement("div");
   document.body.append(container);
@@ -1395,7 +1410,7 @@ it("shows a lost remote host as a top-bar chip that retries the host and the str
       kind: "api",
       reviewId: review.reviewId,
       host: "wb-a",
-      retryHost,
+      remoteHosts,
       bridge,
       setSourceView: () => {},
     });
@@ -1414,7 +1429,7 @@ it("shows a lost remote host as a top-bar chip that retries the host and the str
       "button.connection-chip",
     );
 
-    expect(found?.textContent).toBe("wb-a disconnected");
+    expect(found?.textContent).toBe("wb-a offline");
 
     return found!;
   });
@@ -1426,7 +1441,7 @@ it("shows a lost remote host as a top-bar chip that retries the host and the str
 
   const before = watches;
   await act(async () => chip.click());
-  expect(retryHost).toHaveBeenCalledWith("wb-a");
+  expect(retry).toHaveBeenCalledWith("wb-a");
   await act(() =>
     vi.waitFor(() => {
       expect(container.querySelector(".connection-chip")).toBeNull();
@@ -1434,6 +1449,63 @@ it("shows a lost remote host as a top-bar chip that retries the host and the str
   );
   // The stream came back at once, not after its backoff.
   expect(watches).toBe(before + 1);
+});
+
+it("shows why a remote review has not loaded, with its host's next step", async () => {
+  const install = vi.fn<(alias: string) => Promise<void>>(async () => {});
+
+  const container = document.createElement("div");
+  document.body.append(container);
+  await act(async () => {
+    canvas = mount(container, {
+      kind: "api",
+      reviewId: "11111111-1111-4111-8111-111111111111",
+      host: "wb-a",
+      remoteHosts: {
+        states: async () => [
+          {
+            alias: "wb-a",
+            state: "incompatible",
+            detail: "wb-a runs Whiteboard 0.1.0; this Desktop runs 0.2.0.",
+          },
+        ],
+        retry: async () => {},
+        install,
+        openSettings: async () => {},
+      },
+      bridge: testReviewBridge(
+        {},
+        {
+          request: async () =>
+            Response.json(
+              { ok: false, error: "wb-a runs Whiteboard 0.1.0." },
+              { status: 503 },
+            ),
+        },
+      ),
+    });
+  });
+
+  const waiting = await vi.waitFor(() => {
+    const found = container.querySelector<HTMLElement>(".host-waiting");
+
+    expect(found?.querySelector("h2")?.textContent).toBe(
+      "wb-a needs an update",
+    );
+
+    return found!;
+  });
+
+  expect(waiting.textContent).toContain(
+    "wb-a runs Whiteboard 0.1.0; this Desktop runs 0.2.0.",
+  );
+  expect(container.textContent).not.toContain("Connection lost");
+  await act(async () =>
+    [...waiting.querySelectorAll("button")]
+      .find((button) => button.textContent === "Install")!
+      .click(),
+  );
+  expect(install).toHaveBeenCalledWith("wb-a");
 });
 
 async function mountPeekReview(content: {
