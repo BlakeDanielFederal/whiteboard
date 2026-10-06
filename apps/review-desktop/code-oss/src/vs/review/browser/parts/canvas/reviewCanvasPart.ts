@@ -424,6 +424,7 @@ export class ReviewCanvasEditorPane extends EditorPane {
 						kind: "api",
 						reviewId,
 						...remoteEntry(this.apiCatalog.reviews.find((review) => review.reviewId === reviewId)),
+						retryHost: (alias) => this.desktopConnection.retryRemoteHost(alias),
 						structuralDiffEnabled: this.currentStructuralDiffEnabled(),
 						softwareMapEnabled: this.currentSoftwareMapEnabled(),
 						documentWidth: this.currentDocumentWidth(),

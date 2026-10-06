@@ -751,6 +751,7 @@ export type ReviewCanvasContent =
       version?: number;
       host?: string;
       available?: ReviewApiSummary["available"];
+      retryHost?(alias: string): Promise<void>;
       bridge: ReviewCanvasBridge;
       setTitle?(title: string): void;
       setSourceView?(

@@ -1339,6 +1339,103 @@ it("gives a review on another machine no tutorial controls, whatever its snapsho
   expect(tutorial).not.toHaveBeenCalledWith(true);
 });
 
+it("shows a lost remote host as a top-bar chip that retries the host and the stream", async () => {
+  const review = await command({
+    type: "create",
+    title: "Remote",
+    target: { kind: "commits", ...pins },
+  });
+
+  const app = new Hono().route("/reviews-api", createReviewApi(store));
+  app.get("/reviews-api/:id/commits", (context) => context.json([]));
+  let down = false;
+  let watches = 0;
+  let cut: (() => void) | undefined;
+
+  const bridge = testReviewBridge(
+    {},
+    {
+      request: async (url, init) => {
+        if (!new URL(String(url)).pathname.endsWith("/watch"))
+          return app.request(url, init);
+        watches++;
+
+        if (down)
+          return Response.json(
+            { ok: false, error: "wb-a is offline: it did not answer." },
+            { status: 503 },
+          );
+        const response = await app.request(url, init);
+
+        return new Response(
+          response.body!.pipeThrough(
+            new TransformStream({
+              start: (controller) => {
+                cut = () =>
+                  controller.error(
+                    new Error("wb-a is offline: it did not answer."),
+                  );
+              },
+            }),
+          ),
+          response,
+        );
+      },
+    },
+  );
+
+  const retryHost = vi.fn<(alias: string) => Promise<void>>(async () => {
+    down = false;
+  });
+
+  const container = document.createElement("div");
+  document.body.append(container);
+  await act(async () => {
+    canvas = mount(container, {
+      kind: "api",
+      reviewId: review.reviewId,
+      host: "wb-a",
+      retryHost,
+      bridge,
+      setSourceView: () => {},
+    });
+  });
+  await act(() =>
+    vi.waitFor(() =>
+      expect(container.querySelector("h1")?.textContent).toBe("Remote"),
+    ),
+  );
+
+  down = true;
+  await act(async () => cut?.());
+
+  const chip = await vi.waitFor(() => {
+    const found = container.querySelector<HTMLButtonElement>(
+      "button.connection-chip",
+    );
+
+    expect(found?.textContent).toBe("wb-a disconnected");
+
+    return found!;
+  });
+
+  expect(container.textContent).not.toContain("Connection lost");
+  expect(chip.title).toBe(
+    "Click to retry\nwb-a is offline: it did not answer.",
+  );
+
+  const before = watches;
+  await act(async () => chip.click());
+  expect(retryHost).toHaveBeenCalledWith("wb-a");
+  await act(() =>
+    vi.waitFor(() => {
+      expect(container.querySelector(".connection-chip")).toBeNull();
+    }),
+  );
+  // The stream came back at once, not after its backoff.
+  expect(watches).toBe(before + 1);
+});
+
 async function mountPeekReview(content: {
   host?: string;
   available?: { sourceWindows: boolean; languageFeatures: boolean };
