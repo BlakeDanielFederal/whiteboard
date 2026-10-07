@@ -50,28 +50,11 @@ else
   node "$APP_DIR/scripts/curated-extensions.mjs"
 fi
 if [[ "${REVIEW_DESKTOP_COMPILE_ONLY:-0}" != "1" ]]; then
-  if [[ "$OSTYPE" == "darwin"* ]]; then
-    PRODUCT_APP="$(node -p "require('./product.json').nameShort")"
-    PRODUCT_EXE="$(node -p "require('./product.json').nameShort")"
-    EXPECTED_BINARY="$CHECKOUT/.build/electron/$PRODUCT_APP.app/Contents/MacOS/$PRODUCT_EXE"
-  elif [[ "$OSTYPE" == "msys"* || "$OSTYPE" == "cygwin"* ]]; then
-    PRODUCT_APP="$(node -p "require('./product.json').nameShort")"
-    EXPECTED_BINARY="$CHECKOUT/.build/electron/$PRODUCT_APP.exe"
-  else
-    PRODUCT_APP="$(node -p "require('./product.json').applicationName")"
-    EXPECTED_BINARY="$CHECKOUT/.build/electron/$PRODUCT_APP"
-  fi
-  # A cache restored from an older key can hold a stale Electron; preLaunch
-  # would then re-download it at launch and drop the CI sandbox setup.
-  ELECTRON_TARGET="$(sed -n 's/^target="\(.*\)"$/\1/p' .npmrc)"
-  ELECTRON_INSTALLED="$(cat .build/electron/version 2>/dev/null || true)"
-  if [[ ! -x "$EXPECTED_BINARY" || "${ELECTRON_INSTALLED#v}" != "$ELECTRON_TARGET" ]]; then
-    npm run electron
-  fi
+  ensure_code_oss_electron "$CHECKOUT"
   if [[ "$OSTYPE" == "darwin"* && "$DEV_FAST_ACTIVE" != "1" ]]; then
     # Dev launches use Electron's packaged static .icns. Install the adaptive
     # asset catalog only for full builds, avoiding actool and signing on restart.
-    node "$APP_DIR/scripts/apply-app-icon.mjs" "$CHECKOUT/.build/electron/$PRODUCT_APP.app"
+    node "$APP_DIR/scripts/apply-app-icon.mjs" "$CHECKOUT/.build/electron/$(node -p "require('./product.json').nameShort").app"
   fi
 fi
 npm --prefix "$APP_DIR" run protocol:sync
