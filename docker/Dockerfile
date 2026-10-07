@@ -37,7 +37,7 @@ RUN apt-get update \
 
 COPY --from=build /out/whiteboard.tgz /tmp/whiteboard.tgz
 
-# Whiteboard, the agent CLIs Ask runs, and GitHub Copilot CLI for authoring.
+# Whiteboard, and the agent CLIs Ask runs.
 RUN npm install --global --no-audit --no-fund /tmp/whiteboard.tgz @anthropic-ai/claude-code @openai/codex opencode-ai @github/copilot \
   && rm /tmp/whiteboard.tgz \
   && npm cache clean --force
@@ -46,9 +46,19 @@ COPY --from=build /out/diffr/diffr /usr/local/bin/diffr
 
 COPY --from=build /src/packages/review/app/dist/web /opt/whiteboard/web
 
-# node:*-slim already has a `node` user (uid 1000); reviews and agents run as it.
-RUN mkdir -p /data /repos \
-  && chown node:node /data /repos
+# Reviews and agents run as node:*-slim's `node` user. On Linux, give it your
+# own user and group IDs, so it can write the repositories you mount and git
+# trusts them; Docker Desktop maps ownership itself.
+ARG WHITEBOARD_UID=1000
+ARG WHITEBOARD_GID=1000
+
+RUN if [ "$(id -g node)" != "$WHITEBOARD_GID" ]; then \
+      if getent group "$WHITEBOARD_GID" > /dev/null; then usermod -g "$WHITEBOARD_GID" node; \
+      else groupmod -g "$WHITEBOARD_GID" node; fi; \
+    fi \
+  && if [ "$(id -u node)" != "$WHITEBOARD_UID" ]; then usermod -o -u "$WHITEBOARD_UID" node; fi \
+  && mkdir -p /data /repos \
+  && chown -R "$WHITEBOARD_UID:$WHITEBOARD_GID" /data /repos /home/node
 
 USER node
 

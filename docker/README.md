@@ -33,6 +33,7 @@ Open `http://<this machine's LAN address>:8080`. On macOS, the LAN address is
 |---|---|---|
 | `REPOS` | required | An absolute path. It is mounted at the same path in the container, so a repository has one path, such as `/Users/you/code/my-service`, for agents on this machine and in the container. Only repositories under it can be reviewed. |
 | `WHITEBOARD_PORT` | `8080` | The published port, or `address:port`. |
+| `WHITEBOARD_UID`, `WHITEBOARD_GID` | `1000` | The user and group IDs reviews and agents run as, set when the image is built. On Linux, use your own: see [On Linux](#on-linux). |
 | `ANTHROPIC_API_KEY`, `OPENAI_API_KEY` | unset | Optional API keys for Ask's agents, instead of signing in. Compose passes them in whenever the shell that runs it has them set; unset them first if you do not want Ask to use them. |
 
 The container is named `whiteboard`, so `docker exec whiteboard …` reaches it
@@ -48,9 +49,8 @@ Two volumes keep state across `docker compose down` and `up`:
 
 ## Sign the agents in
 
-Ask runs Claude Code, Codex and OpenCode inside the container. The image also
-has GitHub Copilot CLI, for authoring reviews from the container (Ask does not
-run it). Sign in to the ones you use once; the sign-ins stay in the
+Ask runs Claude Code, Codex, OpenCode and GitHub Copilot CLI inside the
+container. Sign in to the ones you use once; the sign-ins stay in the
 `agent-home` volume:
 
 ```sh
@@ -124,6 +124,37 @@ For OpenCode in the container, use the configuration above with
 `whiteboard connect` does not apply here: it installs a plugin that starts
 Desktop's `whiteboard` command. The image sets `DEV_REVIEW_SERVER_DIR`, so
 every `whiteboard` command in the container uses this server.
+
+## On Linux
+
+Docker Engine keeps the owners of the files you mount, so the container's user
+must have your user and group IDs. Otherwise it cannot write the review
+checkouts Whiteboard keeps in each repository's `.git`, and git refuses the
+repositories as having "dubious ownership". Build with your IDs:
+
+```sh
+WHITEBOARD_UID=$(id -u) WHITEBOARD_GID=$(id -g) REPOS=$HOME/code \
+  docker compose -f docker/compose.yaml up -d --build
+```
+
+Docker Desktop on macOS and Windows maps owners itself; leave these unset
+there. Volumes made by a build with other IDs keep their old owner; hand them
+to the new IDs once:
+
+```sh
+WHITEBOARD_UID=$(id -u) WHITEBOARD_GID=$(id -g) REPOS=$HOME/code \
+  docker compose -f docker/compose.yaml run --rm -u root --entrypoint chown \
+  whiteboard -R "$(id -u):$(id -g)" /data /home/node
+```
+
+Also on Linux:
+
+- Docker publishes ports past `ufw` and other firewall rules. On a machine
+  with a public address, publish on its LAN address only, for example
+  `WHITEBOARD_PORT=192.168.1.50:8080`.
+- Agents on the machine reach the container with `docker exec`, so your user
+  needs to be in the `docker` group (`sudo usermod -aG docker $USER`, then log
+  in again). That group is equivalent to root on the machine.
 
 ## What differs from Whiteboard Desktop
 

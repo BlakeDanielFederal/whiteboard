@@ -10,6 +10,10 @@ services:
     build:
       context: ..
       dockerfile: docker/Dockerfile
+      args:
+        # On Linux, your `id -u` and `id -g`; see docker/README.md.
+        WHITEBOARD_UID: ${WHITEBOARD_UID:-1000}
+        WHITEBOARD_GID: ${WHITEBOARD_GID:-1000}
     image: whiteboard-web
     # A fixed name, so agents and commands on this machine can reach the
     # container with `docker exec -i whiteboard whiteboard …`.
