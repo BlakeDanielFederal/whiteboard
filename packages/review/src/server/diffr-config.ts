@@ -121,7 +121,7 @@ function valueAt(object: JsonObject, key: string): JsonValue | undefined {
   return value;
 }
 
-const prefix = "plugins.shape.summarize";
+const prefix = "plugins.shape.bundled.summarize";
 
 function savedProvider(config: JsonObject): string {
   const value = valueAt(config, `${prefix}.provider`);
@@ -190,13 +190,13 @@ async function configDefaults(
 
   const options = valueAt(
     schema,
-    "properties.plugins.properties.shape.properties.summarize.properties",
+    "properties.plugins.properties.shape.properties.bundled.properties.summarize.properties",
   );
 
   const defaultHiddenTags = strings(
     valueAt(
       schema,
-      "properties.plugins.properties.classify.properties.classify.properties.hide.default",
+      "properties.plugins.properties.classify.properties.bundled.properties.hide.default",
     ),
   );
 
@@ -250,7 +250,11 @@ async function read(rootPath?: string): Promise<ReviewDiffrConfig> {
   const plugins = valueAt(config, "plugins.shape");
 
   if (isJsonObject(plugins)) {
-    for (const plugin of Object.values(plugins))
+    const entries = isJsonObject(plugins.bundled)
+      ? [...Object.values(plugins), ...Object.values(plugins.bundled)]
+      : Object.values(plugins);
+
+    for (const plugin of entries)
       if (isJsonObject(plugin)) delete plugin.api_key;
   }
 
@@ -435,8 +439,8 @@ export async function testDiffrSummarizer(
         plugins: {
           // oxlint-disable-next-line anti-slop/no-shape-in-symbol-names -- Native diffr v2 config key.
           shape: {
-            order: ["summarize"],
-            summarize: options,
+            order: ["bundled.summarize"],
+            bundled: { summarize: options },
           },
         },
       }),

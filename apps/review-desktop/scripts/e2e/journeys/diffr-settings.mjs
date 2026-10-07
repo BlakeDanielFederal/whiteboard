@@ -117,8 +117,9 @@ export async function run(ctx) {
   await toggle.click();
   await ctx.until(
     async () =>
-      (await ctx.apiOk("/diffr-config")).values.plugins.shape["test-bodies"]
-        .enabled === false,
+      (await ctx.apiOk("/diffr-config")).values.plugins.shape.bundled[
+        "test-bodies"
+      ].enabled === false,
     "diffr persisted the setting",
   );
   await settings

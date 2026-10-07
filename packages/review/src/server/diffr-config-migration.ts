@@ -33,11 +33,11 @@ const oldOrder = [
 ];
 
 const newOrder = [
-  "deleted-bodies",
-  "summarize",
-  "test-bodies",
-  "removed-runs",
-  "context",
+  "bundled.deleted-bodies",
+  "bundled.summarize",
+  "bundled.test-bodies",
+  "bundled.removed-runs",
+  "bundled.context",
 ];
 
 // Exact defaults written by older diffr releases; edited prompts stay intact.
@@ -73,7 +73,7 @@ const legacySummarySchema = z.object({ system_prompt: z.string().optional() });
 /** Convert v1 paths to v2 without serializing saved plugin option values. */
 export function migrateDiffrConfig(
   source: string,
-  classifierName = "classify",
+  classifierName = "bundled",
 ): string {
   const parsed = parse(source);
   const version = configVersionSchema.parse(parsed).version ?? 1;
@@ -90,20 +90,16 @@ export function migrateDiffrConfig(
   const external = config.plugins?.external;
   const edits = new TomlEdits(source);
 
-  if (bundled?.order !== undefined || external?.order !== undefined)
-    throw new ConfigMigrationError(
-      "diffr config has a plugin named order. Rename that plugin before migration; plugins.shape.order is reserved.",
-    );
-
   for (const name of Object.keys(external ?? {}))
-    if (
-      bundled?.[name] !== undefined &&
-      name !== "group" &&
-      name !== "hide-files"
-    )
+    if (name === "order" || name === "bundled" || name.startsWith("bundled."))
       throw new ConfigMigrationError(
-        `diffr config has both bundled and external entries for ${name}. Choose one before migration.`,
+        `diffr config has a custom plugin named ${name}. Rename that plugin before migration; plugins.shape.${name} is reserved.`,
       );
+
+  if (config.classifier?.path !== undefined && classifierName === "bundled")
+    throw new ConfigMigrationError(
+      "diffr config has a custom classifier named bundled. Rename that plugin before migration; plugins.classify.bundled is reserved.",
+    );
 
   // The independent group switch is retired, for either saved boolean value.
   edits.remove("plugins.bundled.group");
@@ -131,7 +127,7 @@ export function migrateDiffrConfig(
               (name) =>
                 name !== "bundled.group" && name !== "bundled.hide-files",
             )
-            .map((name) => name.replace(/^(bundled|external)\./, ""));
+            .map((name) => name.replace(/^external\./, ""));
 
     edits.set("plugins.order", migrated);
     edits.move("plugins.order", "plugins.shape.order");
@@ -156,7 +152,7 @@ export function migrateDiffrConfig(
     if (name !== "group" && name !== "hide-files")
       edits.move(
         tomlKey("plugins", "bundled", name),
-        tomlKey("plugins", "shape", name),
+        tomlKey("plugins", "shape", "bundled", name),
       );
 
   for (const name of Object.keys(external ?? {}))
@@ -181,10 +177,16 @@ export function migrateDiffrConfig(
     )
       continue;
 
-    if (/^plugins\.(bundled|external)\./.test(key))
+    if (key.startsWith("plugins.bundled."))
       movedValues.push([
         key,
-        key.replace(/^plugins\.(bundled|external)\./, "plugins.shape."),
+        key.replace("plugins.bundled.", "plugins.shape.bundled."),
+      ]);
+
+    if (key.startsWith("plugins.external."))
+      movedValues.push([
+        key,
+        key.replace("plugins.external.", "plugins.shape."),
       ]);
 
     if (key.startsWith("classifier."))
@@ -312,7 +314,7 @@ async function legacyClassifierName(
 ): Promise<string> {
   const classifier = legacyConfigSchema.parse(parse(source)).classifier;
 
-  if (classifier?.path === undefined) return "classify";
+  if (classifier?.path === undefined) return "bundled";
 
   const directory = path.resolve(
     path.dirname(file),
@@ -358,7 +360,12 @@ async function validateDiffrConfig(
         (parts.length === 4 &&
           parts[0] === "plugins" &&
           (parts[1] === "shape" || parts[1] === "classify") &&
-          parts[3] === "path")
+          parts[3] === "path") ||
+        (parts.length === 5 &&
+          parts[0] === "plugins" &&
+          parts[1] === "shape" &&
+          parts[2] === "bundled" &&
+          parts[4] === "path")
       ) {
         const value = z.string().parse(edits.value(key));
 

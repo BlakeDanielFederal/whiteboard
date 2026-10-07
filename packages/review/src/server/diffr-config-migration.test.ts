@@ -72,9 +72,9 @@ test("converts a saved UI config without changing supported overrides or their c
   expected.version = 2;
   expected.plugins = {
     // oxlint-disable-next-line anti-slop/no-shape-in-symbol-names -- Native diffr v2 config namespace.
-    shape: plugins.bundled,
+    shape: { bundled: plugins.bundled },
     classify: {
-      classify: { hide: ["test", "generated"], hide_deleted: false },
+      bundled: { hide: ["test", "generated"], hide_deleted: false },
     },
   };
   expect(parse(migrated)).toEqual(expected);
@@ -109,7 +109,7 @@ test.each([
 
     expect(parse(migrated).plugins).toEqual({
       classify: {
-        classify: {
+        bundled: {
           hide,
           hide_deleted: hideDeleted,
         },
@@ -129,7 +129,7 @@ test.each([true, false])(
       version: 2,
       plugins: {
         // oxlint-disable-next-line anti-slop/no-shape-in-symbol-names -- Native diffr v2 config namespace.
-        shape: { context: { enabled: false, lines: 9 } },
+        shape: { bundled: { context: { enabled: false, lines: 9 } } },
       },
     });
   },
@@ -140,18 +140,18 @@ test("handles quoted keys, inline tables and dotted keys without touching a cust
   expect(parse(migrateDiffrConfig(source))).toEqual({
     version: 2,
     plugins: {
-      classify: { classify: { hide: [], hide_deleted: false } },
+      classify: { bundled: { hide: [], hide_deleted: false } },
       // oxlint-disable-next-line anti-slop/no-shape-in-symbol-names -- Native diffr v2 config namespace.
       shape: {
-        summarize: { system_prompt: "Keep me" },
-        order: ["summarize"],
+        bundled: { summarize: { system_prompt: "Keep me" } },
+        order: ["bundled.summarize"],
       },
     },
   });
   const dotted = `plugins.bundled.group.enabled = true\nplugins.bundled."hide-files".deleted = false\nclassifier = { hide = ["vendored"] }\n`;
   expect(parse(migrateDiffrConfig(dotted)).plugins).toEqual({
     classify: {
-      classify: {
+      bundled: {
         hide: ["vendored"],
         hide_deleted: false,
       },
@@ -164,7 +164,7 @@ test("retains explicit modern classifier values in a mixed config", () => {
   expect(parse(migrateDiffrConfig(source))).toEqual({
     version: 2,
     plugins: {
-      classify: { classify: { hide: ["custom"], hide_deleted: true } },
+      classify: { bundled: { hide: ["custom"], hide_deleted: true } },
     },
   });
 });
@@ -176,7 +176,7 @@ test("removes retired names from a custom order without sorting surviving plugin
     plugins: {
       // oxlint-disable-next-line anti-slop/no-shape-in-symbol-names -- Native diffr v2 config namespace.
       shape: {
-        order: ["context", "custom", "summarize"],
+        order: ["bundled.context", "custom", "bundled.summarize"],
       },
     },
   });
@@ -189,7 +189,7 @@ test("retains comments inside a rewritten plugin order", () => {
     version: 2,
     plugins: {
       // oxlint-disable-next-line anti-slop/no-shape-in-symbol-names -- Native diffr v2 config namespace.
-      shape: { order: ["context", "summarize"] },
+      shape: { order: ["bundled.context", "bundled.summarize"] },
     },
   });
   expect(migrated.match(/# keep context first/g)).toHaveLength(1);
@@ -265,7 +265,7 @@ test("does not run the binary or change a version 2 file", async () => {
   const { file, env } = await fixture();
 
   const source =
-    "version = 2 # already migrated\n[plugins.shape.context]\nlines = 8\n";
+    "version = 2 # already migrated\n[plugins.shape.bundled.context]\nlines = 8\n";
 
   await writeFile(file, source);
   expect(await ensureDiffrConfigMigrated("/no/binary/needed", env)).toBe(false);
@@ -360,10 +360,12 @@ byte_limit = 1_000_000
     plugins: {
       // oxlint-disable-next-line anti-slop/no-shape-in-symbol-names -- Native diffr v2 config namespace.
       shape: {
-        context: { lines: 16, extra: { option: "custom", nested: [1, 2] } },
+        bundled: {
+          context: { lines: 16, extra: { option: "custom", nested: [1, 2] } },
+        },
         custom: { path: "plugins/custom", threshold: 1000 },
       },
-      classify: { classify: { hide: ["custom"] } },
+      classify: { bundled: { hide: ["custom"] } },
     },
     diff: { byte_limit: 1000000 },
   });
@@ -374,7 +376,7 @@ byte_limit = 1_000_000
     expect(migrated).toContain(line);
 });
 
-test("refuses ambiguous bundled and external plugins without dropping overrides", () => {
+test("preserves bundled and custom plugins with the same basename", () => {
   const source = `[plugins.bundled.context]
 enabled = false
 lines = 9
@@ -382,9 +384,18 @@ lines = 9
 path = "custom/context"
 `;
 
-  expect(() => migrateDiffrConfig(source)).toThrow(
-    "both bundled and external entries for context",
-  );
+  const migrated = migrateDiffrConfig(source);
+  expect(parse(migrated)).toEqual({
+    version: 2,
+    plugins: {
+      // oxlint-disable-next-line anti-slop/no-shape-in-symbol-names -- Native diffr v2 config namespace.
+      shape: {
+        bundled: { context: { enabled: false, lines: 9 } },
+        context: { path: "custom/context" },
+      },
+    },
+  });
+  expect(migrated).toContain("lines = 9");
 });
 
 test("moves a custom classifier under its manifest name and validates its original path", async () => {
@@ -462,7 +473,7 @@ test("serializes concurrent startup migrations and writes one backup", async () 
     version: 2,
     plugins: {
       // oxlint-disable-next-line anti-slop/no-shape-in-symbol-names -- Native diffr v2 config namespace.
-      shape: { context: { lines: 11 } },
+      shape: { bundled: { context: { lines: 11 } } },
     },
   });
 
@@ -476,18 +487,32 @@ test("serializes concurrent startup migrations and writes one backup", async () 
   ).toBe(source);
 });
 
-test("keeps ambiguous plugin entries unchanged on disk", async () => {
+test("migrates same-basename stock and custom entries on disk", async () => {
   const { file, executable, env } = await fixture();
 
   const source =
     '[plugins.bundled.context]\nenabled = false\n[plugins.external.context]\npath = "custom"\n';
 
   await writeFile(file, source);
-  await expect(ensureDiffrConfigMigrated(executable, env)).rejects.toThrow(
-    "both bundled and external entries for context",
+  expect(await ensureDiffrConfigMigrated(executable, env)).toBe(true);
+  expect(parse(await readFile(file, "utf8"))).toEqual({
+    version: 2,
+    plugins: {
+      // oxlint-disable-next-line anti-slop/no-shape-in-symbol-names -- Native diffr v2 config namespace.
+      shape: {
+        bundled: { context: { enabled: false } },
+        context: { path: "custom" },
+      },
+    },
+  });
+
+  const backup = (await readdir(path.dirname(file))).find((name) =>
+    name.includes("before-whiteboard-config-v2"),
+  )!;
+
+  expect(await readFile(path.join(path.dirname(file), backup), "utf8")).toBe(
+    source,
   );
-  expect(await readFile(file, "utf8")).toBe(source);
-  expect(await readdir(path.dirname(file))).toEqual(["config.toml"]);
 });
 
 test.each([
@@ -506,11 +531,16 @@ test.each([
   expect(migrated).toContain("0x10");
 });
 
-test("refuses a plugin named order because the v2 key is reserved", () => {
-  expect(() =>
-    migrateDiffrConfig('[plugins.external.order]\npath = "plugins/custom"\n'),
-  ).toThrow("plugin named order");
-});
+test.each(["order", "bundled", "bundled.context"])(
+  "refuses reserved custom plugin name %s",
+  (name) => {
+    expect(() =>
+      migrateDiffrConfig(
+        `[plugins.external.${JSON.stringify(name)}]\npath = "plugins/custom"\n`,
+      ),
+    ).toThrow(`custom plugin named ${name}`);
+  },
+);
 
 // Historical literals copied from diffr defaults and config/prune.rs.
 test.each([
@@ -524,7 +554,7 @@ test.each([
     version: 2,
     plugins: {
       // oxlint-disable-next-line anti-slop/no-shape-in-symbol-names -- Native diffr v2 config namespace.
-      shape: { summarize: {} },
+      shape: { bundled: { summarize: {} } },
     },
   });
   expect(migrated).toContain("# old default");
@@ -541,7 +571,7 @@ test.each([
 
     expect(
       new TomlEdits(migratedCustom).value(
-        "plugins.shape.summarize.system_prompt",
+        "plugins.shape.bundled.summarize.system_prompt",
       ),
     ).toBe(custom);
     expect(migratedCustom).toContain(
@@ -557,11 +587,11 @@ test("moves the old default context-first order to the v2 context-last default",
   expect(
     new TomlEdits(migrateDiffrConfig(source)).value("plugins.shape.order"),
   ).toEqual([
-    "deleted-bodies",
-    "summarize",
-    "test-bodies",
-    "removed-runs",
-    "context",
+    "bundled.deleted-bodies",
+    "bundled.summarize",
+    "bundled.test-bodies",
+    "bundled.removed-runs",
+    "bundled.context",
   ]);
 });
 
@@ -583,11 +613,11 @@ hide = ['team']
     plugins: {
       // oxlint-disable-next-line anti-slop/no-shape-in-symbol-names -- Native diffr v2 config namespace.
       shape: {
-        order: ["context", "team.custom"],
-        context: { lines: 16 },
+        order: ["bundled.context", "team.custom"],
+        bundled: { context: { lines: 16 } },
         "team.custom": { path: "plugins/custom", threshold: 1000 },
       },
-      classify: { classify: { hide: ["team"] } },
+      classify: { bundled: { hide: ["team"] } },
     },
   });
   expect(migrated).toContain("lines = 0x10");
@@ -600,4 +630,63 @@ hide = ['team']
     "file tags",
   ])
     expect(migrated).toContain(`# ${comment}`);
+});
+
+test("keeps a custom classifier whose name conflicts with bundled unchanged", async () => {
+  const { root, file, executable, env } = await fixture();
+  const directory = path.join(root, "diffr", "custom-classifier");
+  await mkdir(directory);
+  await writeFile(path.join(directory, "plugin.toml"), 'name = "bundled"\n');
+  const source = '[classifier]\npath = "custom-classifier"\nhide = ["team"]\n';
+  await writeFile(file, source);
+  await expect(ensureDiffrConfigMigrated(executable, env)).rejects.toThrow(
+    "custom classifier named bundled",
+  );
+  expect(await readFile(file, "utf8")).toBe(source);
+  expect(await readdir(path.dirname(file))).toEqual([
+    "config.toml",
+    "custom-classifier",
+  ]);
+});
+
+test("retains order references for bundled and custom plugins with the same basename", () => {
+  const source = `[plugins]
+order = ["external.context", "bundled.context"]
+[plugins.bundled.context]
+enabled = false
+lines = 0x10 # stock override
+[plugins.external.context]
+path = 'custom/context' # custom path
+lines = 1_000 # custom override
+`;
+
+  const migrated = migrateDiffrConfig(source);
+  expect(parse(migrated)).toEqual({
+    version: 2,
+    plugins: {
+      // oxlint-disable-next-line anti-slop/no-shape-in-symbol-names -- Native diffr v2 config namespace.
+      shape: {
+        order: ["context", "bundled.context"],
+        bundled: { context: { enabled: false, lines: 16 } },
+        context: { path: "custom/context", lines: 1000 },
+      },
+    },
+  });
+
+  for (const line of source.split("\n").filter((line) => line.includes("#")))
+    expect(migrated).toContain(line);
+});
+
+test("keeps reserved custom plugin entries unchanged on disk", async () => {
+  const { file, executable, env } = await fixture();
+
+  const source =
+    '[plugins.external."bundled.context"]\npath = "custom/context"\n';
+
+  await writeFile(file, source);
+  await expect(ensureDiffrConfigMigrated(executable, env)).rejects.toThrow(
+    "custom plugin named bundled.context",
+  );
+  expect(await readFile(file, "utf8")).toBe(source);
+  expect(await readdir(path.dirname(file))).toEqual(["config.toml"]);
 });

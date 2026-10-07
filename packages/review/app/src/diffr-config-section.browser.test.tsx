@@ -48,19 +48,21 @@ function config(): ReviewDiffrConfig {
     values: {
       version: 2,
       plugins: {
-        classify: { classify: { hide: ["test"], hide_deleted: true } },
+        classify: { bundled: { hide: ["test"], hide_deleted: true } },
         // oxlint-disable-next-line anti-slop/no-shape-in-symbol-names -- Native diffr v2 config key.
         shape: {
-          context: { enabled: true, lines: 3 },
-          "test-bodies": { enabled: true },
-          "deleted-bodies": { enabled: true },
-          "removed-runs": { enabled: true },
-          summarize: {
-            enabled: false,
-            provider: "gemini",
-            model: "test-model",
-            tests: true,
-            system_prompt: "Default prompt.",
+          bundled: {
+            context: { enabled: true, lines: 3 },
+            "test-bodies": { enabled: true },
+            "deleted-bodies": { enabled: true },
+            "removed-runs": { enabled: true },
+            summarize: {
+              enabled: false,
+              provider: "gemini",
+              model: "test-model",
+              tests: true,
+              system_prompt: "Default prompt.",
+            },
           },
         },
       },
@@ -89,16 +91,18 @@ async function mount(overrides: Partial<ReviewDiffrConfig> = {}) {
         values: {
           version: 2,
           plugins: {
-            classify: { classify: { hide: ["test"], hide_deleted: true } },
+            classify: { bundled: { hide: ["test"], hide_deleted: true } },
             // oxlint-disable-next-line anti-slop/no-shape-in-symbol-names -- Native diffr v2 config key.
             shape: {
-              summarize: {
-                enabled: input.enabled,
-                provider: input.provider,
-                model: input.model,
-                endpoint: input.endpoint,
-                system_prompt: input.systemPrompt,
-                tests: input.tests,
+              bundled: {
+                summarize: {
+                  enabled: input.enabled,
+                  provider: input.provider,
+                  model: input.model,
+                  endpoint: input.endpoint,
+                  system_prompt: input.systemPrompt,
+                  tests: input.tests,
+                },
               },
             },
           },
@@ -135,13 +139,13 @@ async function open() {
 test("file-hiding controls use classify fields and retain custom tags across off and on", async () => {
   const { actions, current } = await mount();
   pluginSettings(current).classify = {
-    classify: { hide: ["custom"], hide_deleted: true },
+    bundled: { hide: ["custom"], hide_deleted: true },
   };
   vi.mocked(actions.set).mockImplementation(async (key, value) => {
     const field = key.split(".").at(-1)!;
     const classify = pluginSettings(current).classify as JsonObject;
-    classify.classify = {
-      ...(classify.classify as JsonObject),
+    classify.bundled = {
+      ...(classify.bundled as JsonObject),
       [field]: value,
     };
 
@@ -150,25 +154,22 @@ test("file-hiding controls use classify fields and retain custom tags across off
   await open();
   await act(async () => page.getByLabelText("Hide files by tag").click());
   expect(pluginSettings(current).classify).toMatchObject({
-    classify: { hide: [] },
+    bundled: { hide: [] },
   });
   await act(async () => page.getByLabelText("Hide files by tag").click());
   expect(pluginSettings(current).classify).toMatchObject({
-    classify: { hide: ["custom"] },
+    bundled: { hide: ["custom"] },
   });
   await act(async () => page.getByLabelText("Hide deleted files").click());
   expect(pluginSettings(current).classify).toMatchObject({
-    classify: { hide_deleted: false },
+    bundled: { hide_deleted: false },
   });
-  expect(actions.set).toHaveBeenCalledWith(
-    "plugins.classify.classify.hide",
-    [],
-  );
-  expect(actions.set).toHaveBeenCalledWith("plugins.classify.classify.hide", [
+  expect(actions.set).toHaveBeenCalledWith("plugins.classify.bundled.hide", []);
+  expect(actions.set).toHaveBeenCalledWith("plugins.classify.bundled.hide", [
     "custom",
   ]);
   expect(actions.set).toHaveBeenCalledWith(
-    "plugins.classify.classify.hide_deleted",
+    "plugins.classify.bundled.hide_deleted",
     false,
   );
 });
@@ -176,12 +177,12 @@ test("file-hiding controls use classify fields and retain custom tags across off
 test("enabling tag hiding from an empty list uses the schema defaults", async () => {
   const { actions, current } = await mount();
   pluginSettings(current).classify = {
-    classify: { hide: [], hide_deleted: false },
+    bundled: { hide: [], hide_deleted: false },
   };
   await open();
   await act(async () => page.getByLabelText("Hide files by tag").click());
   expect(actions.set).toHaveBeenCalledWith(
-    "plugins.classify.classify.hide",
+    "plugins.classify.bundled.hide",
     current.defaultHiddenTags,
   );
 });
@@ -267,7 +268,7 @@ test("writes the selected key and keeps reload visible when collapsed", async ()
     await page.getByLabelText("Collapse test bodies").click();
   });
   expect(actions.set).toHaveBeenCalledWith(
-    "plugins.shape.test-bodies.enabled",
+    "plugins.shape.bundled.test-bodies.enabled",
     false,
   );
   await expect
@@ -303,7 +304,10 @@ test("rejects invalid context lines without writing", async () => {
 
 test("tests draft settings without saving, then saves the custom prompt and clears the key", async () => {
   const saved = config();
-  const foldPlugins = pluginSettings(saved).shape as JsonObject;
+
+  const foldPlugins = (pluginSettings(saved).shape as JsonObject)
+    .bundled as JsonObject;
+
   (foldPlugins.summarize as JsonObject).system_prompt = "Keep my wording.";
   const { actions } = await mount(saved);
   await open();
@@ -527,7 +531,7 @@ test("switching provider clears a custom endpoint, and a new endpoint warns abou
       plugins: {
         ...(values.plugins as JsonObject),
         // oxlint-disable-next-line anti-slop/no-shape-in-symbol-names -- Native diffr v2 config key.
-        shape: { summarize },
+        shape: { bundled: { summarize } },
       },
     },
   });

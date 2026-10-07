@@ -54,7 +54,7 @@ console.log('{}');
         version: 2,
         plugins: {
           // oxlint-disable-next-line anti-slop/no-shape-in-symbol-names -- Native diffr v2 config key.
-          shape: { context: { lines: 17, enabled: false } },
+          shape: { bundled: { context: { lines: 17, enabled: false } } },
         },
       });
     };

@@ -131,19 +131,21 @@ async function fakeDiffr(
     JSON.stringify({
       version: 2,
       plugins: {
-        ...(classifier && { classify: { classify: classifier } }),
+        ...(classifier && { classify: { bundled: classifier } }),
         // oxlint-disable-next-line anti-slop/no-shape-in-symbol-names -- Native diffr v2 config key.
         shape: {
-          summarize: {
-            enabled: false,
-            provider: "gemini",
-            model: "old",
-            tests: false,
-            system_prompt: DEFAULT_PROMPT,
-            ...(key && { api_key: key }),
-            ...summarize,
+          bundled: {
+            summarize: {
+              enabled: false,
+              provider: "gemini",
+              model: "old",
+              tests: false,
+              system_prompt: DEFAULT_PROMPT,
+              ...(key && { api_key: key }),
+              ...summarize,
+            },
+            context: { lines: 3, enabled: true },
           },
-          context: { lines: 3, enabled: true },
         },
       },
     }),
@@ -161,9 +163,9 @@ if (args[0] === 'config' && args[1] === 'schema' && process.env.FAIL_SCHEMA) {
 } else if (args[0] === 'config' && args[1] === 'schema') {
   const summarize = ${JSON.stringify(SUMMARIZE_SCHEMA)};
   // oxlint-disable-next-line anti-slop/no-shape-in-symbol-names -- Native diffr v2 config key.
-  console.log(JSON.stringify({ properties: { plugins: { properties: { ${classifier ? 'classify: { properties: { classify: { properties: { hide: { default: ["generated", "vendored"] } } } } },' : ""} shape: { properties: { summarize } } } } } }));
+  console.log(JSON.stringify({ properties: { plugins: { properties: { ${classifier ? 'classify: { properties: { bundled: { properties: { hide: { default: ["generated", "vendored"] } } } } },' : ""} shape: { properties: { bundled: { properties: { summarize } } } } } } } }));
 } else if (args[0] === 'config' && args[1] === 'show') {
-  if (!args.includes('--reveal') && config.plugins.shape.summarize.api_key) config.plugins.shape.summarize.api_key = '<redacted>';
+  if (!args.includes('--reveal') && config.plugins.shape.bundled.summarize.api_key) config.plugins.shape.bundled.summarize.api_key = '<redacted>';
   console.log(JSON.stringify(config));
 } else if (args[0] === 'config' && args[1] === 'set') {
   if (args[2] === process.env.FAIL_KEY) { console.error('command leaked secret: ' + args.join(' ')); process.exit(2); }
@@ -221,6 +223,28 @@ test("reads resolved values and reports credentials without exposing keys", asyn
   );
 });
 
+test("redacts credentials in bundled and custom shape entries", async () => {
+  const fake = await fakeDiffr("bundled-secret");
+  const state = JSON.parse(await readFile(fake.state, "utf8"));
+  state.plugins.shape.custom = {
+    path: "plugins/custom",
+    api_key: "custom-secret",
+    enabled: true,
+  };
+  await writeFile(fake.state, JSON.stringify(state));
+
+  const config = await readDiffrConfig();
+  expect(JSON.stringify(config)).not.toMatch(
+    /bundled-secret|custom-secret|api_key/,
+  );
+  expect(config.values).toMatchObject({
+    plugins: {
+      // oxlint-disable-next-line anti-slop/no-shape-in-symbol-names -- Native diffr v2 config key.
+      shape: { custom: { path: "plugins/custom", enabled: true } },
+    },
+  });
+});
+
 test("detects host environment credentials and missing credentials", async () => {
   await fakeDiffr();
   expect((await readDiffrConfig()).credentialSource).toBe("missing");
@@ -237,7 +261,7 @@ test("reads classifier values and schema defaults without old plugin keys", asyn
   const config = await readDiffrConfig();
   expect(config.values).toMatchObject({
     plugins: {
-      classify: { classify: { hide: ["test", "custom"], hide_deleted: false } },
+      classify: { bundled: { hide: ["test", "custom"], hide_deleted: false } },
     },
   });
   expect(config.defaultHiddenTags).toEqual(["generated", "vendored"]);
@@ -252,31 +276,31 @@ test("writes classifier values without changing credentials", async () => {
   );
 
   expect(
-    (await setDiffrConfigValue("plugins.classify.classify.hide", ["custom"]))
+    (await setDiffrConfigValue("plugins.classify.bundled.hide", ["custom"]))
       .changed,
   ).toBe(false);
-  await setDiffrConfigValue("plugins.classify.classify.hide", []);
-  await setDiffrConfigValue("plugins.classify.classify.hide_deleted", false);
+  await setDiffrConfigValue("plugins.classify.bundled.hide", []);
+  await setDiffrConfigValue("plugins.classify.bundled.hide_deleted", false);
   const disabled = JSON.parse(await readFile(fake.state, "utf8"));
-  expect(disabled.plugins.classify.classify).toEqual({
+  expect(disabled.plugins.classify.bundled).toEqual({
     hide: [],
     hide_deleted: false,
   });
-  await setDiffrConfigValue("plugins.classify.classify.hide", ["custom"]);
+  await setDiffrConfigValue("plugins.classify.bundled.hide", ["custom"]);
   const enabled = JSON.parse(await readFile(fake.state, "utf8"));
-  expect(enabled.plugins.classify.classify).toEqual({
+  expect(enabled.plugins.classify.bundled).toEqual({
     hide: ["custom"],
     hide_deleted: false,
   });
-  expect(enabled.plugins.shape.summarize.api_key).toBe("saved-secret");
-  expect(enabled.plugins.shape["hide-files"]).toBeUndefined();
+  expect(enabled.plugins.shape.bundled.summarize.api_key).toBe("saved-secret");
+  expect(enabled.plugins.shape.bundled["hide-files"]).toBeUndefined();
 });
 
 test("writes the native path of a custom classifier whose name contains spaces", async () => {
   const fake = await fakeDiffr("saved-secret", {}, { hide: ["team"] });
   const state = JSON.parse(await readFile(fake.state, "utf8"));
   state.plugins.classify = {
-    "team classifier": state.plugins.classify.classify,
+    "team classifier": state.plugins.classify.bundled,
   };
   await writeFile(fake.state, JSON.stringify(state));
 
@@ -297,13 +321,19 @@ test("writes the native path of a custom classifier whose name contains spaces",
 test("writes a setting, rereads it, and avoids invalidation for a no-op", async () => {
   await fakeDiffr();
   expect(
-    (await setDiffrConfigValue("plugins.shape.context.lines", 3)).changed,
+    (await setDiffrConfigValue("plugins.shape.bundled.context.lines", 3))
+      .changed,
   ).toBe(false);
-  const result = await setDiffrConfigValue("plugins.shape.context.lines", 8);
+
+  const result = await setDiffrConfigValue(
+    "plugins.shape.bundled.context.lines",
+    8,
+  );
+
   expect(result).toMatchObject({
     changed: true,
     // oxlint-disable-next-line anti-slop/no-shape-in-symbol-names -- Native diffr v2 config key.
-    values: { plugins: { shape: { context: { lines: 8 } } } },
+    values: { plugins: { shape: { bundled: { context: { lines: 8 } } } } },
   });
 });
 
@@ -313,13 +343,13 @@ test("saves credentials and options before enabling and preserves blank keys", a
   const writes = (await fake.calls()).filter((args) => args[1] === "set");
   expect(writes.map((args) => args[2])).toEqual(
     ["api_key", "model", "tests", "enabled"].map(
-      (key) => `plugins.shape.summarize.${key}`,
+      (key) => `plugins.shape.bundled.summarize.${key}`,
     ),
   );
   await saveDiffrSummarizer({ ...draft, apiKey: "" });
   expect(
-    JSON.parse(await readFile(fake.state, "utf8")).plugins.shape.summarize
-      .api_key,
+    JSON.parse(await readFile(fake.state, "utf8")).plugins.shape.bundled
+      .summarize.api_key,
   ).toBe("test-secret");
 });
 
@@ -328,7 +358,7 @@ test("disables first and serializes concurrent saves", async () => {
   await saveDiffrSummarizer(draft);
   await Promise.all([
     saveDiffrSummarizer({ ...draft, enabled: false, model: "next" }),
-    setDiffrConfigValue("plugins.shape.context.lines", 9),
+    setDiffrConfigValue("plugins.shape.bundled.context.lines", 9),
   ]);
 
   const writes = (await fake.calls())
@@ -336,28 +366,30 @@ test("disables first and serializes concurrent saves", async () => {
     .slice(-3);
 
   expect(writes.map((args) => args[2])).toEqual([
-    "plugins.shape.summarize.enabled",
-    "plugins.shape.summarize.model",
-    "plugins.shape.context.lines",
+    "plugins.shape.bundled.summarize.enabled",
+    "plugins.shape.bundled.summarize.model",
+    "plugins.shape.bundled.context.lines",
   ]);
 });
 
 test("partial failure returns current values and invalidates without leaking the key", async () => {
   await fakeDiffr();
-  vi.stubEnv("FAIL_KEY", "plugins.shape.summarize.model");
+  vi.stubEnv("FAIL_KEY", "plugins.shape.bundled.summarize.model");
   const result = await saveDiffrSummarizer({ ...draft, apiKey: "test-secret" });
   expect(result.changed).toBe(true);
   expect(result.error).toContain("Some settings were saved");
   expect(result.values).toMatchObject({
-    // oxlint-disable-next-line anti-slop/no-shape-in-symbol-names -- Native diffr v2 config key.
-    plugins: { shape: { summarize: { enabled: false, model: "old" } } },
+    plugins: {
+      // oxlint-disable-next-line anti-slop/no-shape-in-symbol-names -- Native diffr v2 config key.
+      shape: { bundled: { summarize: { enabled: false, model: "old" } } },
+    },
   });
   expect(JSON.stringify(result)).not.toContain("test-secret");
 });
 
 test("failed key saves do not leak args or stderr and do not invalidate", async () => {
   await fakeDiffr();
-  vi.stubEnv("FAIL_KEY", "plugins.shape.summarize.api_key");
+  vi.stubEnv("FAIL_KEY", "plugins.shape.bundled.summarize.api_key");
   const result = await saveDiffrSummarizer({ ...draft, apiKey: "test-secret" });
   expect(result.changed).toBe(false);
   expect(result.error).toBeDefined();
@@ -458,12 +490,12 @@ test("saved changes invalidate cached comparisons while no-op saves reuse them",
 
   try {
     await consume();
-    await setDiffrConfigValue("plugins.shape.context.lines", 3);
+    await setDiffrConfigValue("plugins.shape.bundled.context.lines", 3);
     await consume();
     expect(
       (await fake.calls()).filter((args) => args[0] === "--repo"),
     ).toHaveLength(1);
-    await setDiffrConfigValue("plugins.shape.context.lines", 8);
+    await setDiffrConfigValue("plugins.shape.bundled.context.lines", 8);
     await consume();
     expect(
       (await fake.calls()).filter((args) => args[0] === "--repo"),
@@ -492,8 +524,8 @@ test("saves a changed prompt and leaves an unchanged one alone", async () => {
     systemPrompt: "Be terse.",
   });
   expect(
-    JSON.parse(await readFile(fake.state, "utf8")).plugins.shape.summarize
-      .system_prompt,
+    JSON.parse(await readFile(fake.state, "utf8")).plugins.shape.bundled
+      .summarize.system_prompt,
   ).toBe("Be terse.");
 });
 
@@ -501,7 +533,8 @@ test("switching providers clears the saved key unless a new one is entered", asy
   const fake = await fakeDiffr("gemini-secret");
 
   const state = async () =>
-    JSON.parse(await readFile(fake.state, "utf8")).plugins.shape.summarize;
+    JSON.parse(await readFile(fake.state, "utf8")).plugins.shape.bundled
+      .summarize;
 
   await saveDiffrSummarizer({
     ...draft,
@@ -580,7 +613,7 @@ test("reads the environment key of the saved provider", async () => {
 
 test("a switch clears the saved key before naming the new provider", async () => {
   const fake = await fakeDiffr("gemini-secret");
-  vi.stubEnv("FAIL_KEY", "plugins.shape.summarize.provider");
+  vi.stubEnv("FAIL_KEY", "plugins.shape.bundled.summarize.provider");
 
   const result = await saveDiffrSummarizer({
     ...draft,
@@ -591,7 +624,7 @@ test("a switch clears the saved key before naming the new provider", async () =>
   expect(result.error).toBeDefined();
 
   const state = JSON.parse(await readFile(fake.state, "utf8")).plugins.shape
-    .summarize;
+    .bundled.summarize;
 
   // The failure left the old provider, and no key for it to send.
   expect(state).toMatchObject({ provider: "gemini", api_key: "" });
@@ -603,7 +636,8 @@ test("a new endpoint is treated like a new provider", async () => {
   await expect(testDiffrSummarizer(moved)).rejects.toThrow("Add an API key");
   await saveDiffrSummarizer({ ...moved, enabled: false });
   expect(
-    JSON.parse(await readFile(fake.state, "utf8")).plugins.shape.summarize,
+    JSON.parse(await readFile(fake.state, "utf8")).plugins.shape.bundled
+      .summarize,
   ).toMatchObject({ api_key: "", endpoint: "https://proxy.example/v1" });
 });
 
@@ -697,7 +731,8 @@ test("a custom endpoint kept across a provider switch survives diffr clearing it
     apiKey: "openai-key",
   });
   expect(
-    JSON.parse(await readFile(fake.state, "utf8")).plugins.shape.summarize,
+    JSON.parse(await readFile(fake.state, "utf8")).plugins.shape.bundled
+      .summarize,
   ).toMatchObject({
     provider: "openai",
     endpoint: "https://gateway.example/v1",

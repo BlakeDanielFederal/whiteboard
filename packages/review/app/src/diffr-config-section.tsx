@@ -15,10 +15,16 @@ import { Choice } from "./settings-choice";
 import { settingsStyles as styles } from "./settings-styles";
 
 const foldSettings = [
-  ["plugins.shape.context.enabled", "Collapse unchanged lines"],
-  ["plugins.shape.test-bodies.enabled", "Collapse test bodies"],
-  ["plugins.shape.deleted-bodies.enabled", "Collapse deleted function bodies"],
-  ["plugins.shape.removed-runs.enabled", "Collapse long removed stretches"],
+  ["plugins.shape.bundled.context.enabled", "Collapse unchanged lines"],
+  ["plugins.shape.bundled.test-bodies.enabled", "Collapse test bodies"],
+  [
+    "plugins.shape.bundled.deleted-bodies.enabled",
+    "Collapse deleted function bodies",
+  ],
+  [
+    "plugins.shape.bundled.removed-runs.enabled",
+    "Collapse long removed stretches",
+  ],
 ] as const;
 
 type DisplaySetting = readonly [key: string, label: string];
@@ -60,7 +66,9 @@ function setting(
 }
 
 function provider(config: ReviewDiffrConfig): string {
-  return String(setting(config, "plugins.shape.summarize.provider") ?? "");
+  return String(
+    setting(config, "plugins.shape.bundled.summarize.provider") ?? "",
+  );
 }
 
 /** The provider diffr describes as `id`, if any. */
@@ -74,16 +82,21 @@ function title(config: ReviewDiffrConfig, id: string): string {
 
 function summaryDraft(config: ReviewDiffrConfig): ReviewDiffrSummarizerInput {
   return {
-    enabled: setting(config, "plugins.shape.summarize.enabled") === true,
+    enabled:
+      setting(config, "plugins.shape.bundled.summarize.enabled") === true,
     provider: provider(config),
-    model: String(setting(config, "plugins.shape.summarize.model") ?? ""),
-    endpoint: String(setting(config, "plugins.shape.summarize.endpoint") ?? ""),
+    model: String(
+      setting(config, "plugins.shape.bundled.summarize.model") ?? "",
+    ),
+    endpoint: String(
+      setting(config, "plugins.shape.bundled.summarize.endpoint") ?? "",
+    ),
     systemPrompt: String(
-      setting(config, "plugins.shape.summarize.system_prompt") ??
+      setting(config, "plugins.shape.bundled.summarize.system_prompt") ??
         config.defaultPrompt ??
         "",
     ),
-    tests: setting(config, "plugins.shape.summarize.tests") === true,
+    tests: setting(config, "plugins.shape.bundled.summarize.tests") === true,
     apiKey: "",
   };
 }
@@ -171,7 +184,8 @@ export function DiffrConfigSection({
     JSON.stringify(draft) !== JSON.stringify(summaryDraft(config));
 
   const unavailable =
-    !config || setting(config, "plugins.shape.summarize.enabled") === undefined;
+    !config ||
+    setting(config, "plugins.shape.bundled.summarize.enabled") === undefined;
 
   const summaryValid = !!draft?.model.trim();
   const savedDraft = config && summaryDraft(config);
@@ -231,16 +245,19 @@ export function DiffrConfigSection({
                         Not available in this configuration.
                       </p>
                     )}
-                    {key === "plugins.shape.context.enabled" && (
+                    {key === "plugins.shape.bundled.context.enabled" && (
                       <SettingRow label="Context lines">
                         <ContextLines
-                          value={setting(config, "plugins.shape.context.lines")}
+                          value={setting(
+                            config,
+                            "plugins.shape.bundled.context.lines",
+                          )}
                           disabled={busy || setting(config, key) !== true}
                           commit={(value) =>
                             void run(async () =>
                               saved(
                                 await actions.set(
-                                  "plugins.shape.context.lines",
+                                  "plugins.shape.bundled.context.lines",
                                   value,
                                 ),
                               ),
