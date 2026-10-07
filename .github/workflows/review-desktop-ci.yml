@@ -125,50 +125,25 @@ jobs:
             run: |
               source apps/review-desktop/scripts/code-oss-dependencies.sh
               ensure_code_oss_dependencies "$PWD/apps/review-desktop" "$PWD/apps/review-desktop/code-oss"
-              ensure_code_oss_electron "$PWD/apps/review-desktop/code-oss"
 
           - name: Build workspace packages
             run: |
               source apps/review-desktop/scripts/freshness.sh
               rebuild_review_desktop_outputs "$PWD" "$PWD/packages/review"
-              pnpm --filter @dev.fast/review-desktop protocol:sync
 
-      # Only the Code OSS compile is left; tests do not read its output.
       - name: Build Whiteboard
-        id: build
-        background: true
         env:
           GITHUB_TOKEN: ${{ github.token }}
           REVIEW_DESKTOP_CI_FAST: "1"
         run: pnpm --filter @dev.fast/review-desktop app:build
 
-      - name: Check the tutorial assets
-        run: pnpm --filter @dev.fast/whiteboard check:tutorial
-
-      - name: Typecheck
-        run: |
-          pnpm -r --filter '!@dev.fast/review-desktop' --workspace-concurrency=1 --if-present typecheck
-
-      - name: Test
-        run: |
-          node --test "scripts/**/*.test.mjs"
-          pnpm -r --no-sort --workspace-concurrency=3 --if-present test
-
-      - name: Bundled diffr integration
-        run: |
-          pnpm --filter @dev.fast/whiteboard exec vitest run --config vitest.integration.config.ts
-
-      - name: Wait for the build
-        wait: build
-
       - name: Validate Whiteboard build
-        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
         run: |
           test -d apps/review-desktop/code-oss/node_modules
           test -f apps/review-desktop/code-oss/out/main.js
 
       - name: Save Code OSS dependencies
-        if: ${{ !cancelled() && steps.build.outcome == 'success' && steps.code-oss-deps.outputs.cache-hit != 'true' }}
+        if: steps.code-oss-deps.outputs.cache-hit != 'true'
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
         with:
           path: |
@@ -183,6 +158,24 @@ jobs:
             apps/review-desktop/code-oss/.build/electron
             ~/.cache/node-gyp
           key: ${{ runner.os }}-${{ runner.arch }}-code-oss-deps-v3-${{ steps.code-oss-dependency-digest.outputs.digest }}
+
+      - name: Check the tutorial assets
+        run: pnpm --filter @dev.fast/whiteboard check:tutorial
+
+      # The build already built workspace dependencies and typechecked Code OSS.
+      - name: Typecheck
+        run: |
+          pnpm -r --filter '!@dev.fast/review-desktop' --workspace-concurrency=1 --if-present typecheck
+
+      # Typecheck prepared the shared tutorial assets before concurrent pretests.
+      - name: Test
+        run: |
+          node --test "scripts/**/*.test.mjs"
+          pnpm -r --no-sort --workspace-concurrency=3 --if-present test
+
+      - name: Bundled diffr integration
+        run: |
+          pnpm --filter @dev.fast/whiteboard exec vitest run --config vitest.integration.config.ts
 
       - name: Upload browser test diagnostics
         if: failure()

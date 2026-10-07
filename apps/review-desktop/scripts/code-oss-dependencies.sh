@@ -66,29 +66,3 @@ ensure_code_oss_dependencies() {
   esac
   cd "$previous_directory" || return 1
 }
-
-ensure_code_oss_electron() (
-  cd "$1" || exit 1
-  local app
-  local binary
-
-  if [[ "$OSTYPE" == "darwin"* ]]; then
-    app="$(node -p "require('./product.json').nameShort")"
-    binary=".build/electron/$app.app/Contents/MacOS/$app"
-  elif [[ "$OSTYPE" == "msys"* || "$OSTYPE" == "cygwin"* ]]; then
-    app="$(node -p "require('./product.json').nameShort")"
-    binary=".build/electron/$app.exe"
-  else
-    app="$(node -p "require('./product.json').applicationName")"
-    binary=".build/electron/$app"
-  fi
-  # A cache restored from an older key can hold a stale Electron; preLaunch
-  # would then re-download it at launch and drop the CI sandbox setup.
-  local target
-  local installed
-  target="$(sed -n 's/^target="\(.*\)"$/\1/p' .npmrc)"
-  installed="$(cat .build/electron/version 2>/dev/null || true)"
-  if [[ ! -x "$binary" || "${installed#v}" != "$target" ]]; then
-    npm run electron
-  fi
-)
