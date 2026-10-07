@@ -165,8 +165,8 @@ importers:
         specifier: 7.8.5
         version: 7.8.5
       sharp:
-        specifier: 0.35.4
-        version: 0.35.4(@types/node@24.12.2)
+        specifier: 0.35.5
+        version: 0.35.5(@types/node@24.12.2)
       smol-toml:
         specifier: 1.8.0
         version: 1.8.0
@@ -780,30 +780,30 @@ packages:
     resolution: {integrity: sha512-Td76q7j57o/tLVdgS746cYARfSyxk8iEfRxewL9h4OMzYhbW4TAcppl0mT4eyqXddh6L/jwoM75mo7ixa/pCeQ==}
     engines: {node: '>=18'}
 
-  '@img/sharp-darwin-arm64@0.35.4':
-    resolution: {integrity: sha512-Uhfl4V4lhP2nbUVF9+hyH1+luj86f1gUFeo8ALYxFoULoU+G87D43BfeMP8XHsk9boxAnCY/bf2EHwhA7MuGsA==}
+  '@img/sharp-darwin-arm64@0.35.5':
+    resolution: {integrity: sha512-QRUlFQ0WxvdWyqqG/WtI3iupfD5rBzmCHXSdPsY91sAtVtTo7Q4cb6zOccZ3gqEqkr0f1As1ehLqmEpDsRf+lg==}
     engines: {node: '>=20.9.0'}
     cpu: [arm64]
     os: [darwin]
 
-  '@img/sharp-darwin-x64@0.35.4':
-    resolution: {integrity: sha512-hWniXY3bG5qKpkKrAwPe4y+VTPmf086YQAnkxWh7uA1YrlRouWGa0M0Mxj3ZjnXFkv7/TD1bTy9lGUK26vRvWw==}
+  '@img/sharp-darwin-x64@0.35.5':
+    resolution: {integrity: sha512-+BR255RhDlpygUpOc/Jdt1nT6DQ3XG/ERo5wbcdOf5Q320dKtPCKPLR1LJs9VGXRaMa8l1uUa0tkCNOXiAxZUw==}
     engines: {node: '>=20.9.0'}
     cpu: [x64]
     os: [darwin]
 
-  '@img/sharp-freebsd-wasm32@0.35.4':
-    resolution: {integrity: sha512-lIsKw/BU+kjB4eZjxrYrZmwOJYi3Ajrv66iAlBmUPyKc3HpnloevB1g3wxGD9P/5BbQ1brBGl65VRRrCvQDEqA==}
+  '@img/sharp-freebsd-wasm32@0.35.5':
+    resolution: {integrity: sha512-Y/z91nEZ4uIBX5X3nfTovjU9lHNKFYbL2lpHCLVNmXQK03VIZvXBBt0KxbPGp2SdGSF+2mQU4e+hQaWOt86iAw==}
     engines: {node: '>=20.9.0'}
     os: [freebsd]
 
-  '@img/sharp-libvips-darwin-arm64@1.3.3':
-    resolution: {integrity: sha512-suTBPTDGrI9WodccaDdwZItTSaBYASlBk1NSfElSHrUfzu3szG6lvIF58+WiFvnfzuK8ZBFS5zE00PxqxnRiPg==}
+  '@img/sharp-libvips-darwin-arm64@1.3.4':
+    resolution: {integrity: sha512-5R89nBYiRdUlSWJxPhO+GVtaXzXSxKnRu/xqMn3KTA3L9EB9Oy/P+Nn2f2vlhPuUdy/Zusb2DarbyTpGCfEDuw==}
     cpu: [arm64]
     os: [darwin]
 
-  '@img/sharp-libvips-darwin-x64@1.3.3':
-    resolution: {integrity: sha512-FVJZ5mITMobmXIz/hPDTw0EintTW5H3WfrxwLqEqjiIihlu+hVRyGrFQ60xl0Lxn7Bt3zdpevPaQi0HEzqz9fw==}
+  '@img/sharp-libvips-darwin-x64@1.3.4':
+    resolution: {integrity: sha512-iR2OKH80yi0U+dUplyh3/xdpFvps6YkCwsXenIJxqxR1v9o+xtKTGbS9H7cps+2Vxjc8B1j96p75NmTGjIhtpQ==}
     cpu: [x64]
     os: [darwin]
 
@@ -811,25 +811,29 @@ packages:
     resolution: {integrity: sha512-zQnl4Kwp7Q6NHsENtU2T/00Zi+w3AQNwz3+UaTyVBy2FpXrzXzGjndpK61onhZjRtRpQXxCTeqw19bVyXOh7jA==}
     engines: {node: '>=20.9.0'}
 
-  '@img/sharp-webcontainers-wasm32@0.35.4':
-    resolution: {integrity: sha512-ESfNkywmCfPNyaZjxooddJQiQ+l/nTpGEOGthxiLnIHXC/CmcBixnfwUleX9mCz9ovrUUvKMap/pm8RYbzfwaA==}
+  '@img/sharp-wasm32@0.35.5':
+    resolution: {integrity: sha512-Ptsga1su4tQx+LLF1ECS9U6nz5kmrXKo6XVbtR48Ke3ZRxxgaWBu7IDtEe1quo8hiupwm6WFqxVlXaSf7IINGQ==}
+    engines: {node: '>=20.9.0'}
+
+  '@img/sharp-webcontainers-wasm32@0.35.5':
+    resolution: {integrity: sha512-hfhF/FmoQyTUkA0bIKFOtw536BQSeBMe6BF6QyWlrPxT754+TFLaZ7sKKTfvvM0yJgKgaYTwnFCIZ/GuDw5SUA==}
     engines: {node: '>=20.9.0'}
     cpu: [wasm32]
 
-  '@img/sharp-win32-arm64@0.35.4':
-    resolution: {integrity: sha512-iNdlBX9gLVvqe2I3uIJSIKTq6wckP/DYxZtcqxm09x5Gi24DnFBmPAWZmr60ZyYMG0xlzo6goG3670ar+RXvRw==}
+  '@img/sharp-win32-arm64@0.35.5':
+    resolution: {integrity: sha512-X4t7g+7ZA5DKblCBEXGjUqqemj4vczING/5viFwAL8h4N3qYeyjwdCvRLHi4EdOUI+2Z7UFlp1VM+p/AuEtm6Q==}
     engines: {node: '>=20.9.0'}
     cpu: [arm64]
     os: [win32]
 
-  '@img/sharp-win32-ia32@0.35.4':
-    resolution: {integrity: sha512-kqRsbaa5CS6KHlpxnN7WhE6vAAugXyZButpRdvDWetlv6Qv4N9WTcrWzF7tXfB9T7MsoadqdI8hmwLq6UlLvtw==}
+  '@img/sharp-win32-ia32@0.35.5':
+    resolution: {integrity: sha512-5Zm82LoBc43nhwNybZlG7Y1KO//Zhsn306fQl29ZOuStHLGTo3BWL83q3cznX0poxSAMuYL1On/BHBxkBeKr6A==}
     engines: {node: ^20.9.0}
     cpu: [ia32]
     os: [win32]
 
-  '@img/sharp-win32-x64@0.35.4':
-    resolution: {integrity: sha512-XtmnYhBcrORsJ4XJngyzr/EWP0hRZLAZRFaApdKuviyqF78+ylxh2y06ZmtULAMOnObJ3ucpN0AcwSWnMowTRg==}
+  '@img/sharp-win32-x64@0.35.5':
+    resolution: {integrity: sha512-x76eH0vEiHlcMQu8Y8IenntaACtddpT6W0wmXtWrnKcnKI7ME5DdgqhAD6SEWOEl1v2zDvkZDhFA9KnURwpfqg==}
     engines: {node: '>=20.9.0'}
     cpu: [x64]
     os: [win32]
@@ -1621,133 +1625,157 @@ packages:
     resolution: {integrity: sha512-rsYkGl2kOkDRsh1mxriYnk1qBS78vjlBJ3+T2XwtwKwqOliy2n+2Ae0EDxJ/uX1DZLm3KkBZarGO5isEnmHchA==}
     cpu: [arm64]
     os: [android]
+    deprecated: yuku-codegen is pure JavaScript since 0.14
 
   '@yuku-codegen/binding-darwin-arm64@0.8.4':
     resolution: {integrity: sha512-tNLKzPF3FYmEcHSYvWp/LEpjHHAtDR13hwo6/gdCkYMi9x59CWn2obczKzWNe7kDor4/1AMZuJDEVRpFkTSefw==}
     cpu: [arm64]
     os: [darwin]
+    deprecated: yuku-codegen is pure JavaScript since 0.14
 
   '@yuku-codegen/binding-darwin-x64@0.8.4':
     resolution: {integrity: sha512-tK7LWzXNb5JbZpnoCNHB0nEhPFss/LwwehM6m/f0oYDan+iZgFZXzdoy80JdE7dVxjTZDIhUNPx8X8xbIdaoxA==}
     cpu: [x64]
     os: [darwin]
+    deprecated: yuku-codegen is pure JavaScript since 0.14
 
   '@yuku-codegen/binding-freebsd-x64@0.8.4':
     resolution: {integrity: sha512-5MUV4d7g2p5Hd8GiXW6ynTRgYjm4Dw4eM2gaWRZ4crkGetzNx+HlPxcEfGtVNPqH5Qaa4Z2REtzdsdgvaE6/Ng==}
     cpu: [x64]
     os: [freebsd]
+    deprecated: yuku-codegen is pure JavaScript since 0.14
 
   '@yuku-codegen/binding-linux-arm-gnu@0.8.4':
     resolution: {integrity: sha512-g6LnHrR0Rfqq5cXs7olwR2+LlVDc876pw7Hh7YXbukVSiBxQkaxqsEO/trO25z2g99zWzgXwoYvQZ1TnwA2wEw==}
     cpu: [arm]
     os: [linux]
     libc: [glibc]
+    deprecated: yuku-codegen is pure JavaScript since 0.14
 
   '@yuku-codegen/binding-linux-arm-musl@0.8.4':
     resolution: {integrity: sha512-7XAPHrROPEFuJWXEGZeLZQN4xR8ENQ65+HSCtCHjSzCwGgnX53GUjM9ExVcHopV0a5g4vu57v2wwtyWIM5iNOQ==}
     cpu: [arm]
     os: [linux]
     libc: [musl]
+    deprecated: yuku-codegen is pure JavaScript since 0.14
 
   '@yuku-codegen/binding-linux-arm64-gnu@0.8.4':
     resolution: {integrity: sha512-fnBm7NLuuwFXy7F1vRIuyOc+RW9ADUjuCKVGY87Dj8jtr9XgESNrwb+B9VLSFY7nZ0rCdK/Sm1fBqJpI7eLdKQ==}
     cpu: [arm64]
     os: [linux]
     libc: [glibc]
+    deprecated: yuku-codegen is pure JavaScript since 0.14
 
   '@yuku-codegen/binding-linux-arm64-musl@0.8.4':
     resolution: {integrity: sha512-6vTw4ZHO9nm4SUkw36uG+UE6/qifZ0E8HIef7Mx/U/c2Zxu3JLBfXtU7U/NN2GMkDmcJkgwjXfpQoYw4Ch5Y1w==}
     cpu: [arm64]
     os: [linux]
     libc: [musl]
+    deprecated: yuku-codegen is pure JavaScript since 0.14
 
   '@yuku-codegen/binding-linux-x64-gnu@0.8.4':
     resolution: {integrity: sha512-+vuC3V3Lw+DB4oJgHV9pVDfQZlsZJnxmbdods7HzxgEALU3P5+czwdAcw3wfh7Ebabt0Ny8eLUb1k9RV5OB/+w==}
     cpu: [x64]
     os: [linux]
     libc: [glibc]
+    deprecated: yuku-codegen is pure JavaScript since 0.14
 
   '@yuku-codegen/binding-linux-x64-musl@0.8.4':
     resolution: {integrity: sha512-QH60PE4eZecmgNGa1/T1cKPhrfxt6ANtu4lrQ1FZ50F9b0GS9WjGmIjrfdSUeQa+f2Iqk3oEFSJdgVHBg1KPNg==}
     cpu: [x64]
     os: [linux]
     libc: [musl]
+    deprecated: yuku-codegen is pure JavaScript since 0.14
 
   '@yuku-codegen/binding-win32-arm64@0.8.4':
     resolution: {integrity: sha512-6r68c0nKZPIBRXZIBiD7zjlEukBR+xRxpTOVj4n1Fsjcdh4YbbJfjFfmIzdbo9jXR1xL+dPueDVdsRGOUH5MoQ==}
     cpu: [arm64]
     os: [win32]
+    deprecated: yuku-codegen is pure JavaScript since 0.14
 
   '@yuku-codegen/binding-win32-x64@0.8.4':
     resolution: {integrity: sha512-i+BW77LPjNqe7Apq50J3OeEaVfga3G+eT2bKjb6bj4yO99fil/jnKb4ZDH4JLvby/Q7hRa6VicL2EZ7iS+ifzA==}
     cpu: [x64]
     os: [win32]
+    deprecated: yuku-codegen is pure JavaScript since 0.14
 
   '@yuku-parser/binding-android-arm64@0.8.4':
     resolution: {integrity: sha512-+HIMmv08Zrh9ugIAEMnKBMMePOl7CDxrjc8Vui1+GG2TJHM1yI1+3wo1pnXB6Nj2IiHugDkQw8ycUI6SA2EUkQ==}
     cpu: [arm64]
     os: [android]
+    deprecated: yuku-parser runs on yuku-core since 0.14
 
   '@yuku-parser/binding-darwin-arm64@0.8.4':
     resolution: {integrity: sha512-Elf/B/2m3OsyvxoQnBk8Dtu+9csHkzBNs5Yv9GbHjT3x0kVKNWjFusyZgm41VwxcPDqdpRi8tWxNX7OqXkmf/A==}
     cpu: [arm64]
     os: [darwin]
+    deprecated: yuku-parser runs on yuku-core since 0.14
 
   '@yuku-parser/binding-darwin-x64@0.8.4':
     resolution: {integrity: sha512-CjZuMoXnL5XUkVpDqh4WDPwpAw8CwmtHHnTerGkS45So/sNuwkXdyIAEqqIZfaLopi5W/V9NApAT2md9XizjsQ==}
     cpu: [x64]
     os: [darwin]
+    deprecated: yuku-parser runs on yuku-core since 0.14
 
   '@yuku-parser/binding-freebsd-x64@0.8.4':
     resolution: {integrity: sha512-ibLKORdz71iI4Vs+fyFgvwQ51P5XcxJIyQLa8cSEWqwptRdo+BTcZHIQEcZnFDPUuvmJ19RRH9CoiJdfhr7pZw==}
     cpu: [x64]
     os: [freebsd]
+    deprecated: yuku-parser runs on yuku-core since 0.14
 
   '@yuku-parser/binding-linux-arm-gnu@0.8.4':
     resolution: {integrity: sha512-Fo3r5fYhGDcFnl+KN+L9PgtiQPS4AIE1n1mG1o5jZ11p7g5yZ/1EjLFmSHAUsoXreun8KjTsFjEL7P1Sb93PZQ==}
     cpu: [arm]
     os: [linux]
     libc: [glibc]
+    deprecated: yuku-parser runs on yuku-core since 0.14
 
   '@yuku-parser/binding-linux-arm-musl@0.8.4':
     resolution: {integrity: sha512-BEB31vUEgXPWf7WkoMPSzzJhpC/wWCBXyysRCCPsw47BJ/OtbQsvJbxX9fFDuSRLy3kbyIV/WbdUTgbQ9COxiw==}
     cpu: [arm]
     os: [linux]
     libc: [musl]
+    deprecated: yuku-parser runs on yuku-core since 0.14
 
   '@yuku-parser/binding-linux-arm64-gnu@0.8.4':
     resolution: {integrity: sha512-xGLCRcHn9xVz7JVNyyKtiNJSf503qtUmih9XVSsghgzOmiKUMnHObs69OMMwXN3788tg1jsl11fNjjQlB8idMA==}
     cpu: [arm64]
     os: [linux]
     libc: [glibc]
+    deprecated: yuku-parser runs on yuku-core since 0.14
 
   '@yuku-parser/binding-linux-arm64-musl@0.8.4':
     resolution: {integrity: sha512-3kNRi8NJT2q6FQRVCUFHIQ99+kXdi8cVJEEUi6+xtFqpMgNrZNnbgAj28ILsDC7zmclaU+v47eUCeJoKLSCbww==}
     cpu: [arm64]
     os: [linux]
     libc: [musl]
+    deprecated: yuku-parser runs on yuku-core since 0.14
 
   '@yuku-parser/binding-linux-x64-gnu@0.8.4':
     resolution: {integrity: sha512-isi62oMy94Z3OXwGs2l2rkqRiRyqLmfHeTRHpA/uWZbsNhnm7IdVvkF7e7wHNKAtd5jwGzOqYSroxKv2fOm7Cw==}
     cpu: [x64]
     os: [linux]
     libc: [glibc]
+    deprecated: yuku-parser runs on yuku-core since 0.14
 
   '@yuku-parser/binding-linux-x64-musl@0.8.4':
     resolution: {integrity: sha512-9RsEw2xYHqU/pjSRBTOupWN3sF8uz9stjJdARfz6o0llvF+yfrj5QHmTiocGGBeAI80fvKmDtr2RIQClUzAPcA==}
     cpu: [x64]
     os: [linux]
     libc: [musl]
+    deprecated: yuku-parser runs on yuku-core since 0.14
 
   '@yuku-parser/binding-win32-arm64@0.8.4':
     resolution: {integrity: sha512-VEZHo9rEGOBKR20sA3vCO00aQvwWND5aLu7YxeX+YupMZJh9hd1f17AbClJN37Q2iL1PCHht+wDTOKX6tZYqXg==}
     cpu: [arm64]
     os: [win32]
+    deprecated: yuku-parser runs on yuku-core since 0.14
 
   '@yuku-parser/binding-win32-x64@0.8.4':
     resolution: {integrity: sha512-PeH3VzN1feGjPtDpVEAqf000fPT+nxtw/696LKp/5Z9RJi/MaXpB636QC+5QtrAPSoEnIkyEe+c+mq2QLZPWBA==}
     cpu: [x64]
     os: [win32]
+    deprecated: yuku-parser runs on yuku-core since 0.14
 
   '@yuku-toolchain/types@0.8.4':
     resolution: {integrity: sha512-p7JE8flrj7ijZ/qLjHi4UwKqMarMD6zumbKXhrjp2I2iLJOuTYiQyci2U36VlXcUlNyzsY7E/mLnKCHotbzJVw==}
@@ -2811,8 +2839,8 @@ packages:
   setprototypeof@1.2.0:
     resolution: {integrity: sha512-E5LDX7Wrp85Kil5bhZv46j8jOeboKq5JMmYM3gVGdGH8xFpPWXUMsNrlODCrkoxMEeNi/XZIwuRvY4XNwYMJpw==}
 
-  sharp@0.35.4:
-    resolution: {integrity: sha512-n++8XWcj+jCOr2IOl7h8LbKnGBDY4aPbmprMONBNFdn0ImXqpGVv5zliDs0V9HbmbCQLpbuo2ej9rAoOQTvMDA==}
+  sharp@0.35.5:
+    resolution: {integrity: sha512-Ywn4OnzGukp7CDMrp08RQ50YKmuwG47brZgIVPTvBaaAfQlRlygrRqSrxdCiL9M+LlzLBiJ68IR1QqvzHyjC7g==}
     engines: {node: '>=20.9.0'}
     peerDependencies:
       '@types/node': '*'
@@ -3588,43 +3616,48 @@ snapshots:
 
   '@img/colour@1.1.0': {}
 
-  '@img/sharp-darwin-arm64@0.35.4':
+  '@img/sharp-darwin-arm64@0.35.5':
     optionalDependencies:
-      '@img/sharp-libvips-darwin-arm64': 1.3.3
+      '@img/sharp-libvips-darwin-arm64': 1.3.4
     optional: true
 
-  '@img/sharp-darwin-x64@0.35.4':
+  '@img/sharp-darwin-x64@0.35.5':
     optionalDependencies:
-      '@img/sharp-libvips-darwin-x64': 1.3.3
+      '@img/sharp-libvips-darwin-x64': 1.3.4
     optional: true
 
-  '@img/sharp-freebsd-wasm32@0.35.4':
+  '@img/sharp-freebsd-wasm32@0.35.5':
     dependencies:
-      '@img/sharp-wasm32': 0.35.4
+      '@img/sharp-wasm32': 0.35.5
     optional: true
 
-  '@img/sharp-libvips-darwin-arm64@1.3.3':
+  '@img/sharp-libvips-darwin-arm64@1.3.4':
     optional: true
 
-  '@img/sharp-libvips-darwin-x64@1.3.3':
+  '@img/sharp-libvips-darwin-x64@1.3.4':
     optional: true
 
   '@img/sharp-wasm32@0.35.4':
     dependencies:
       '@emnapi/runtime': 1.11.3
 
-  '@img/sharp-webcontainers-wasm32@0.35.4':
+  '@img/sharp-wasm32@0.35.5':
     dependencies:
-      '@img/sharp-wasm32': 0.35.4
+      '@emnapi/runtime': 1.11.3
     optional: true
 
-  '@img/sharp-win32-arm64@0.35.4':
+  '@img/sharp-webcontainers-wasm32@0.35.5':
+    dependencies:
+      '@img/sharp-wasm32': 0.35.5
     optional: true
 
-  '@img/sharp-win32-ia32@0.35.4':
+  '@img/sharp-win32-arm64@0.35.5':
     optional: true
 
-  '@img/sharp-win32-x64@0.35.4':
+  '@img/sharp-win32-ia32@0.35.5':
+    optional: true
+
+  '@img/sharp-win32-x64@0.35.5':
     optional: true
 
   '@jridgewell/gen-mapping@0.3.13':
@@ -5514,21 +5547,21 @@ snapshots:
 
   setprototypeof@1.2.0: {}
 
-  sharp@0.35.4(@types/node@24.12.2):
+  sharp@0.35.5(@types/node@24.12.2):
     dependencies:
       '@img/colour': 1.1.0
       detect-libc: 2.1.2
       semver: 7.8.5
     optionalDependencies:
-      '@img/sharp-darwin-arm64': 0.35.4
-      '@img/sharp-darwin-x64': 0.35.4
-      '@img/sharp-freebsd-wasm32': 0.35.4
-      '@img/sharp-libvips-darwin-arm64': 1.3.3
-      '@img/sharp-libvips-darwin-x64': 1.3.3
-      '@img/sharp-webcontainers-wasm32': 0.35.4
-      '@img/sharp-win32-arm64': 0.35.4
-      '@img/sharp-win32-ia32': 0.35.4
-      '@img/sharp-win32-x64': 0.35.4
+      '@img/sharp-darwin-arm64': 0.35.5
+      '@img/sharp-darwin-x64': 0.35.5
+      '@img/sharp-freebsd-wasm32': 0.35.5
+      '@img/sharp-libvips-darwin-arm64': 1.3.4
+      '@img/sharp-libvips-darwin-x64': 1.3.4
+      '@img/sharp-webcontainers-wasm32': 0.35.5
+      '@img/sharp-win32-arm64': 0.35.5
+      '@img/sharp-win32-ia32': 0.35.5
+      '@img/sharp-win32-x64': 0.35.5
       '@types/node': 24.12.2
 
   shebang-command@2.0.0:
