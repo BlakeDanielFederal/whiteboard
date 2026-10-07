@@ -82,3 +82,52 @@ flowchart TB
   desktop -- "ask: { tools }" --> asktools
   web -- "ask: { tools }<br/>DEV_REVIEW_SERVER_DIR pins the CLI" --> asktools
 ```
+
+## Canvas host seams
+
+A host mounts the canvas with `mountReviewCanvas(container, content, ui)`.
+What it can and cannot provide reaches the canvas through two optional
+fields; a host that sets neither, such as Desktop, gets the full canvas.
+
+```mermaid
+flowchart LR
+  host["Host (Desktop workbench · browser shell)"]
+  host -- "bridge.capabilities.diffView" --> views["offeredReviewViews<br/>Diff tab offered or not"]
+  views --> store["review panel store<br/>unoffered views land on the review"]
+  host -- "ui.notify" --> copy["copyText failure reporter"]
+  rid["randomId()<br/>getRandomValues fallback"] -. "plain-HTTP origins" .- host
+```
+
+## The web UI and its container
+
+`whiteboard web` serves one origin: the review API, Ask, and the page built
+into `packages/review/app/dist/web`. The Docker image packages all of it.
+
+```mermaid
+flowchart LR
+  subgraph browser["Browser on the LAN (plain HTTP)"]
+    entry["web-entry.tsx<br/>/ → Home · /reviews/:id → review"]
+    bridge["WebCanvasBridge<br/>(src/web/web-canvas-bridge.ts)"]
+    canvas["review-canvas (mountReviewCanvas)"]
+    difflib["diff/reviewWebDiff.js<br/>(loaded at run time)"]
+    entry --> canvas
+    entry --> bridge
+    bridge --> canvas
+    bridge -- "inlineEditors · diffView" --> difflib
+  end
+
+  subgraph container["docker/Dockerfile (node:24-bookworm-slim)"]
+    host["whiteboard web --host 0.0.0.0<br/>DEV_REVIEW_SERVER_DIR=/data/server"]
+    assets[("/opt/whiteboard/web")]
+    agents["claude · codex (Ask)"]
+    diffr["diffr (structural diff)"]
+    host --> assets
+    host --> agents
+    host --> diffr
+  end
+
+  browser -- "GET / · /assets · /diff · /reviews-api" --> host
+  container --- data[("volume /data<br/>reviews · Ask · checkouts")]
+  container --- repos[("bind /repos")]
+  container --- home[("volume /home/node<br/>agent sign-ins")]
+```

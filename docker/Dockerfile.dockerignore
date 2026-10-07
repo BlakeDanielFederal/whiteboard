@@ -1,0 +1,14 @@
+**/node_modules
+**/dist
+**/.vite
+.git
+.claude
+.opencode
+openspec
+apps/review-desktop/code-oss/.build
+apps/review-desktop/code-oss/out*
+apps/review-desktop/code-oss/src/vs/review/common/reviewProtocol.ts
+apps/review-desktop/code-oss/src/vs/base/browser/ui/codicons/codicon/codicon.ttf
+packages/review/bin
+**/.DS_Store
+docker

@@ -10,11 +10,14 @@
 import "../../editor/editor.all.js";
 
 import type { IMonacoEnvironment } from "../../base/browser/browser.js";
-import { DisposableStore } from "../../base/common/lifecycle.js";
+import { Emitter } from "../../base/common/event.js";
+import { DisposableStore, type IDisposable } from "../../base/common/lifecycle.js";
+import { ICodeEditorService } from "../../editor/browser/services/codeEditorService.js";
 import type { URI } from "../../base/common/uri.js";
 import { IConfigurationService } from "../../platform/configuration/common/configuration.js";
 import { REVIEW_STRUCTURAL_DIFF_SETTING } from "../common/reviewConfigurationDefaults.js";
-import type { ReviewDiffLayout, ReviewDiffViewFactory, ReviewInlineEditorFactory, ReviewSourceView } from "../common/reviewProtocol.js";
+import type { ReviewDiffLayout, ReviewDiffViewFactory, ReviewInlineEditorFactory, ReviewSourceView, ReviewSurfaceEvent } from "../common/reviewProtocol.js";
+import { ReviewEditorSelections } from "../contrib/verbs/reviewEditorSelections.js";
 import { reviewCanvasDiffFactories, type ReviewSourceRead } from "../services/reviewApiSourceContent.js";
 import { ReviewDiffViewService } from "../services/reviewDiffViewService.js";
 import { ReviewEmbeddedEditors } from "../services/reviewEmbeddedEditors.js";
@@ -46,6 +49,8 @@ export interface ReviewWebDiff {
 	currentDiffLayout(): ReviewDiffLayout;
 	setDiffLayout(layout: ReviewDiffLayout): Promise<void>;
 	onDidChangeDiffLayout(listener: (layout: ReviewDiffLayout) => void): { dispose(): void };
+	/** The reader's selection in a peek or the Diff view, as Desktop reports it to the canvas. */
+	onDidChangeSelection(listener: (event: Extract<ReviewSurfaceEvent, { event: "editorSelectionChanged" }>) => void): IDisposable;
 	dispose(): void;
 }
 
@@ -82,6 +87,8 @@ export function createReviewWebDiff(options: ReviewWebDiffOptions): ReviewWebDif
 	const inlineEditors = store.add(instantiation.createInstance(ReviewEmbeddedEditors));
 	const diff = store.add(instantiation.createInstance(ReviewDiffViewService, inlineEditors));
 	const configuration = instantiation.invokeFunction(accessor => accessor.get(IConfigurationService));
+	const selections = store.add(new Emitter<Extract<ReviewSurfaceEvent, { event: "editorSelectionChanged" }>>());
+	store.add(new ReviewEditorSelections(instantiation.invokeFunction(accessor => accessor.get(ICodeEditorService)), event => selections.fire(event)));
 
 	return {
 		forReview: view => reviewCanvasDiffFactories(read, connection, view, diff),
@@ -91,6 +98,7 @@ export function createReviewWebDiff(options: ReviewWebDiffOptions): ReviewWebDif
 		currentDiffLayout: () => diff.diffLayout.get(),
 		setDiffLayout: layout => diff.diffLayout.set(layout),
 		onDidChangeDiffLayout: listener => diff.diffLayout.onDidChange(listener),
+		onDidChangeSelection: listener => selections.event(listener),
 		dispose: () => store.dispose(),
 	};
 }

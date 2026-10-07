@@ -1,0 +1,32 @@
+# Whiteboard web on this machine's network. No authentication: read
+# docker/README.md before starting it, and never publish the port to the internet.
+#
+#   REPOS=~/code docker compose -f docker/compose.yaml up -d
+#
+# Then open http://<this machine's LAN address>:8080 from any device on the network.
+
+services:
+  whiteboard:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    image: whiteboard-web
+    restart: unless-stopped
+    ports:
+      - "${WHITEBOARD_PORT:-8080}:8080"
+    volumes:
+      # Reviews, Ask threads, viewed state and Whiteboard's checkouts.
+      - whiteboard-data:/data
+      # The git repositories you review; inside the container they are under /repos.
+      - ${REPOS:?Set REPOS to the directory that holds your git repositories}:/repos
+      # The agents' sign-ins and settings (~/.claude, ~/.claude.json, ~/.codex),
+      # kept across restarts. Sign in once: see docker/README.md.
+      - agent-home:/home/node
+    environment:
+      # Optional API keys instead of signing in.
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+
+volumes:
+  whiteboard-data:
+  agent-home:

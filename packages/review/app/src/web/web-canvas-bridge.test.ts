@@ -23,8 +23,14 @@ function diffHandle(): ReviewDiffViewHandle {
   };
 }
 
+type SelectionEvent = Extract<
+  ReviewSurfaceEvent,
+  { event: "editorSelectionChanged" }
+>;
+
 function setup() {
   const handle = diffHandle();
+  const selectionListeners = new Set<(event: SelectionEvent) => void>();
   const themeListeners = new Set<(theme: ReviewTheme) => void>();
   let currentTheme: ReviewTheme = "light";
 
@@ -44,6 +50,11 @@ function setup() {
     currentDiffLayout: (): ReviewDiffLayout => "split",
     setDiffLayout: async () => {},
     onDidChangeDiffLayout: () => ({ dispose() {} }),
+    onDidChangeSelection(listener) {
+      selectionListeners.add(listener);
+
+      return { dispose: () => void selectionListeners.delete(listener) };
+    },
   };
 
   const theme: WebTheme = {
@@ -84,9 +95,22 @@ function setup() {
       container: {} as HTMLElement,
     } satisfies Partial<ReviewDiffViewSpec> as ReviewDiffViewSpec);
 
+  const select = (reviewId: string) => {
+    for (const listener of selectionListeners)
+      listener({
+        event: "editorSelectionChanged",
+        reviewId,
+        path: "src/one.ts",
+        range: { fromLine: 1, toLine: 2 },
+        sideContext: "head",
+        isEmpty: false,
+      });
+  };
+
   return {
     bridge,
     handle,
+    select,
     events,
     openReview,
     openExternal,
@@ -157,6 +181,21 @@ it("accepts desktop-only requests and does nothing", async () => {
   expect(events).toEqual([]);
   expect(openReview).not.toHaveBeenCalled();
   expect(openExternal).not.toHaveBeenCalled();
+});
+
+it("passes the reader's code selection in this review to the canvas, for Ask", () => {
+  const { events, select } = setup();
+
+  select("review-1");
+  select("another-review");
+
+  expect(events).toEqual([
+    expect.objectContaining({
+      event: "editorSelectionChanged",
+      reviewId: "review-1",
+      path: "src/one.ts",
+    }),
+  ]);
 });
 
 it("follows the page's color scheme", () => {

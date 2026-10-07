@@ -29,6 +29,11 @@ export interface WebDiffLibrary {
   onDidChangeDiffLayout(
     listener: (layout: ReviewDiffLayout) => void,
   ): ReviewDisposable;
+  onDidChangeSelection(
+    listener: (
+      event: Extract<ReviewSurfaceEvent, { event: "editorSelectionChanged" }>,
+    ) => void,
+  ): ReviewDisposable;
 }
 
 /** The page's light or dark preference, which the canvas and editors follow. */
@@ -189,7 +194,17 @@ export function createWebCanvasBridge(
     subscribe(listener) {
       listeners.add(listener);
 
-      return { dispose: () => void listeners.delete(listener) };
+      // A selection is this review's when its editor reads this review.
+      const selection = input.diff.onDidChangeSelection((event) => {
+        if (event.reviewId === input.reviewId) listener(event);
+      });
+
+      return {
+        dispose() {
+          listeners.delete(listener);
+          selection.dispose();
+        },
+      };
     },
     currentTheme: () => input.theme.current(),
     onDidChangeTheme: (listener) => input.theme.onDidChange(listener),

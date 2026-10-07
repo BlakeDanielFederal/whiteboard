@@ -145,3 +145,20 @@ whiteboard connect <target>
 for `claude`, `claude-code`, `codex`, `cursor`, `opencode`, `pi`, `omp`, or
 `all`. It prints the plugin-install or MCP-registration steps for that agent;
 Whiteboard Desktop runs the same steps automatically during agent setup.
+
+## Whiteboard in a browser
+
+`whiteboard web` serves the review canvas, code peeks, the Diff view and Ask to
+browsers, without Desktop. It needs the built web UI, which
+`pnpm --filter @dev.fast/review-canvas build:web` writes to
+`packages/review/app/dist/web`:
+
+```sh
+whiteboard web --assets packages/review/app/dist/web --host 0.0.0.0 --port 8080
+```
+
+It listens on `127.0.0.1` unless `--host` names another address, and takes
+`--state-dir` like `whiteboard server`; the two never share a state directory.
+It has no authentication: anyone who can reach the address can read every
+review and run Ask agents with this machine's agent sign-ins, so use it only
+on a network you trust. `docker/README.md` runs it in a container.
