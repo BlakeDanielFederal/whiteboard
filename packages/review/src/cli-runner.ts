@@ -342,6 +342,84 @@ export async function runReviewCli(input: ReviewCliInput): Promise<number> {
   });
 
   configureJsonOutput(
+    program
+      .command("web")
+      .description(
+        "Serve Whiteboard to browsers, with Ask and no login; stop with Ctrl-C or SIGTERM",
+      )
+      .option(
+        "--state-dir <path>",
+        "directory for saved reviews and server discovery",
+      )
+      .option(
+        "--host <address>",
+        "address to listen on; 0.0.0.0 serves the local network",
+        "127.0.0.1",
+      )
+      .option("--port <port>", "port (0 chooses an available port)", "8080")
+      .option(
+        "--assets <path>",
+        "the built web UI (default: $WHITEBOARD_WEB_ASSETS)",
+      )
+      .option(
+        "--software-maps",
+        "allow the authoring skill to generate optional software maps",
+      ),
+    "plain",
+  ).action(async (_options, command: Command) => {
+    const options = command.optsWithGlobals<{
+      stateDir?: string;
+      host: string;
+      port: string;
+      assets?: string;
+      softwareMaps?: boolean;
+      json?: boolean;
+    }>();
+
+    const port = Number(options.port);
+
+    if (!Number.isInteger(port) || port < 0 || port > 65535)
+      throw new ReviewCliUsageError(
+        "--port must be an integer between 0 and 65535.",
+      );
+    const assetsDir = options.assets ?? env.WHITEBOARD_WEB_ASSETS;
+
+    if (!assetsDir)
+      throw new ReviewCliUsageError(
+        "Name the built web UI with --assets or WHITEBOARD_WEB_ASSETS.",
+      );
+    const stateDir = reviewServerStateDir(authoringEnv(options.stateDir));
+    const controller = new AbortController();
+    const stop = () => controller.abort();
+    process.once("SIGINT", stop);
+    process.once("SIGTERM", stop);
+
+    try {
+      const { runWebHost } = await import("./server/web-host.js");
+      await runWebHost({
+        stateDir,
+        host: options.host,
+        port,
+        assetsDir: path.resolve(cwd, assetsDir),
+        softwareMapEnabled: options.softwareMaps,
+        signal: controller.signal,
+        onReady: ({ url }) => {
+          const exposed = !isLoopbackHost(options.host);
+
+          input.stdout.write(
+            options.json
+              ? `${JSON.stringify({ event: "web.ready", url, host: options.host, stateDir, authentication: false })}\n`
+              : `Whiteboard web ready at ${url}\nSaved reviews: ${stateDir}\n${exposed ? WEB_NO_AUTHENTICATION_WARNING : ""}`,
+          );
+        },
+      });
+    } finally {
+      process.off("SIGINT", stop);
+      process.off("SIGTERM", stop);
+    }
+  });
+
+  configureJsonOutput(
     serverCommand
       .command("status")
       .description("Check whether the headless server is ready")
@@ -1297,6 +1375,13 @@ async function captureOneOffCommand(
           ...classification,
         }),
   );
+}
+
+const WEB_NO_AUTHENTICATION_WARNING =
+  "Warning: this server has no authentication. Anyone who can reach this address can read every review and run Ask agents with this machine's agent credentials. Keep it on a trusted network.\n";
+
+function isLoopbackHost(host: string): boolean {
+  return host === "localhost" || host === "::1" || host.startsWith("127.");
 }
 
 function telemetryCommandPath(

@@ -59,3 +59,26 @@ flowchart LR
   langs["extensions/*/package.json<br/>languages · grammars"] -- "language list; grammar files copied" --> build
   build --> out["packages/review/app/dist/web/diff/<br/>reviewWebDiff.js · workerMain.js · reviewWebDiff.css · media/ · grammars/ · onig.wasm"]
 ```
+
+## Review servers
+
+Every host builds the same core. Hosts differ in who may call them and in
+what they add around it.
+
+```mermaid
+flowchart TB
+  core["createWhiteboardCore<br/>(server/review-server-core.ts)<br/>CORS · /health · auth · /control · /reviews-api"]
+  access{{"access: token | open"}}
+  core --- access
+
+  desktop["desktop-server.ts<br/>(Desktop's Node host)"] -- "access: token" --> core
+  headless["headless-host.ts<br/>(whiteboard server start)"] -- "access: token" --> core
+  web["web-host.ts<br/>(whiteboard web)<br/>static UI from --assets · SPA fallback"] -- "access: open" --> core
+  lock[("state-dir lock + discovery record")]
+  headless --- lock
+  web --- lock
+
+  asktools["createAskTools<br/>(server/ask-tools.ts)<br/>whiteboard mcp · CLI fallback"]
+  desktop -- "ask: { tools }" --> asktools
+  web -- "ask: { tools }<br/>DEV_REVIEW_SERVER_DIR pins the CLI" --> asktools
+```
