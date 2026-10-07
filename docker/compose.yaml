@@ -11,17 +11,22 @@ services:
       context: ..
       dockerfile: docker/Dockerfile
     image: whiteboard-web
+    # A fixed name, so agents and commands on this machine can reach the
+    # container with `docker exec -i whiteboard whiteboard …`.
+    container_name: whiteboard
     restart: unless-stopped
     ports:
       - "${WHITEBOARD_PORT:-8080}:8080"
     volumes:
       # Reviews, Ask threads, viewed state and Whiteboard's checkouts.
       - whiteboard-data:/data
-      # The git repositories you review; inside the container they are under /repos.
-      - ${REPOS:?Set REPOS to the directory that holds your git repositories}:/repos
+      # The git repositories you review, at the same absolute path as on this
+      # machine, so a repository has one path for agents here and in the container.
+      - ${REPOS:?Set REPOS to the absolute path of the directory that holds your git repositories}:${REPOS}
       # The agents' sign-ins and settings (~/.claude, ~/.claude.json, ~/.codex),
       # kept across restarts. Sign in once: see docker/README.md.
       - agent-home:/home/node
+    working_dir: ${REPOS}
     environment:
       # Optional API keys instead of signing in.
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}

@@ -37,8 +37,8 @@ RUN apt-get update \
 
 COPY --from=build /out/whiteboard.tgz /tmp/whiteboard.tgz
 
-# Whiteboard, and the agent CLIs Ask runs.
-RUN npm install --global --no-audit --no-fund /tmp/whiteboard.tgz @anthropic-ai/claude-code @openai/codex opencode-ai \
+# Whiteboard, the agent CLIs Ask runs, and GitHub Copilot CLI for authoring.
+RUN npm install --global --no-audit --no-fund /tmp/whiteboard.tgz @anthropic-ai/claude-code @openai/codex opencode-ai @github/copilot \
   && rm /tmp/whiteboard.tgz \
   && npm cache clean --force
 

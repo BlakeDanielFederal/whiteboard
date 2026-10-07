@@ -20,7 +20,7 @@ trust, such as your home network:
 ## Start it
 
 From the repository root, with `REPOS` naming the directory that holds the git
-repositories you want to review:
+repositories you want to review, as an absolute path:
 
 ```sh
 REPOS=~/code docker compose -f docker/compose.yaml up -d --build
@@ -31,9 +31,12 @@ Open `http://<this machine's LAN address>:8080`. On macOS, the LAN address is
 
 | Setting | Default | Meaning |
 |---|---|---|
-| `REPOS` | required | Mounted at `/repos`. Reviews refer to repositories by their path in the container, such as `/repos/my-service`. |
+| `REPOS` | required | An absolute path. It is mounted at the same path in the container, so a repository has one path, such as `/Users/you/code/my-service`, for agents on this machine and in the container. Only repositories under it can be reviewed. |
 | `WHITEBOARD_PORT` | `8080` | The published port, or `address:port`. |
-| `ANTHROPIC_API_KEY`, `OPENAI_API_KEY` | unset | Optional API keys for Ask's agents, instead of signing in. |
+| `ANTHROPIC_API_KEY`, `OPENAI_API_KEY` | unset | Optional API keys for Ask's agents, instead of signing in. Compose passes them in whenever the shell that runs it has them set; unset them first if you do not want Ask to use them. |
+
+The container is named `whiteboard`, so `docker exec whiteboard …` reaches it
+without the compose file.
 
 Two volumes keep state across `docker compose down` and `up`:
 
@@ -45,13 +48,16 @@ Two volumes keep state across `docker compose down` and `up`:
 
 ## Sign the agents in
 
-Ask runs Claude Code, Codex and OpenCode inside the container. Sign each in once; the
-sign-in stays in the `agent-home` volume:
+Ask runs Claude Code, Codex and OpenCode inside the container. The image also
+has GitHub Copilot CLI, for authoring reviews from the container (Ask does not
+run it). Sign in to the ones you use once; the sign-ins stay in the
+`agent-home` volume:
 
 ```sh
-docker compose -f docker/compose.yaml exec -it whiteboard claude   # then /login
-docker compose -f docker/compose.yaml exec -it whiteboard codex login --device-auth
-docker compose -f docker/compose.yaml exec -it whiteboard opencode auth login
+docker exec -it whiteboard claude   # then /login
+docker exec -it whiteboard codex login --device-auth
+docker exec -it whiteboard opencode auth login
+docker exec -it whiteboard copilot login
 ```
 
 Credentials on your own machine are not used: on macOS, Claude Code keeps them
@@ -60,18 +66,64 @@ key, Whiteboard still serves reviews, and Ask says the agent is not signed in.
 
 ## Make a review
 
-Reviews are authored by a coding agent connected to Whiteboard. Start one in
-the container, in a mounted repository, and connect it once:
+Reviews are authored by a coding agent connected to Whiteboard's MCP server.
+The review appears in the browser as soon as the agent creates it.
+
+### With an agent on this machine
+
+Register the container's MCP server with the agent once. `docker exec` runs
+`whiteboard mcp` inside the container: the same server Desktop's plugin
+starts, always the version this container serves. It is named
+`whiteboard-docker` so it can sit beside a Desktop connection.
 
 ```sh
-docker compose -f docker/compose.yaml exec -it -w /repos/my-service whiteboard claude
+claude mcp add --scope user whiteboard-docker -- docker exec -i whiteboard whiteboard mcp
+codex mcp add whiteboard-docker -- docker exec -i whiteboard whiteboard mcp
+copilot mcp add whiteboard-docker -- docker exec -i whiteboard whiteboard mcp
 ```
 
-In the agent, paste the output of `whiteboard connect claude` (run it in the
-container), then ask for a whiteboard of your change. The agent's Whiteboard
-tools reach this server: the image sets `DEV_REVIEW_SERVER_DIR` so every
-`whiteboard` command in the container uses it. The review appears in the
-browser as soon as it is created.
+For OpenCode, add it to `~/.config/opencode/opencode.json`:
+
+```json
+{
+  "mcp": {
+    "whiteboard-docker": {
+      "type": "local",
+      "command": ["docker", "exec", "-i", "whiteboard", "whiteboard", "mcp"]
+    }
+  }
+}
+```
+
+Then work in a repository under `REPOS` and ask for a whiteboard of your
+change. If the agent is also connected to Whiteboard Desktop, say which to
+use, for example "make a whiteboard with whiteboard-docker". Start the
+container before the agent; an agent that starts first reports that the
+server failed, and needs its MCP servers reloaded.
+
+The CLI works the same way, for example
+`docker exec whiteboard whiteboard api session_list`.
+
+### With an agent in the container
+
+Start the agent in a mounted repository, at its path on this machine, and
+register Whiteboard's MCP server with it once:
+
+```sh
+docker exec -it -w ~/code/my-service whiteboard claude
+```
+
+```sh
+docker exec whiteboard claude mcp add --scope user whiteboard -- whiteboard mcp
+docker exec whiteboard codex mcp add whiteboard -- whiteboard mcp
+docker exec whiteboard copilot mcp add whiteboard -- whiteboard mcp
+```
+
+For OpenCode in the container, use the configuration above with
+`"command": ["whiteboard", "mcp"]`, in `/home/node/.config/opencode/opencode.json`.
+`whiteboard connect` does not apply here: it installs a plugin that starts
+Desktop's `whiteboard` command. The image sets `DEV_REVIEW_SERVER_DIR`, so
+every `whiteboard` command in the container uses this server.
 
 ## What differs from Whiteboard Desktop
 
@@ -83,3 +135,6 @@ browser as soon as it is created.
   in the `CMD` of `docker/Dockerfile`, not in Settings. Drop the flag to turn
   them off.
 - Structural diff is always on; there is no setting to switch to the line diff.
+- Agents cannot show a review in a window: `session_open` reports that no
+  Desktop is attached. Reviews appear in the browser's Home list instead.
+- No scratchpad.
