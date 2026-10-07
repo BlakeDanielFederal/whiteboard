@@ -117,10 +117,10 @@ flowchart LR
     bridge -- "inlineEditors · diffView" --> difflib
   end
 
-  subgraph container["container whiteboard (docker/Dockerfile, node:24-bookworm-slim)"]
+  subgraph container["container whiteboard (docker/Dockerfile, node:24-bookworm-slim)<br/>user node = WHITEBOARD_UID:WHITEBOARD_GID"]
     host["whiteboard web --host 0.0.0.0 --software-maps<br/>DEV_REVIEW_SERVER_DIR=/data/server"]
     assets[("/opt/whiteboard/web")]
-    agents["claude · codex · opencode (Ask)<br/>copilot (authoring)"]
+    agents["Ask agents over ACP<br/>claude · codex · opencode · copilot --acp"]
     mcp["whiteboard mcp"]
     diffr["diffr (structural diff)"]
     host --> assets
