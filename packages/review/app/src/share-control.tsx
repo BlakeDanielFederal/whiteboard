@@ -21,6 +21,7 @@ import { copyText } from "./copy-text";
 import { useOptionalReviewSession } from "./host/review-session";
 import { ShareIcon } from "./icons";
 import { topbarActionsMarker } from "./markers.stylex";
+import { randomId } from "./random-id";
 import { shellStyles } from "./shell-styles";
 import { tokens } from "./tokens.stylex";
 import { captureUiEvent } from "./ui-telemetry";
@@ -150,7 +151,7 @@ export function ShareControl() {
         if (error.status === 422)
           setTarget((current) =>
             current?.requestId === next.requestId
-              ? { ...current, requestId: crypto.randomUUID() }
+              ? { ...current, requestId: randomId() }
               : current,
           );
       },
@@ -180,7 +181,7 @@ export function ShareControl() {
     : undefined;
 
   const copy = async (url: string) => {
-    if (!(await copyText(url))) {
+    if (!(await copyText(url, { silent: true }))) {
       setCopyError("Copy the link below.");
 
       return;
@@ -210,7 +211,7 @@ export function ShareControl() {
           ) {
             setTarget({
               version: context.version,
-              requestId: crypto.randomUUID(),
+              requestId: randomId(),
             });
             publish.reset();
             login.reset();

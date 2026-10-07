@@ -402,6 +402,8 @@ export function ApiCanvas({
                 hasChangeRange:
                   (data.snapshot.pins?.base ?? "") !==
                   (data.snapshot.pins?.head ?? ""),
+                diffViewAvailable:
+                  content.bridge.capabilities?.diffView !== false,
                 version: data.snapshot.version,
                 lensMode:
                   content.structuralDiffEnabled === false

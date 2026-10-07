@@ -19,5 +19,6 @@ export async function copyAgentContext(
 
   const { text } = z.object({ text: z.string() }).parse(await response.json());
 
-  if (!(await copyText(text))) throw new Error("Clipboard unavailable");
+  if (!(await copyText(text, { silent: true })))
+    throw new Error("Clipboard unavailable");
 }

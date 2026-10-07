@@ -324,8 +324,15 @@ export interface ReviewTooltipOptions {
   detail?: string;
 }
 
+/** What a host can show; a capability it leaves out is available. */
+export interface ReviewCanvasCapabilities {
+  /** The Diff view, with its lenses and commit-scoped diffs. */
+  diffView?: boolean;
+}
+
 export interface ReviewCanvasBridge {
   readonly appSessionId?: string;
+  readonly capabilities?: ReviewCanvasCapabilities;
   readonly config: ReviewRuntimeConfig;
   readonly inlineEditors: ReviewInlineEditorFactory;
   readonly diffView: ReviewDiffViewFactory;
@@ -789,6 +796,8 @@ export interface ReviewMenuRequest {
 export interface ReviewCanvasUi {
   confirmDelete?(title: string): Promise<boolean>;
   showMenu(request: ReviewMenuRequest): ReviewDisposable;
+  /** Tells the reader something the canvas cannot show in place, such as a failed copy. */
+  notify?(message: { kind: "success" | "error"; text: string }): void;
 }
 
 export interface ReviewCanvasModule {

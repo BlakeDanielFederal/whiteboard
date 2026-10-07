@@ -10,6 +10,7 @@ import * as stylex from "@stylexjs/stylex";
 import { createRoot } from "react-dom/client";
 
 import { ApiCanvas } from "./api-canvas";
+import { setCopyFailureReporter } from "./copy-text";
 import { CanvasUiContext } from "./host/canvas-ui";
 import { type ReviewFindHost, createReviewFindHost } from "./review-find";
 import { ReviewHome } from "./review-home-view";
@@ -158,6 +159,15 @@ export function mountReviewCanvas(
   ui?: ReviewCanvasUi,
 ): ReviewCanvasHandle {
   let content = initialContent;
+
+  setCopyFailureReporter(
+    ui?.notify &&
+      (() =>
+        ui.notify?.({
+          kind: "error",
+          text: "Couldn't copy to the clipboard.",
+        })),
+  );
 
   let disposed = false;
   let themeSubscription: { dispose(): void } | null = null;

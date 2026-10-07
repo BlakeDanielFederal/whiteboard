@@ -7,14 +7,18 @@ export function offeredReviewViews({
   hasChangeRange,
   softwareMapEnabled,
   hasTraceSessions,
+  diffViewAvailable = true,
 }: {
   hasChangeRange: boolean;
   softwareMapEnabled: boolean;
   hasTraceSessions: boolean;
+  /** False when the host cannot show diffs; every way into the Diff view then lands on the review. */
+  diffViewAvailable?: boolean;
 }): readonly ReviewView[] {
   return [
     "review",
-    ...(hasChangeRange ? (["commits", "diff"] as const) : []),
+    ...(hasChangeRange ? (["commits"] as const) : []),
+    ...(hasChangeRange && diffViewAvailable ? (["diff"] as const) : []),
     ...(softwareMapEnabled ? (["map"] as const) : []),
     ...(hasTraceSessions ? (["trace"] as const) : []),
   ];

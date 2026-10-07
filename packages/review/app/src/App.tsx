@@ -425,14 +425,17 @@ function ReviewLayoutContent({
       ? diffFiles.files.length
       : null;
 
+  const diffViewAvailable = session.bridge.capabilities?.diffView !== false;
+
   const reviewViews = useMemo(
     () =>
       offeredReviewViews({
         hasChangeRange,
         softwareMapEnabled,
         hasTraceSessions,
+        diffViewAvailable,
       }),
-    [hasChangeRange, hasTraceSessions, softwareMapEnabled],
+    [diffViewAvailable, hasChangeRange, hasTraceSessions, softwareMapEnabled],
   );
 
   useLayoutEffect(() => {

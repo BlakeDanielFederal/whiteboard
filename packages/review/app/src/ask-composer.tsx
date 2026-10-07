@@ -24,6 +24,7 @@ import {
 import { askMotion } from "./ask-motion.stylex";
 import { controlStyles } from "./controls-styles";
 import { ArrowUpIcon, CloseIcon, ImageIcon } from "./icons";
+import { randomId } from "./random-id";
 import { fontSize, motion, radius } from "./scale.stylex";
 import { tokens } from "./tokens.stylex";
 import { Button, IconButton } from "./ui/button";
@@ -344,7 +345,7 @@ export function AskComposer({
 
     const read = await Promise.all(
       fitting.slice(0, Math.max(room, 0)).map(async ({ file, mimeType }) => ({
-        id: crypto.randomUUID(),
+        id: randomId(),
         name: file.name || "Pasted image",
         mimeType,
         data: await readImage(file),

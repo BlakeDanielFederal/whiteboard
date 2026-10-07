@@ -5,7 +5,21 @@ import { type ReactElement, useEffect, useState } from "react";
 import { CheckIcon, CopyIcon as CopyGlyph } from "./icons";
 import { useTooltip } from "./use-tooltip";
 
-export async function copyText(text: string): Promise<boolean> {
+let reportCopyFailure: (() => void) | undefined;
+
+/** How the host tells the reader a copy failed; Desktop sets none. */
+export function setCopyFailureReporter(report: (() => void) | undefined) {
+  reportCopyFailure = report;
+}
+
+/**
+ * Copies `text`, and reports a failure through the host unless the caller
+ * says it tells the reader itself (`silent`).
+ */
+export async function copyText(
+  text: string,
+  options: { silent?: boolean } = {},
+): Promise<boolean> {
   try {
     await navigator.clipboard.writeText(text);
 
@@ -46,6 +60,8 @@ export async function copyText(text: string): Promise<boolean> {
 
     for (const range of ranges) selection.addRange(range);
   }
+
+  if (!copied && !options.silent) reportCopyFailure?.();
 
   return copied;
 }

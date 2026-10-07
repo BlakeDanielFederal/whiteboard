@@ -159,6 +159,7 @@ export function readReviewNavigationRestore(
   canvas: {
     softwareMapEnabled: boolean;
     hasChangeRange: boolean;
+    diffViewAvailable?: boolean;
     version: number;
     lensMode: ReviewLensSelection["mode"];
     commits: readonly ReviewCommitSummary[];
@@ -187,6 +188,7 @@ export function readReviewNavigationRestore(
       hasChangeRange: canvas.hasChangeRange,
       softwareMapEnabled: canvas.softwareMapEnabled,
       hasTraceSessions: true,
+      diffViewAvailable: canvas.diffViewAvailable,
     }),
     lens:
       stored.lens?.version === canvas.version &&

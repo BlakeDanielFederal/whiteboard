@@ -115,7 +115,7 @@ it("copies only on click or Shift+Cmd+C, reports failures, and clears on revisio
         .querySelector<HTMLButtonElement>('[aria-label="Copy ref"]')!
         .click(),
     );
-    expect(write).toHaveBeenLastCalledWith("Review: /review.mdx\n\nselected");
+    expect(write.mock.lastCall?.[0]).toBe("Review: /review.mdx\n\nselected");
     expect(
       JSON.parse(fetch.mock.calls[0]![1]!.body as string),
     ).not.toHaveProperty("anchorElement");
