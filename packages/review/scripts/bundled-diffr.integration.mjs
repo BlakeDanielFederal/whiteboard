@@ -256,14 +256,14 @@ describe("Relocated runtime diffr integrates with Review streams and settings", 
       assert.equal(await ensureDiffrConfigMigrated(diffrExecutable()), true);
       const config = await readDiffrConfig(repository);
       assert.equal(config.values.version, 2);
-      assert.deepEqual(config.values.classify.classify.hide, [
+      assert.deepEqual(config.values.plugins.classify.classify.hide, [
         "test",
         "generated",
       ]);
-      assert.equal(config.values.classify.classify.hide_deleted, false);
-      assert.equal(config.values.shape.context.lines, 17);
+      assert.equal(config.values.plugins.classify.classify.hide_deleted, false);
+      assert.equal(config.values.plugins.shape.context.lines, 17);
       assert.equal(
-        config.values.shape.summarize.system_prompt,
+        config.values.plugins.shape.summarize.system_prompt,
         "  Use my exact custom instructions.\nKeep # inside the prompt, and answer with JSON if I ask for it.\n",
       );
 
@@ -295,23 +295,23 @@ describe("Relocated runtime diffr integrates with Review streams and settings", 
 
   test("settings values and edits round-trip through the staged binary", async () => {
     const config = await readDiffrConfig(repository);
-    assert.ok(Number.isInteger(config.values.shape.context.lines));
-    assert.equal(config.values.shape.summarize.api_key, undefined);
+    assert.ok(Number.isInteger(config.values.plugins.shape.context.lines));
+    assert.equal(config.values.plugins.shape.summarize.api_key, undefined);
     assert.ok(
       ["config", "environment", "missing"].includes(config.credentialSource),
     );
 
     const updated = await setDiffrConfigValue(
-      "shape.context.lines",
+      "plugins.shape.context.lines",
       7,
       repository,
     );
 
-    assert.equal(updated.values.shape.context.lines, 7);
+    assert.equal(updated.values.plugins.shape.context.lines, 7);
     assert.equal(updated.changed, true);
     assert.equal(updated.error, undefined);
     assert.equal(
-      (await readDiffrConfig(repository)).values.shape.context.lines,
+      (await readDiffrConfig(repository)).values.plugins.shape.context.lines,
       7,
     );
     assert.equal(existsSync(sentinel), false);
@@ -320,7 +320,7 @@ describe("Relocated runtime diffr integrates with Review streams and settings", 
   test("a provider switch saves through the binary, clears the old key and keeps the file sparse", async () => {
     delete process.env.ANTHROPIC_API_KEY;
     await setDiffrConfigValue(
-      "shape.summarize.api_key",
+      "plugins.shape.summarize.api_key",
       "old-secret",
       repository,
     );
@@ -341,7 +341,7 @@ describe("Relocated runtime diffr integrates with Review streams and settings", 
     );
 
     assert.equal(saved.error, undefined);
-    assert.equal(saved.values.shape.summarize.provider, "anthropic");
+    assert.equal(saved.values.plugins.shape.summarize.provider, "anthropic");
     assert.equal(saved.credentialSource, "missing");
 
     const file = await readFile(

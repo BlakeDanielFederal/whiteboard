@@ -92,7 +92,7 @@ export function migrateDiffrConfig(
 
   if (bundled?.order !== undefined || external?.order !== undefined)
     throw new ConfigMigrationError(
-      "diffr config has a plugin named order. Rename that plugin before migration; shape.order is reserved.",
+      "diffr config has a plugin named order. Rename that plugin before migration; plugins.shape.order is reserved.",
     );
 
   for (const name of Object.keys(external ?? {}))
@@ -134,7 +134,7 @@ export function migrateDiffrConfig(
             .map((name) => name.replace(/^(bundled|external)\./, ""));
 
     edits.set("plugins.order", migrated);
-    edits.move("plugins.order", "shape.order");
+    edits.move("plugins.order", "plugins.shape.order");
   }
 
   // This old option was accepted but ignored. Do not turn it into --jobs.
@@ -154,13 +154,20 @@ export function migrateDiffrConfig(
 
   for (const name of Object.keys(bundled ?? {}))
     if (name !== "group" && name !== "hide-files")
-      edits.move(tomlKey("plugins", "bundled", name), tomlKey("shape", name));
+      edits.move(
+        tomlKey("plugins", "bundled", name),
+        tomlKey("plugins", "shape", name),
+      );
 
   for (const name of Object.keys(external ?? {}))
-    edits.move(tomlKey("plugins", "external", name), tomlKey("shape", name));
+    edits.move(
+      tomlKey("plugins", "external", name),
+      tomlKey("plugins", "shape", name),
+    );
 
-  edits.remove("plugins");
-  edits.move("classifier", tomlKey("classify", classifierName));
+  edits.remove("plugins.bundled");
+  edits.remove("plugins.external");
+  edits.move("classifier", tomlKey("plugins", "classify", classifierName));
   edits.set("version", 2);
 
   const movedValues: [string, string][] = [];
@@ -177,13 +184,16 @@ export function migrateDiffrConfig(
     if (/^plugins\.(bundled|external)\./.test(key))
       movedValues.push([
         key,
-        key.replace(/^plugins\.(bundled|external)\./, "shape."),
+        key.replace(/^plugins\.(bundled|external)\./, "plugins.shape."),
       ]);
 
     if (key.startsWith("classifier."))
       movedValues.push([
         key,
-        key.replace("classifier.", `${tomlKey("classify", classifierName)}.`),
+        key.replace(
+          "classifier.",
+          `${tomlKey("plugins", "classify", classifierName)}.`,
+        ),
       ]);
   }
 
@@ -345,9 +355,10 @@ async function validateDiffrConfig(
 
       if (
         key === "theme.path" ||
-        (parts.length === 3 &&
-          (parts[0] === "shape" || parts[0] === "classify") &&
-          parts[2] === "path")
+        (parts.length === 4 &&
+          parts[0] === "plugins" &&
+          (parts[1] === "shape" || parts[1] === "classify") &&
+          parts[3] === "path")
       ) {
         const value = z.string().parse(edits.value(key));
 

@@ -15,21 +15,21 @@ import { Choice } from "./settings-choice";
 import { settingsStyles as styles } from "./settings-styles";
 
 const foldSettings = [
-  ["shape.context.enabled", "Collapse unchanged lines"],
-  ["shape.test-bodies.enabled", "Collapse test bodies"],
-  ["shape.deleted-bodies.enabled", "Collapse deleted function bodies"],
-  ["shape.removed-runs.enabled", "Collapse long removed stretches"],
+  ["plugins.shape.context.enabled", "Collapse unchanged lines"],
+  ["plugins.shape.test-bodies.enabled", "Collapse test bodies"],
+  ["plugins.shape.deleted-bodies.enabled", "Collapse deleted function bodies"],
+  ["plugins.shape.removed-runs.enabled", "Collapse long removed stretches"],
 ] as const;
 
 type DisplaySetting = readonly [key: string, label: string];
 
 function classifierPrefix(config: ReviewDiffrConfig): string | undefined {
-  const entries = config.values.classify;
+  const entries = setting(config, "plugins.classify");
 
   if (!isJsonObject(entries)) return;
   const names = Object.keys(entries);
 
-  if (names.length === 1) return `classify.${names[0]}`;
+  if (names.length === 1) return `plugins.classify.${names[0]}`;
 }
 
 function displaySettings(config: ReviewDiffrConfig): DisplaySetting[] {
@@ -60,7 +60,7 @@ function setting(
 }
 
 function provider(config: ReviewDiffrConfig): string {
-  return String(setting(config, "shape.summarize.provider") ?? "");
+  return String(setting(config, "plugins.shape.summarize.provider") ?? "");
 }
 
 /** The provider diffr describes as `id`, if any. */
@@ -74,16 +74,16 @@ function title(config: ReviewDiffrConfig, id: string): string {
 
 function summaryDraft(config: ReviewDiffrConfig): ReviewDiffrSummarizerInput {
   return {
-    enabled: setting(config, "shape.summarize.enabled") === true,
+    enabled: setting(config, "plugins.shape.summarize.enabled") === true,
     provider: provider(config),
-    model: String(setting(config, "shape.summarize.model") ?? ""),
-    endpoint: String(setting(config, "shape.summarize.endpoint") ?? ""),
+    model: String(setting(config, "plugins.shape.summarize.model") ?? ""),
+    endpoint: String(setting(config, "plugins.shape.summarize.endpoint") ?? ""),
     systemPrompt: String(
-      setting(config, "shape.summarize.system_prompt") ??
+      setting(config, "plugins.shape.summarize.system_prompt") ??
         config.defaultPrompt ??
         "",
     ),
-    tests: setting(config, "shape.summarize.tests") === true,
+    tests: setting(config, "plugins.shape.summarize.tests") === true,
     apiKey: "",
   };
 }
@@ -171,7 +171,7 @@ export function DiffrConfigSection({
     JSON.stringify(draft) !== JSON.stringify(summaryDraft(config));
 
   const unavailable =
-    !config || setting(config, "shape.summarize.enabled") === undefined;
+    !config || setting(config, "plugins.shape.summarize.enabled") === undefined;
 
   const summaryValid = !!draft?.model.trim();
   const savedDraft = config && summaryDraft(config);
@@ -231,15 +231,18 @@ export function DiffrConfigSection({
                         Not available in this configuration.
                       </p>
                     )}
-                    {key === "shape.context.enabled" && (
+                    {key === "plugins.shape.context.enabled" && (
                       <SettingRow label="Context lines">
                         <ContextLines
-                          value={setting(config, "shape.context.lines")}
+                          value={setting(config, "plugins.shape.context.lines")}
                           disabled={busy || setting(config, key) !== true}
                           commit={(value) =>
                             void run(async () =>
                               saved(
-                                await actions.set("shape.context.lines", value),
+                                await actions.set(
+                                  "plugins.shape.context.lines",
+                                  value,
+                                ),
                               ),
                             )
                           }

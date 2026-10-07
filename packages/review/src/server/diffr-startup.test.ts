@@ -52,8 +52,10 @@ console.log('{}');
     const ready = async () => {
       expect(parse(await readFile(file, "utf8"))).toMatchObject({
         version: 2,
-        // oxlint-disable-next-line anti-slop/no-shape-in-symbol-names -- Native diffr v2 config key.
-        shape: { context: { lines: 17, enabled: false } },
+        plugins: {
+          // oxlint-disable-next-line anti-slop/no-shape-in-symbol-names -- Native diffr v2 config key.
+          shape: { context: { lines: 17, enabled: false } },
+        },
       });
     };
 

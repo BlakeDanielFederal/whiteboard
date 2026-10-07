@@ -69,11 +69,13 @@ test("converts a saved UI config without changing supported overrides or their c
   delete plugins.bundled.group;
   delete plugins.bundled["hide-files"];
   delete plugins.bundled.summarize.max_concurrency;
-  delete expected.plugins;
   expected.version = 2;
-  expected.shape = plugins.bundled;
-  expected.classify = {
-    classify: { hide: ["test", "generated"], hide_deleted: false },
+  expected.plugins = {
+    // oxlint-disable-next-line anti-slop/no-shape-in-symbol-names -- Native diffr v2 config namespace.
+    shape: plugins.bundled,
+    classify: {
+      classify: { hide: ["test", "generated"], hide_deleted: false },
+    },
   };
   expect(parse(migrated)).toEqual(expected);
 
@@ -105,10 +107,12 @@ test.each([
       `[plugins.bundled.hide-files]\nenabled = ${enabled}\ndeleted = ${deleted}\ntags = ["test", "generated"]\n`,
     );
 
-    expect(parse(migrated).classify).toEqual({
+    expect(parse(migrated).plugins).toEqual({
       classify: {
-        hide,
-        hide_deleted: hideDeleted,
+        classify: {
+          hide,
+          hide_deleted: hideDeleted,
+        },
       },
     });
   },
@@ -123,8 +127,10 @@ test.each([true, false])(
 
     expect(parse(migrated)).toEqual({
       version: 2,
-      // oxlint-disable-next-line anti-slop/no-shape-in-symbol-names -- Native diffr v2 config namespace.
-      shape: { context: { enabled: false, lines: 9 } },
+      plugins: {
+        // oxlint-disable-next-line anti-slop/no-shape-in-symbol-names -- Native diffr v2 config namespace.
+        shape: { context: { enabled: false, lines: 9 } },
+      },
     });
   },
 );
@@ -133,18 +139,22 @@ test("handles quoted keys, inline tables and dotted keys without touching a cust
   const source = `version = 1\nplugins = { bundled = { group = { enabled = false }, "hide-files" = { enabled = false }, summarize = { system_prompt = "Keep me", max_concurrency = 2 } }, order = ["bundled.group", "bundled.hide-files", "bundled.summarize"] }\n`;
   expect(parse(migrateDiffrConfig(source))).toEqual({
     version: 2,
-    classify: { classify: { hide: [], hide_deleted: false } },
-    // oxlint-disable-next-line anti-slop/no-shape-in-symbol-names -- Native diffr v2 config namespace.
-    shape: {
-      summarize: { system_prompt: "Keep me" },
-      order: ["summarize"],
+    plugins: {
+      classify: { classify: { hide: [], hide_deleted: false } },
+      // oxlint-disable-next-line anti-slop/no-shape-in-symbol-names -- Native diffr v2 config namespace.
+      shape: {
+        summarize: { system_prompt: "Keep me" },
+        order: ["summarize"],
+      },
     },
   });
   const dotted = `plugins.bundled.group.enabled = true\nplugins.bundled."hide-files".deleted = false\nclassifier = { hide = ["vendored"] }\n`;
-  expect(parse(migrateDiffrConfig(dotted)).classify).toEqual({
+  expect(parse(migrateDiffrConfig(dotted)).plugins).toEqual({
     classify: {
-      hide: ["vendored"],
-      hide_deleted: false,
+      classify: {
+        hide: ["vendored"],
+        hide_deleted: false,
+      },
     },
   });
 });
@@ -153,7 +163,9 @@ test("retains explicit modern classifier values in a mixed config", () => {
   const source = `[classifier]\nhide = ["custom"]\nhide_deleted = true\n[plugins.bundled.hide-files]\nenabled = false\n`;
   expect(parse(migrateDiffrConfig(source))).toEqual({
     version: 2,
-    classify: { classify: { hide: ["custom"], hide_deleted: true } },
+    plugins: {
+      classify: { classify: { hide: ["custom"], hide_deleted: true } },
+    },
   });
 });
 
@@ -161,9 +173,11 @@ test("removes retired names from a custom order without sorting surviving plugin
   const source = `[plugins]\norder = ["bundled.context", "bundled.group", "external.custom", "bundled.hide-files", "bundled.summarize"]\n`;
   expect(parse(migrateDiffrConfig(source))).toEqual({
     version: 2,
-    // oxlint-disable-next-line anti-slop/no-shape-in-symbol-names -- Native diffr v2 config namespace.
-    shape: {
-      order: ["context", "custom", "summarize"],
+    plugins: {
+      // oxlint-disable-next-line anti-slop/no-shape-in-symbol-names -- Native diffr v2 config namespace.
+      shape: {
+        order: ["context", "custom", "summarize"],
+      },
     },
   });
 });
@@ -173,8 +187,10 @@ test("retains comments inside a rewritten plugin order", () => {
   const migrated = migrateDiffrConfig(source);
   expect(parse(migrated)).toEqual({
     version: 2,
-    // oxlint-disable-next-line anti-slop/no-shape-in-symbol-names -- Native diffr v2 config namespace.
-    shape: { order: ["context", "summarize"] },
+    plugins: {
+      // oxlint-disable-next-line anti-slop/no-shape-in-symbol-names -- Native diffr v2 config namespace.
+      shape: { order: ["context", "summarize"] },
+    },
   });
   expect(migrated.match(/# keep context first/g)).toHaveLength(1);
   expect(migrated.match(/# retired group/g)).toHaveLength(1);
@@ -247,7 +263,10 @@ test.skipIf(process.platform === "win32")(
 
 test("does not run the binary or change a version 2 file", async () => {
   const { file, env } = await fixture();
-  const source = "version = 2 # already migrated\n[shape.context]\nlines = 8\n";
+
+  const source =
+    "version = 2 # already migrated\n[plugins.shape.context]\nlines = 8\n";
+
   await writeFile(file, source);
   expect(await ensureDiffrConfigMigrated("/no/binary/needed", env)).toBe(false);
   expect(await readFile(file, "utf8")).toBe(source);
@@ -338,12 +357,14 @@ byte_limit = 1_000_000
   const migrated = migrateDiffrConfig(source);
   expect(parse(migrated)).toEqual({
     version: 2,
-    // oxlint-disable-next-line anti-slop/no-shape-in-symbol-names -- Native diffr v2 config namespace.
-    shape: {
-      context: { lines: 16, extra: { option: "custom", nested: [1, 2] } },
-      custom: { path: "plugins/custom", threshold: 1000 },
+    plugins: {
+      // oxlint-disable-next-line anti-slop/no-shape-in-symbol-names -- Native diffr v2 config namespace.
+      shape: {
+        context: { lines: 16, extra: { option: "custom", nested: [1, 2] } },
+        custom: { path: "plugins/custom", threshold: 1000 },
+      },
+      classify: { classify: { hide: ["custom"] } },
     },
-    classify: { classify: { hide: ["custom"] } },
     diff: { byte_limit: 1000000 },
   });
 
@@ -386,13 +407,17 @@ test("moves a custom classifier under its manifest name and validates its origin
   });
   expect(parse(await readFile(file, "utf8"))).toEqual({
     version: 2,
-    classify: {
-      "team.classifier": { path: "custom-classifier", hide: ["team"] },
+    plugins: {
+      classify: {
+        "team.classifier": { path: "custom-classifier", hide: ["team"] },
+      },
     },
   });
   expect(parse(await readFile(captured, "utf8"))).toEqual({
     version: 2,
-    classify: { "team.classifier": { path: directory, hide: ["team"] } },
+    plugins: {
+      classify: { "team.classifier": { path: directory, hide: ["team"] } },
+    },
   });
 });
 
@@ -435,8 +460,10 @@ test("serializes concurrent startup migrations and writes one backup", async () 
   expect(results.sort()).toEqual([false, true]);
   expect(parse(await readFile(file, "utf8"))).toEqual({
     version: 2,
-    // oxlint-disable-next-line anti-slop/no-shape-in-symbol-names -- Native diffr v2 config namespace.
-    shape: { context: { lines: 11 } },
+    plugins: {
+      // oxlint-disable-next-line anti-slop/no-shape-in-symbol-names -- Native diffr v2 config namespace.
+      shape: { context: { lines: 11 } },
+    },
   });
 
   const backups = (await readdir(path.dirname(file))).filter((name) =>
@@ -471,8 +498,10 @@ test.each([
   const migrated = migrateDiffrConfig(source);
   expect(parse(migrated)).toEqual({
     version: 2,
-    // oxlint-disable-next-line anti-slop/no-shape-in-symbol-names -- Native diffr v2 config namespace.
-    shape: { "team.custom": { path: "plugins/custom", "option.name": 16 } },
+    plugins: {
+      // oxlint-disable-next-line anti-slop/no-shape-in-symbol-names -- Native diffr v2 config namespace.
+      shape: { "team.custom": { path: "plugins/custom", "option.name": 16 } },
+    },
   });
   expect(migrated).toContain("0x10");
 });
@@ -493,8 +522,10 @@ test.each([
   const migrated = migrateDiffrConfig(source);
   expect(parse(migrated)).toEqual({
     version: 2,
-    // oxlint-disable-next-line anti-slop/no-shape-in-symbol-names -- Native diffr v2 config namespace.
-    shape: { summarize: {} },
+    plugins: {
+      // oxlint-disable-next-line anti-slop/no-shape-in-symbol-names -- Native diffr v2 config namespace.
+      shape: { summarize: {} },
+    },
   });
   expect(migrated).toContain("# old default");
 
@@ -509,7 +540,9 @@ test.each([
     );
 
     expect(
-      new TomlEdits(migratedCustom).value("shape.summarize.system_prompt"),
+      new TomlEdits(migratedCustom).value(
+        "plugins.shape.summarize.system_prompt",
+      ),
     ).toBe(custom);
     expect(migratedCustom).toContain(
       `system_prompt = ${literal} # custom prompt`,
@@ -522,7 +555,7 @@ test("moves the old default context-first order to the v2 context-last default",
     '[plugins]\norder = ["bundled.context", "bundled.hide-files", "bundled.deleted-bodies", "bundled.summarize", "bundled.test-bodies", "bundled.removed-runs", "bundled.group"]\n';
 
   expect(
-    new TomlEdits(migrateDiffrConfig(source)).value("shape.order"),
+    new TomlEdits(migrateDiffrConfig(source)).value("plugins.shape.order"),
   ).toEqual([
     "deleted-bodies",
     "summarize",
@@ -530,4 +563,41 @@ test("moves the old default context-first order to the v2 context-last default",
     "removed-runs",
     "context",
   ]);
+});
+
+test("keeps new namespaces while removing only legacy parent tables", () => {
+  const source = `version = 1
+[plugins] # pipeline config
+order = ["bundled.context", "external.team.custom"]
+[plugins.bundled] # built-in plugins
+context = { lines = 0x10 }
+[plugins.external] # custom plugins
+"team.custom" = { path = 'plugins/custom', threshold = 1_000 }
+[classifier] # file tags
+hide = ['team']
+`;
+
+  const migrated = migrateDiffrConfig(source);
+  expect(parse(migrated)).toEqual({
+    version: 2,
+    plugins: {
+      // oxlint-disable-next-line anti-slop/no-shape-in-symbol-names -- Native diffr v2 config namespace.
+      shape: {
+        order: ["context", "team.custom"],
+        context: { lines: 16 },
+        "team.custom": { path: "plugins/custom", threshold: 1000 },
+      },
+      classify: { classify: { hide: ["team"] } },
+    },
+  });
+  expect(migrated).toContain("lines = 0x10");
+  expect(migrated).toContain("threshold = 1_000");
+
+  for (const comment of [
+    "pipeline config",
+    "built-in plugins",
+    "custom plugins",
+    "file tags",
+  ])
+    expect(migrated).toContain(`# ${comment}`);
 });
