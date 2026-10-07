@@ -52,12 +52,15 @@ class ReviewWebTextModel implements IResolvedTextEditorModel {
 
 /**
  * The workbench's model resolver without its file service: models come from
- * the registered content providers, or from models that already exist.
+ * the registered content providers, or from models that already exist. As in
+ * the workbench, a scheme can have several providers; the newest is asked
+ * first, and one that returns nothing passes the resource to the next (the
+ * structural diff serves only its own snapshots of review sources).
  */
 export class ReviewWebTextModelService implements ITextModelService {
 	declare readonly _serviceBrand: undefined;
 
-	private readonly providers = new Map<string, ITextModelContentProvider>();
+	private readonly providers = new Map<string, ITextModelContentProvider[]>();
 	private readonly pending = new Map<string, Promise<ITextModel>>();
 
 	constructor(@IModelService private readonly modelService: IModelService) { }
@@ -67,9 +70,14 @@ export class ReviewWebTextModelService implements ITextModelService {
 	}
 
 	registerTextModelContentProvider(scheme: string, provider: ITextModelContentProvider): IDisposable {
-		this.providers.set(scheme, provider);
+		const providers = this.providers.get(scheme) ?? [];
+		this.providers.set(scheme, providers);
+		providers.unshift(provider);
 		return toDisposable(() => {
-			if (this.providers.get(scheme) === provider) this.providers.delete(scheme);
+			const index = providers.indexOf(provider);
+			if (index === -1) return;
+			providers.splice(index, 1);
+			if (providers.length === 0 && this.providers.get(scheme) === providers) this.providers.delete(scheme);
 		});
 	}
 
@@ -84,12 +92,15 @@ export class ReviewWebTextModelService implements ITextModelService {
 		// The original and modified sides, and several peeks, can ask for one file at once.
 		const inFlight = this.pending.get(key);
 		if (inFlight) return inFlight;
-		const provider = this.providers.get(resource.scheme);
-		if (!provider) return Promise.reject(new Error(`No content provider for ${resource.scheme} resources.`));
-		const request = Promise.resolve(provider.provideTextContent(resource)).then(model => {
-			if (!model) throw new Error(`No content for ${key}.`);
-			return model;
-		}).finally(() => this.pending.delete(key));
+		const providers = this.providers.get(resource.scheme);
+		if (!providers) return Promise.reject(new Error(`No content provider for ${resource.scheme} resources.`));
+		const request = (async () => {
+			for (const provider of [...providers]) {
+				const model = await provider.provideTextContent(resource);
+				if (model) return model;
+			}
+			throw new Error(`No content for ${key}.`);
+		})().finally(() => this.pending.delete(key));
 		this.pending.set(key, request);
 		return request;
 	}

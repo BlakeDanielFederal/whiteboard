@@ -79,3 +79,7 @@ browser as soon as it is created.
 - No Source tree window, settings page, onboarding or tutorial.
 - Changes to uncommitted files show when the review updates, not as you type.
 - The interface follows the browser's light or dark setting.
+- Software maps are switched on when the server starts, by `--software-maps`
+  in the `CMD` of `docker/Dockerfile`, not in Settings. Drop the flag to turn
+  them off.
+- Structural diff is always on; there is no setting to switch to the line diff.

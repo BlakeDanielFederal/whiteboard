@@ -64,6 +64,23 @@ test('an empty side reads nothing from the server', async () => {
 	assert.equal(requests.length, 0);
 });
 
+test('a provider that serves only its own resources passes the rest to earlier ones, until it is gone', async () => {
+	const { textModels, requests } = serviceReading(() => ({ text: 'from the source' }));
+	const { service, languages } = fakeModels();
+	const snapshot = apiSourceUri({ view, side: 'head', file: 'structural.ts' });
+	const structural = textModels.registerTextModelContentProvider('review-api-source', {
+		provideTextContent: async uri => uri.toString() === snapshot.toString() ? service.createModel('from the snapshot', languages.createById('typescript'), uri) : null,
+	});
+	const own = await textModels.createModelReference(snapshot);
+	const other = await textModels.createModelReference(apiSourceUri({ view, side: 'head', file: 'plain.ts' }));
+	assert.equal(own.object.textEditorModel.getValue(), 'from the snapshot');
+	assert.equal(other.object.textEditorModel.getValue(), 'from the source');
+	structural.dispose();
+	const later = await textModels.createModelReference(apiSourceUri({ view, side: 'base', file: 'plain.ts' }));
+	assert.equal(later.object.textEditorModel.getValue(), 'from the source');
+	assert.equal(requests.length, 2);
+});
+
 test('concurrent requests for one file share one read', async () => {
 	const { textModels, requests } = serviceReading(() => ({ text: 'shared' }));
 	const resource = apiSourceUri({ view, side: 'head', file: 'shared.ts' });

@@ -66,4 +66,4 @@ EXPOSE 8080
 
 VOLUME ["/data"]
 
-CMD ["whiteboard", "web", "--host", "0.0.0.0", "--port", "8080"]
+CMD ["whiteboard", "web", "--host", "0.0.0.0", "--port", "8080", "--software-maps"]
