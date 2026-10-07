@@ -1,6 +1,10 @@
 import { decodeReviewStructuralDiffEvent, reviewSourceQuery, type ReviewSourceView } from "../common/reviewProtocol.js";
 import type { StructuralEvent } from "../common/reviewStructuralDiff.js";
-import type { IReviewDesktopConnectionService } from "./reviewDesktopConnectionService.js";
+
+/** Where the review server is; Desktop's connection service is one. */
+export interface ReviewServerEndpoint {
+	getConnection(): Promise<{ readonly serverUrl: string; readonly token: string }>;
+}
 
 /** The transport seam: callers consume records, never Response objects or byte chunks. */
 export interface StructuralDiffStream {
@@ -8,7 +12,7 @@ export interface StructuralDiffStream {
 }
 
 export class StructuralDiffClient implements StructuralDiffStream {
-	constructor(private readonly connection: IReviewDesktopConnectionService, private readonly comparison: ReviewSourceView) { }
+	constructor(private readonly connection: ReviewServerEndpoint, private readonly comparison: ReviewSourceView) { }
 
 	async *streamComparison(signal: AbortSignal): AsyncGenerator<StructuralEvent> {
 		const { serverUrl, token } = await this.connection.getConnection();

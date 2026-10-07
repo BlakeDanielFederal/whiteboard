@@ -318,6 +318,29 @@ Webview resources still resolve only through
 still applies, and every webview still loads through the `pre/index.html` host
 described below.
 
+## Restored standalone editor services
+
+The vendored tree kept `src/vs/editor/standalone/` only as two iPad keyboard
+SVGs. The browser diff library (`src/vs/review/web/`) boots Review's diff
+services on upstream's standalone editor services rather than on the
+workbench, so the files that `standaloneServices.ts` imports and the tree
+lacked are restored byte-for-byte from the upstream commit above. They are not
+a fork divergence:
+
+- `src/vs/editor/standalone/browser/`: `standaloneServices.ts`,
+  `standaloneCodeEditorService.ts`, `standaloneLayoutService.ts`,
+  `standaloneThemeService.ts`, `standaloneTreeSitterLibraryService.ts`,
+  `services/standaloneWebWorkerService.ts`,
+  `quickInput/standaloneQuickInputService.ts` and
+  `quickInput/standaloneQuickInput.css`.
+- `src/vs/editor/standalone/common/`: `standaloneTheme.ts` and `themes.ts`.
+- `src/vs/platform/clipboard/browser/clipboardService.ts`.
+
+The set is the import closure of `standaloneServices.ts` at the upstream
+commit, minus the files the tree already has. Nothing in Review Desktop
+imports them. For an upstream refresh, recompute that closure and restore any
+new members the same way.
+
 ## Intentional fork divergence
 
 Compare a fresh checkout of the upstream commit with `code-oss/`, ignoring the
