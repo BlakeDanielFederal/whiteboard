@@ -124,8 +124,8 @@ jobs:
           - name: Prepare Code OSS dependencies
             run: |
               source apps/review-desktop/scripts/code-oss-dependencies.sh
-              ensure_code_oss_dependencies apps/review-desktop apps/review-desktop/code-oss
-              ensure_code_oss_electron apps/review-desktop/code-oss
+              ensure_code_oss_dependencies "$PWD/apps/review-desktop" "$PWD/apps/review-desktop/code-oss"
+              ensure_code_oss_electron "$PWD/apps/review-desktop/code-oss"
 
           - name: Build workspace packages
             run: |
