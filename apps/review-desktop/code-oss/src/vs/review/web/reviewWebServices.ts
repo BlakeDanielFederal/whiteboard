@@ -29,10 +29,11 @@ import { INotebookDocumentService } from "../../workbench/services/notebook/comm
 import { ITextFileService } from "../../workbench/services/textfile/common/textfiles.js";
 import { REVIEW_API_SOURCE_SCHEME } from "../common/reviewSourceView.js";
 import { reviewApiSourceContentProvider, type ReviewSourceRead } from "../services/reviewApiSourceContent.js";
+import { ReviewWebTextMate, type ReviewWebTokenTheme } from "./reviewWebTextMate.js";
 import { ReviewWebTextModelService } from "./reviewWebTextModelService.js";
 
 /** Desktop's Whiteboard Light and Dark colors, resolved by the bundle build. */
-declare const __REVIEW_WEB_THEMES__: Record<ReviewWebTheme, IStandaloneThemeData>;
+declare const __REVIEW_WEB_THEMES__: Record<ReviewWebTheme, { editor: IStandaloneThemeData; tokens: ReviewWebTokenTheme }>;
 
 export type ReviewWebTheme = "light" | "dark";
 
@@ -58,23 +59,38 @@ function browserStub<T>(id: ServiceIdentifier<T>, members: object): T {
 	}) as T;
 }
 
+export interface ReviewWebServices {
+	/** The scope Review's diff classes are created in. */
+	instantiation: IInstantiationService;
+	setTheme(theme: ReviewWebTheme): void;
+	dispose(): void;
+}
+
 /** Initializes the standalone services once and returns a scope for Review's diff classes. */
-export function createReviewWebServices(options: ReviewWebServicesOptions): IInstantiationService {
+export function createReviewWebServices(options: ReviewWebServicesOptions): ReviewWebServices {
 	const standalone = StandaloneServices.initialize({});
 	// Standalone editors install the theme's stylesheet when they are created;
-	// Review's diff classes build plain editor widgets, so install it here.
+	// Review's diff classes build plain editor widgets, so install it here, as
+	// upstream's standalone editors do, through the concrete service.
 	const themes = StandaloneServices.get(IStandaloneThemeService);
-	for (const theme of ["light", "dark"] as const) themes.defineTheme(reviewWebThemeId(theme), __REVIEW_WEB_THEMES__[theme]);
-	themes.setTheme(reviewWebThemeId(options.theme));
-	// As upstream's standalone editors do, through the concrete service.
+	for (const theme of ["light", "dark"] as const) themes.defineTheme(reviewWebThemeId(theme), __REVIEW_WEB_THEMES__[theme].editor);
 	(themes as StandaloneThemeService).registerEditorContainer(document.body);
+	// Languages register before any review source model is created. Its token
+	// stylesheet comes after the editor theme's, so the TextMate colors win.
+	const textMate = new ReviewWebTextMate(standalone);
+	const setTheme = (theme: ReviewWebTheme) => {
+		themes.setTheme(reviewWebThemeId(theme));
+		// The editor theme resets the token color map; reapply the TextMate one.
+		textMate.setTheme(__REVIEW_WEB_THEMES__[theme].tokens);
+	};
+	setTheme(options.theme);
 	const textModels = standalone.createInstance(ReviewWebTextModelService);
 	textModels.registerTextModelContentProvider(
 		REVIEW_API_SOURCE_SCHEME,
 		reviewApiSourceContentProvider(StandaloneServices.get(IModelService), StandaloneServices.get(ILanguageService), options.read),
 	);
 
-	return standalone.createChild(new ServiceCollection(
+	const instantiation = standalone.createChild(new ServiceCollection(
 		[ITextModelService, textModels],
 		[IEditorService, browserStub(IEditorService, {
 			openEditor: async (input: { resource?: URI }) => {
@@ -93,4 +109,6 @@ export function createReviewWebServices(options: ReviewWebServicesOptions): IIns
 		[IDecorationsService, browserStub(IDecorationsService, { onDidChangeDecorations: Event.None, getDecoration: () => undefined })],
 		[INotebookDocumentService, browserStub(INotebookDocumentService, { getNotebook: () => undefined })],
 	));
+
+	return { instantiation, setTheme, dispose: () => textMate.dispose() };
 }

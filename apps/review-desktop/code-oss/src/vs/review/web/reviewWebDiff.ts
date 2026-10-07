@@ -18,8 +18,7 @@ import type { ReviewDiffLayout, ReviewDiffViewFactory, ReviewInlineEditorFactory
 import { reviewCanvasDiffFactories, type ReviewSourceRead } from "../services/reviewApiSourceContent.js";
 import { ReviewDiffViewService } from "../services/reviewDiffViewService.js";
 import { ReviewEmbeddedEditors } from "../services/reviewEmbeddedEditors.js";
-import { IStandaloneThemeService } from "../../editor/standalone/common/standaloneTheme.js";
-import { createReviewWebServices, reviewWebThemeId, type ReviewWebTheme } from "./reviewWebServices.js";
+import { createReviewWebServices, type ReviewWebTheme } from "./reviewWebServices.js";
 
 export interface ReviewWebDiffOptions {
 	/** The review server's origin, such as `http://192.168.1.20:8080`. */
@@ -78,14 +77,15 @@ export function createReviewWebDiff(options: ReviewWebDiffOptions): ReviewWebDif
 	};
 
 	const store = new DisposableStore();
-	const instantiation = createReviewWebServices({ read, theme: options.theme, openFile: resource => options.openFile?.(resource) });
+	const services = store.add(createReviewWebServices({ read, theme: options.theme, openFile: resource => options.openFile?.(resource) }));
+	const instantiation = services.instantiation;
 	const inlineEditors = store.add(instantiation.createInstance(ReviewEmbeddedEditors));
 	const diff = store.add(instantiation.createInstance(ReviewDiffViewService, inlineEditors));
 	const configuration = instantiation.invokeFunction(accessor => accessor.get(IConfigurationService));
 
 	return {
 		forReview: view => reviewCanvasDiffFactories(read, connection, view, diff),
-		setTheme: theme => instantiation.invokeFunction(accessor => accessor.get(IStandaloneThemeService)).setTheme(reviewWebThemeId(theme)),
+		setTheme: theme => services.setTheme(theme),
 		structuralDiffEnabled: () => diff.structuralRenderingEnabled,
 		setStructuralDiffEnabled: enabled => configuration.updateValue(REVIEW_STRUCTURAL_DIFF_SETTING, enabled),
 		currentDiffLayout: () => diff.diffLayout.get(),

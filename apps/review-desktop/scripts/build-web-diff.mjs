@@ -4,7 +4,7 @@
 // use this output.
 
 import { execFileSync } from "node:child_process";
-import { copyFile, mkdir, readFile, rm, stat } from "node:fs/promises";
+import { copyFile, mkdir, readFile, readdir, rm, stat } from "node:fs/promises";
 import { createRequire } from "node:module";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -23,8 +23,10 @@ const outDir = path.resolve(
     path.join(desktopRoot, "../../packages/review/app/dist/web/diff"),
 );
 
-// Resolved from the fork outward, as the fork's own build scripts resolve it.
-const esbuild = createRequire(path.join(codeOss, "package.json"))("esbuild");
+// Packages resolve from the fork outward, as the fork's own build scripts do.
+const requireFork = createRequire(path.join(codeOss, "package.json"));
+
+const esbuild = requireFork("esbuild");
 
 /** Parses a theme file: JSON with comments and trailing commas. */
 function parseJsonc(text) {
@@ -51,35 +53,127 @@ function parseJsonc(text) {
   return JSON.parse(out.replace(/,(\s*[}\]])/g, "$1"));
 }
 
-/** A color theme's workbench colors, its `include` chain applied first. */
-async function themeColors(file) {
+/** A color theme's colors and token colors, its `include` chain applied first. */
+async function resolveTheme(file) {
   const theme = parseJsonc(await readFile(file, "utf8"));
 
   const included = theme.include
-    ? await themeColors(path.resolve(path.dirname(file), theme.include))
-    : {};
+    ? await resolveTheme(path.resolve(path.dirname(file), theme.include))
+    : { colors: {}, tokenColors: [] };
 
-  return { ...included, ...theme.colors };
+  return {
+    colors: { ...included.colors, ...theme.colors },
+    tokenColors: [...included.tokenColors, ...(theme.tokenColors ?? [])],
+  };
 }
 
-/** Desktop's Whiteboard themes, so diffs and editors use the same colors. */
+/**
+ * Desktop's Whiteboard themes, so diffs, editors and syntax use the same colors.
+ * Token colors get the editor's default colors first and their color map
+ * precomputed, as the workbench's color theme does.
+ */
 async function reviewThemes() {
   const themes = path.join(codeOss, "extensions/review-themes/themes");
 
-  return {
-    light: {
-      base: "vs",
-      inherit: true,
-      rules: [],
-      colors: await themeColors(path.join(themes, "review-light.json")),
-    },
-    dark: {
-      base: "vs-dark",
-      inherit: true,
-      rules: [],
-      colors: await themeColors(path.join(themes, "review-dark.json")),
-    },
+  const { Registry } = requireFork("vscode-textmate");
+
+  const resolve = async (file, base) => {
+    const { colors, tokenColors } = await resolveTheme(path.join(themes, file));
+
+    const settings = [
+      {
+        settings: {
+          foreground: colors["editor.foreground"],
+          background: colors["editor.background"],
+        },
+      },
+      ...tokenColors,
+    ];
+
+    const registry = new Registry({
+      onigLib: Promise.resolve(),
+      loadGrammar: async () => null,
+      theme: { settings },
+    });
+
+    return {
+      editor: { base, inherit: true, rules: [], colors },
+      tokens: { settings, colorMap: registry.getColorMap() },
+    };
   };
+
+  return {
+    light: await resolve("review-light.json", "vs"),
+    dark: await resolve("review-dark.json", "vs-dark"),
+  };
+}
+
+/**
+ * The language definitions and TextMate grammars that Desktop's built-in
+ * language extensions contribute. Grammars are copied beside the bundle and
+ * loaded per language on first use.
+ */
+async function reviewLanguages() {
+  const extensionsDir = path.join(codeOss, "extensions");
+
+  const languages = [];
+
+  const grammars = [];
+
+  for (const extension of (await readdir(extensionsDir)).sort()) {
+    const manifestPath = path.join(extensionsDir, extension, "package.json");
+
+    let manifest;
+
+    try {
+      manifest = JSON.parse(await readFile(manifestPath, "utf8"));
+    } catch {
+      continue;
+    }
+
+    const contributes = manifest.contributes ?? {};
+
+    for (const language of contributes.languages ?? []) {
+      const { configuration, ...definition } = language;
+
+      let brackets;
+
+      if (configuration) {
+        try {
+          const config = parseJsonc(
+            await readFile(
+              path.join(extensionsDir, extension, configuration),
+              "utf8",
+            ),
+          );
+
+          brackets = {
+            brackets: config.brackets,
+            comments: config.comments,
+            colorizedBracketPairs: config.colorizedBracketPairs,
+          };
+        } catch {
+          // A language without a readable configuration still highlights.
+        }
+      }
+
+      languages.push({ ...definition, configuration: brackets });
+    }
+
+    for (const grammar of contributes.grammars ?? []) {
+      const from = path.join(extensionsDir, extension, grammar.path);
+
+      const to = path.join("grammars", extension, grammar.path);
+
+      await mkdir(path.dirname(path.join(outDir, to)), { recursive: true });
+
+      await copyFile(from, path.join(outDir, to));
+
+      grammars.push({ ...grammar, path: to.split(path.sep).join("/") });
+    }
+  }
+
+  return { languages, grammars };
 }
 
 // The fork reads the review protocol from a generated overlay.
@@ -99,8 +193,17 @@ await rm(outDir, { recursive: true, force: true });
 
 await mkdir(outDir, { recursive: true });
 
+// Grammars run on oniguruma, compiled to WebAssembly.
+await copyFile(
+  path.join(codeOss, "node_modules/vscode-oniguruma/release/onig.wasm"),
+  path.join(outDir, "onig.wasm"),
+);
+
 const result = await esbuild.build({
-  define: { __REVIEW_WEB_THEMES__: JSON.stringify(await reviewThemes()) },
+  define: {
+    __REVIEW_WEB_THEMES__: JSON.stringify(await reviewThemes()),
+    __REVIEW_WEB_LANGUAGES__: JSON.stringify(await reviewLanguages()),
+  },
   entryPoints: [
     {
       in: path.join(source, "vs/review/web/reviewWebDiff.ts"),
