@@ -8,6 +8,7 @@ export const askAgentIds = [
   "cursor",
   "opencode",
   "pi",
+  "copilot",
 ] as const;
 
 export type AskAgentId = (typeof askAgentIds)[number];

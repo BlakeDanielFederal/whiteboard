@@ -39,6 +39,10 @@ interface AskAgentSpec {
    * keeps the checkout as it is. Read-only is best effort: an agent without
    * one still answers. */
   readOnlyMode?: string;
+  /** For a CLI that speaks ACP itself and has no read-only mode: arguments
+   * that keep the checkout as it is, added to its launch unless the reviewer
+   * bypasses permissions. */
+  readOnlyArgs?: string[];
   /** Adapter-specific session settings, sent as the session's `_meta`. */
   sessionMeta?: NewSessionRequest["_meta"];
   /** Settings for the agent's process. */
@@ -173,6 +177,18 @@ export const askAgents: Record<AskAgentId, AskAgentSpec> = {
     // Pi never asks before it edits or runs a command, and has no mode that
     // stops it.
   },
+  copilot: {
+    name: "Copilot CLI",
+    commands: ["copilot"],
+    launch: { args: ["--acp"] },
+    signIn: "copilot login",
+    // Both of Copilot's modes, agent and plan, may edit once a write is
+    // allowed. This refuses its file edits without asking; commands still ask.
+    readOnlyArgs: ["--deny-tool=write"],
+    // Allows every tool without asking. Exactly "true" would also trust the
+    // checkout, loading its skills, plugins, MCP servers and hooks.
+    bypass: { env: { COPILOT_ALLOW_ALL: "1" } },
+  },
 };
 
 export interface AskAgentStatus {
@@ -267,7 +283,9 @@ export async function detectAskAgents(
       id,
       name: askAgents[id].name,
       available: (await findAgent(askAgents[id], env)) !== undefined,
-      readOnly: askAgents[id].readOnlyMode !== undefined,
+      readOnly:
+        askAgents[id].readOnlyMode !== undefined ||
+        askAgents[id].readOnlyArgs !== undefined,
       bypass: askAgents[id].bypass !== undefined,
     })),
   );
@@ -310,7 +328,10 @@ export const launchAskAgent: AskAgentLauncher = async (
     if (process.versions.electron) env.ELECTRON_RUN_AS_NODE = "1";
     command = process.execPath;
     args = [createRequire(import.meta.url).resolve(launch.adapter)];
-  } else args = launch.args;
+  } else
+    args = bypass
+      ? launch.args
+      : [...launch.args, ...(spec.readOnlyArgs ?? [])];
 
   const child = spawn(command, args, {
     cwd,

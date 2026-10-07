@@ -609,7 +609,8 @@ export class AskThread {
 
     this.emit({
       type: "set",
-      readOnly: !bypass && Boolean(configurable || selectable),
+      readOnly:
+        !bypass && Boolean(configurable || selectable || spec.readOnlyArgs),
     });
     this.useConfig(config);
 
@@ -761,10 +762,13 @@ export class AskThread {
   }
 
   /** The agent says which mode it is in now; only its read-only one keeps
-   * the checkout as it is. */
+   * the checkout as it is, unless its launch already does in every mode. */
   private useMode(mode: string) {
+    const spec = askAgents[this.start.agent];
+
     const readOnly =
-      !this.state.bypass && mode === askAgents[this.start.agent].readOnlyMode;
+      !this.state.bypass &&
+      (mode === spec.readOnlyMode || spec.readOnlyArgs !== undefined);
 
     if (readOnly !== this.state.readOnly) this.emit({ type: "set", readOnly });
   }
