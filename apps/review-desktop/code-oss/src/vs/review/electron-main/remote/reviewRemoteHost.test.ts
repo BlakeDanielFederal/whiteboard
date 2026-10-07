@@ -14,7 +14,7 @@ import test from "node:test";
 
 import type { ReviewGatewayHost } from "../../common/reviewProtocol.js";
 import { attachOutput, detectOutput, FAKE_SERVER_ID, fakeClock, fakeSsh, until, type FakeRemote } from "./test/fakeSsh.js";
-import { classifySshFailure, languageCommitMismatch, ReviewRemoteHost, type ReviewRemoteHostOptions, type ReviewRemoteInstallFlow, type ReviewRemoteInstallMode, type ReviewRemoteInstallRunInput } from "./reviewRemoteHost.js";
+import { classifySshFailure, languageCommitMismatch, sshDropSentence, sshFailureSentence, ReviewRemoteHost, type ReviewRemoteHostOptions, type ReviewRemoteInstallFlow, type ReviewRemoteInstallMode, type ReviewRemoteInstallRunInput } from "./reviewRemoteHost.js";
 import { openRemoteInstallConsent } from "./reviewRemoteInstallConsent.js";
 import type { ReviewRemoteInstallProgress, ReviewRemoteInstallResult } from "./reviewRemoteInstaller.js";
 import { reviewSshSession } from "./reviewSshCommand.js";
@@ -407,7 +407,7 @@ test("a cancelled prompt is auth-failed, and there is no second attempt", async 
 	await until(() => last()?.problem !== undefined);
 
 	assert.equal(last()?.problem?.state, "auth-failed");
-	assert.equal(last()!.problem!.detail, "dev@127.0.0.1: Permission denied (publickey,password).");
+	assert.equal(last()!.problem!.detail, `wb-test-a did not accept your SSH key. Check that "ssh wb-test-a" works in a terminal.`);
 	assert.equal(clock.pending, 0);
 	assert.equal(ssh.of("wb-test-a", "master").length, 1);
 });
@@ -420,6 +420,32 @@ test("OpenSSH's authentication and host key refusals are auth-failed; the rest u
 	assert.equal(classifySshFailure("ssh: connect to host h port 22: Connection refused", false), "unreachable");
 });
 
+test("OpenSSH's common failures read as one sentence naming the alias; others are left as they are", () => {
+	for (const [stderr, sentence] of [
+		["ssh: connect to host 10.0.0.1 port 22: Connection refused", "box refused the SSH connection. Check that its SSH server is running."],
+		["ssh: Could not resolve hostname box.lan: nodename nor servname provided, or not known", "box's host name could not be found. Check its address in your SSH config."],
+		["ssh: connect to host 10.0.0.1 port 22: Operation timed out", "The SSH connection to box timed out. Check that it is on and reachable from this network."],
+		["ssh: connect to host 10.0.0.1 port 22: Connection timed out", "The SSH connection to box timed out. Check that it is on and reachable from this network."],
+		["dev@box: Permission denied (publickey).", `box did not accept your SSH key. Check that "ssh box" works in a terminal.`],
+		["Host key verification failed.", `box's host key could not be verified. Run "ssh box" in a terminal to check and accept it.`],
+		["@ WARNING: REMOTE HOST IDENTIFICATION HAS CHANGED! @\nHost key verification failed.", "box's host key changed since you last connected. If the machine was reinstalled, remove its old key from known_hosts, then retry."],
+		["kex_exchange_identification: read: Connection reset by peer", undefined],
+	] as const) {
+		assert.equal(sshFailureSentence(stderr, "box"), sentence);
+	}
+});
+
+test("a dropped connection reads as one sentence naming the alias; others are left as they are", () => {
+	for (const [stderr, sentence] of [
+		["Timeout, server 127.0.0.1 not responding.", "box stopped answering over SSH. It may be asleep, or off this network."],
+		["client_loop: send disconnect: Broken pipe", "box closed the SSH connection."],
+		["Connection to 10.0.0.1 closed by remote host.", "box closed the SSH connection."],
+		["Killed by signal 15.", undefined],
+	] as const) {
+		assert.equal(sshDropSentence(stderr, "box"), sentence);
+	}
+});
+
 test("the master exits and the host reconnects after the backoff", async (t) => {
 	const port = await healthServer(t);
 	const { host, ssh, clock, last } = hostFor(t, {}, port);
@@ -430,7 +456,7 @@ test("the master exits and the host reconnects after the backoff", async (t) => 
 	await until(() => last()?.problem !== undefined);
 
 	assert.equal(last()?.problem?.state, "unreachable");
-	assert.match(last()!.problem!.detail, /closed by remote host/);
+	assert.equal(last()!.problem!.detail, "wb-test-a closed the SSH connection.");
 	assert.equal(ssh.of("wb-test-a", "master").length, 1);
 	assert.ok(clock.next());
 	await until(() => last()?.endpoint !== undefined);
@@ -514,7 +540,7 @@ test("an authenticated master that ends is unreachable and retried, whatever its
 	await until(() => last()?.problem !== undefined);
 
 	assert.equal(last()?.problem?.state, "unreachable");
-	assert.equal(last()!.problem!.detail, "The SSH connection to wb-test-a ended: Connection reset by peer");
+	assert.equal(last()!.problem!.detail, "wb-test-a closed the SSH connection.");
 	assert.equal(clock.pending, 1);
 });
 
