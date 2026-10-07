@@ -117,18 +117,22 @@ flowchart LR
     bridge -- "inlineEditors · diffView" --> difflib
   end
 
-  subgraph container["docker/Dockerfile (node:24-bookworm-slim)"]
+  subgraph container["container whiteboard (docker/Dockerfile, node:24-bookworm-slim)"]
     host["whiteboard web --host 0.0.0.0 --software-maps<br/>DEV_REVIEW_SERVER_DIR=/data/server"]
     assets[("/opt/whiteboard/web")]
-    agents["claude · codex · opencode (Ask)"]
+    agents["claude · codex · opencode (Ask)<br/>copilot (authoring)"]
+    mcp["whiteboard mcp"]
     diffr["diffr (structural diff)"]
     host --> assets
     host --> agents
     host --> diffr
+    mcp -- "DEV_REVIEW_SERVER_DIR=/data/server" --> host
   end
+
+  hostagents["agents on the host<br/>MCP server whiteboard-docker"] -- "docker exec -i whiteboard whiteboard mcp" --> mcp
 
   browser -- "GET / · /assets · /diff · /reviews-api" --> host
   container --- data[("volume /data<br/>reviews · Ask · checkouts")]
-  container --- repos[("bind /repos")]
+  container --- repos[("bind $REPOS at its host path")]
   container --- home[("volume /home/node<br/>agent sign-ins")]
 ```
