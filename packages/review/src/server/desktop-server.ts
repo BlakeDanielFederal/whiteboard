@@ -19,8 +19,7 @@ import {
   parseReviewCliInstallApplyRequest,
   reviewDiffrSummarizerInputSchema,
 } from "@dev.fast/review-protocol";
-import { shellQuote, writePrivateJsonAtomic } from "@dev.fast/trace-core";
-import type { AskTools } from "@review/ask/threads.js";
+import { writePrivateJsonAtomic } from "@dev.fast/trace-core";
 import {
   applyCliInstall,
   declineCliInstall,
@@ -55,6 +54,7 @@ import type { SharedReviewStore } from "@review/sharing/import.js";
 import { z } from "zod";
 
 import { aliasInstallationToAccount } from "./account-alias";
+import { createAskTools } from "./ask-tools";
 import { CrashReportRequestSchema, reportCrashDump } from "./crash-report";
 import {
   readDiffrConfig,
@@ -147,28 +147,10 @@ export function createGlobalReviewServer(
       : []),
   ];
 
-  // Ask sessions get its MCP server, `whiteboard mcp`; an agent whose model
-  // would not get it uses `whiteboard api` from its shell instead.
-  const askTools: AskTools = {
-    mcpServers: () =>
-      discovery.cliPath
-        ? [
-            {
-              name: "whiteboard",
-              command: process.execPath,
-              args: [discovery.cliPath, "mcp"],
-              env: askCliEnv(),
-            },
-          ]
-        : [],
-    cli: () =>
-      discovery.cliPath &&
-      [
-        ...askCliEnv().map(({ name, value }) => `${name}=${shellQuote(value)}`),
-        shellQuote(process.execPath),
-        shellQuote(discovery.cliPath),
-      ].join(" "),
-  };
+  const askTools = createAskTools({
+    cliPath: () => discovery.cliPath,
+    env: askCliEnv,
+  });
 
   const reviewStore = input.reviewStore;
 

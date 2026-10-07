@@ -41,18 +41,30 @@ const version = readReviewPackageVersion(import.meta.url);
 const commit = readBuildCommit(import.meta.url);
 
 /**
+ * Who may call a review server. `token` requires the discovery token on every
+ * route but /health; `open` serves anyone who can reach it, for a web host on
+ * a trusted network.
+ */
+export type ReviewServerAccess = "token" | "open";
+
+/**
  * What every review server shares: CORS, an open /health, token auth, and
  * the /control relay a Desktop attaches to, with errors answered as JSON.
  * Callers add their routes after.
  */
 export function createReviewServerApp(input: {
   token: string;
+  access?: ReviewServerAccess;
   instanceId: string;
   /** The review store's `serverId()`. */
   serverId: string;
   relay: ReviewDesktopVerbRelay;
 }): Hono<ReviewHonoEnv> {
   const app = new Hono<ReviewHonoEnv>();
+
+  const authorized = (request: Request) =>
+    input.access === "open" || isAuthorizedRequest(request, input.token);
+
   app.use("*", async (context, next) => {
     await next();
     applyCorsHeaders(context.req.raw, context.res);
@@ -69,7 +81,7 @@ export function createReviewServerApp(input: {
 
     return serverJson(
       200,
-      isAuthorizedRequest(context.req.raw, input.token)
+      authorized(context.req.raw)
         ? ({
             ...health,
             serverId: input.serverId,
@@ -80,7 +92,7 @@ export function createReviewServerApp(input: {
     );
   });
   app.use("*", async (context, next) => {
-    if (!isAuthorizedRequest(context.req.raw, input.token)) {
+    if (!authorized(context.req.raw)) {
       return serverJson(401, { ok: false, error: "Unauthorized" });
     }
 
@@ -119,6 +131,8 @@ export interface WhiteboardCoreInput {
   };
   relay: ReviewDesktopVerbRelay;
   token: string;
+  /** Defaults to `token`. */
+  access?: ReviewServerAccess;
   instanceId: string;
   softwareMapEnabled?: boolean;
   scratchpad: () => boolean;
@@ -132,6 +146,7 @@ export function createWhiteboardCore(input: WhiteboardCoreInput) {
 
   const app = createReviewServerApp({
     token: input.token,
+    access: input.access,
     instanceId: input.instanceId,
     serverId: store.serverId(),
     relay: input.relay,
