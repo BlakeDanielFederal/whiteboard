@@ -32,7 +32,7 @@ flowchart LR
   subgraph web["Browser diff library (vs/review/web)"]
     webdiff["createReviewWebDiff"]
     websvc["createReviewWebServices<br/>StandaloneServices + 7 stubs"]
-    tms["ReviewWebTextModelService"]
+    tms["ReviewWebTextModelService<br/>providers per scheme, newest first"]
     tm["ReviewWebTextMate<br/>TMGrammarFactory · TextMateTokenizationSupport"]
   end
 
@@ -42,6 +42,7 @@ flowchart LR
   webdiff --> factories
   websvc --> dvs
   tms --> provider
+  dvs -- "structural snapshots provider" --> tms
   websvc --> tm
   tm -- "grammars/*, onig.wasm (lazy)" --> assets[("bundle assets")]
 
@@ -117,9 +118,9 @@ flowchart LR
   end
 
   subgraph container["docker/Dockerfile (node:24-bookworm-slim)"]
-    host["whiteboard web --host 0.0.0.0<br/>DEV_REVIEW_SERVER_DIR=/data/server"]
+    host["whiteboard web --host 0.0.0.0 --software-maps<br/>DEV_REVIEW_SERVER_DIR=/data/server"]
     assets[("/opt/whiteboard/web")]
-    agents["claude · codex (Ask)"]
+    agents["claude · codex · opencode (Ask)"]
     diffr["diffr (structural diff)"]
     host --> assets
     host --> agents
