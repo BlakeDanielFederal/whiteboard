@@ -427,6 +427,8 @@ function ReviewLayoutContent({
 
   const diffViewAvailable = session.bridge.capabilities?.diffView !== false;
 
+  const sourceTreeAvailable = session.bridge.capabilities?.sourceTree !== false;
+
   const reviewViews = useMemo(
     () =>
       offeredReviewViews({
@@ -610,7 +612,7 @@ function ReviewLayoutContent({
                   shellStyles.topbarContext,
                 )}
               >
-                {!scratchpad && (
+                {!scratchpad && sourceTreeAvailable && (
                   <Button
                     variant="ghost"
                     xstyle={shellStyles.openSourceTree}

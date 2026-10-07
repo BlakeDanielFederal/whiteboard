@@ -56,6 +56,19 @@ const contracts: Array<[string, ZodType, JsonObject]> = [
     },
   ],
   [
+    "web runtime config",
+    ReviewRuntimeConfigSchema,
+    {
+      serverUrl: "http://192.168.1.20:8080",
+      reviewId: "review-1",
+      token: "",
+      wasmUrl: "http://192.168.1.20:8080/assets/libavoid.wasm",
+      appVersion: "0.0.13",
+      theme: "light",
+      host: "web",
+    },
+  ],
+  [
     "desktop discovery",
     ReviewDesktopDiscoverySchema,
     {

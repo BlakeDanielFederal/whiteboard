@@ -142,10 +142,17 @@ function CanvasShell({
 
 // The canvas shares the workbench DOM, so outside a session (which carries its
 // own theme bridge) the workbench root is the theme authority.
+/** Without a workbench, a page follows the browser's color-scheme preference. */
+const PREFERS_DARK = "(prefers-color-scheme: dark)";
+
 function workbenchColorTheme(container: HTMLElement): "dark" | "light" {
   const workbench = container.ownerDocument.querySelector(".monaco-workbench");
 
-  if (!workbench) return "dark";
+  if (!workbench)
+    return container.ownerDocument.defaultView?.matchMedia(PREFERS_DARK)
+      .matches === false
+      ? "light"
+      : "dark";
 
   return workbench.classList.contains("vs-dark") ||
     workbench.classList.contains("hc-black")
@@ -226,6 +233,16 @@ export function mountReviewCanvas(
           attributeFilter: ["class"],
         });
         themeSubscription = { dispose: () => observer.disconnect() };
+      } else {
+        const scheme =
+          container.ownerDocument.defaultView?.matchMedia(PREFERS_DARK);
+
+        const follow = () => applyTheme(workbenchColorTheme(container));
+
+        scheme?.addEventListener("change", follow);
+        themeSubscription = {
+          dispose: () => scheme?.removeEventListener("change", follow),
+        };
       }
     }
 

@@ -95,15 +95,33 @@ const loopbackOriginSchema = urlSchema("origin", (url) =>
     : "must use http://127.0.0.1:<port>",
 );
 
-export const ReviewRuntimeConfigSchema = z.strictObject({
-  serverUrl: loopbackOriginSchema,
+const httpOriginSchema = urlSchema("origin", (url) =>
+  url.protocol === "http:" || url.protocol === "https:"
+    ? null
+    : "must use http or https",
+);
+
+const reviewRuntimeConfigFields = {
   reviewId: requiredString,
   token: stringAllowEmpty,
   wasmUrl: absoluteUrlSchema,
   appVersion: requiredString.max(100),
   theme: reviewThemeSchema,
-  host: z.literal("desktop"),
-});
+};
+
+/** Desktop reaches its own server over loopback; a web page, the server that served it. */
+export const ReviewRuntimeConfigSchema = z.discriminatedUnion("host", [
+  z.strictObject({
+    ...reviewRuntimeConfigFields,
+    serverUrl: loopbackOriginSchema,
+    host: z.literal("desktop"),
+  }),
+  z.strictObject({
+    ...reviewRuntimeConfigFields,
+    serverUrl: httpOriginSchema,
+    host: z.literal("web"),
+  }),
+]);
 
 export type ReviewRuntimeConfig = z.infer<typeof ReviewRuntimeConfigSchema>;
 
@@ -328,6 +346,8 @@ export interface ReviewTooltipOptions {
 export interface ReviewCanvasCapabilities {
   /** The Diff view, with its lenses and commit-scoped diffs. */
   diffView?: boolean;
+  /** A window that browses the review's source tree. */
+  sourceTree?: boolean;
 }
 
 export interface ReviewCanvasBridge {

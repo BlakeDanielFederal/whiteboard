@@ -139,6 +139,56 @@ it("keeps the Diff view for a host that declares nothing, as Desktop does", asyn
   expect(tab(container, "Diff")?.getAttribute("aria-pressed")).toBe("true");
 });
 
+it("offers no Source tree to a host without one, and does to Desktop", async () => {
+  const sourceTree = (container: HTMLElement) =>
+    container.querySelector('[aria-label="Source tree ↗"]');
+
+  const web = await open({ sourceTree: false });
+
+  expect(sourceTree(web.container)).toBeNull();
+
+  await act(async () => canvas?.dispose());
+  canvas = undefined;
+  document.body.innerHTML = "";
+
+  const desktop = await open();
+
+  expect(sourceTree(desktop.container)).not.toBeNull();
+});
+
+it("follows the page's color scheme outside a review when no workbench hosts it", async () => {
+  const listeners = new Set<() => void>();
+  let dark = false;
+
+  vi.stubGlobal("matchMedia", () => ({
+    get matches() {
+      return dark;
+    },
+    addEventListener: (_type: string, listener: () => void) =>
+      listeners.add(listener),
+    removeEventListener: (_type: string, listener: () => void) =>
+      listeners.delete(listener),
+  }));
+
+  const container = document.createElement("div");
+  document.body.append(container);
+  await act(async () => {
+    canvas = mount(container, {
+      kind: "home",
+      reviews: [],
+      openReview() {},
+      openTutorial() {},
+    });
+  });
+
+  expect(container.dataset.reviewTheme).toBe("light");
+
+  dark = true;
+  await act(async () => listeners.forEach((listener) => listener()));
+
+  expect(container.dataset.reviewTheme).toBe("dark");
+});
+
 function tab(container: HTMLElement, label: string) {
   return container.querySelector<HTMLButtonElement>(
     `[aria-label="Session views"] button[aria-label="${label}"]`,
